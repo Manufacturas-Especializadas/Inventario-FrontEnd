@@ -33,3 +33,113 @@ export interface ApiProblemDetails {
 
     errors?: Record<string, string[]>;
 }
+
+//EPP CATEGORIAS
+
+export interface PPECategory {
+    id: number;
+    name: string;
+    description: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+export interface CreatePPECategoryRequest {
+    name: string;
+    description?: string | null;
+}
+
+export interface PPEProduct {
+    id: number;
+    sku: string;
+
+    categoryId: number;
+    categoryName: string;
+
+    name: string;
+    description: string | null;
+
+    size: string | null;
+    color: string | null;
+    model: string | null;
+    specification: string | null;
+
+    stockUnit: string;
+
+    minimumStock: number;
+
+    maxQuantityPerRequest: number | null;
+
+    replacementIntervalDays: number | null;
+
+    isActive: boolean;
+
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+export interface CreatePPEProductRequest {
+    categoryId: number;
+
+    name: string;
+
+    description?: string | null;
+
+    size?: string | null;
+
+    color?: string | null;
+
+    model?: string | null;
+
+    specification?: string | null;
+
+    stockUnit: string;
+
+    minimumStock: number;
+
+    maxQuantityPerRequest?: number | null;
+
+    replacementIntervalDays?: number | null;
+}
+
+//PROVEEDORES
+export interface Supplier {
+    id: number;
+    name: string;
+    isActive: boolean;
+}
+
+export interface CreateSupplierRequest {
+    name: string;
+}
+
+//Productos proveedor
+export interface ProductSupplier {
+    ppeProductId: number;
+    supplierId: number;
+
+    supplierProductCode: string | null;
+
+    purchaseUnit: string;
+    unitsPerPackage: number;
+
+    packageBarcode: string | null;
+
+    isPreferred: boolean;
+    isActive: boolean;
+}
+
+export interface CreateProductSupplierRequest {
+    ppeProductId: number;
+    supplierId: number;
+
+    supplierProductCode?: string | null;
+
+    purchaseUnit: string;
+    unitsPerPackage: number;
+
+    packageBarcode?: string | null;
+
+    isPreferred: boolean;
+}
