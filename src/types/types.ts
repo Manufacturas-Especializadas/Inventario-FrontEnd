@@ -264,3 +264,40 @@ export interface GoodsReceipt {
 
     items: GoodsReceiptItem[];
 }
+
+//Inventario cantidades estatus 
+export interface InventoryBalance {
+    warehouseId: number;
+    warehouseCode: string;
+    warehouseName: string;
+
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+    categoryName: string;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+
+    minimumStock: number;
+    isLowStock: boolean;
+}
+
+export interface LowStock {
+    warehouseId: number;
+    warehouseCode: string;
+    warehouseName: string;
+
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+    categoryName: string;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+
+    minimumStock: number;
+    shortageQuantity: number;
+}

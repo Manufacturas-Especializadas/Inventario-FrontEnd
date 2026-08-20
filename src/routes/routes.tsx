@@ -56,6 +56,10 @@ import {
     ReceivingPage,
 } from "../pages/ReceivingPage";
 
+import {
+    InventoryPage,
+} from "../pages/InventoryPage";
+
 export const AppRoutes = () => {
     return (
         <Routes>
@@ -109,10 +113,7 @@ export const AppRoutes = () => {
                     <Route
                         path="inventory"
                         element={
-                            <ModulePlaceholderPage
-                                title="Inventario"
-                                description="Consulta de existencias, reservas, disponibilidad, bajo stock y movimientos."
-                            />
+                            <InventoryPage />
                         }
                     />
 
