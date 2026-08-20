@@ -44,6 +44,18 @@ import {
     ProductSuppliersPage,
 } from "../pages/ProductSuppliersPage";
 
+import {
+    WarehousesPage,
+} from "../pages/WarehousesPage";
+
+import {
+    PurchaseOrdersPage,
+} from "../pages/PurchaseOrdersPage";
+
+import {
+    ReceivingPage,
+} from "../pages/ReceivingPage";
+
 export const AppRoutes = () => {
     return (
         <Routes>
@@ -118,10 +130,7 @@ export const AppRoutes = () => {
                         <Route
                             path="purchase-orders"
                             element={
-                                <ModulePlaceholderPage
-                                    title="Órdenes de compra"
-                                    description="Creación y consulta de órdenes de compra de EPP."
-                                />
+                                <PurchaseOrdersPage />
                             }
                         />
 
@@ -150,10 +159,7 @@ export const AppRoutes = () => {
                         <Route
                             path="receiving"
                             element={
-                                <ModulePlaceholderPage
-                                    title="Recepción de material"
-                                    description="Recepción de órdenes de compra y entrada de material al inventario."
-                                />
+                                <ReceivingPage />
                             }
                         />
 
@@ -199,6 +205,13 @@ export const AppRoutes = () => {
                             path="suppliers"
                             element={
                                 <SuppliersPage />
+                            }
+                        />
+
+                        <Route
+                            path="warehouses"
+                            element={
+                                <WarehousesPage />
                             }
                         />
 

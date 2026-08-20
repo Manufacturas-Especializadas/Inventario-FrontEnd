@@ -91,6 +91,14 @@ export const navigationItems: NavigationItem[] = [
     },
 
     {
+        label: "Almacenes",
+        path: "/warehouses",
+        roles: [
+            "Administrator",
+        ],
+    },
+
+    {
         label: "Administración",
         path: "/admin",
         roles: [
