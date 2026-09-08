@@ -59,6 +59,7 @@ import {
 import {
     InventoryPage,
 } from "../pages/InventoryPage";
+import { PPERequestsPage } from "../pages/PPERequestsPage";
 
 export const AppRoutes = () => {
     return (
@@ -138,10 +139,7 @@ export const AppRoutes = () => {
                         <Route
                             path="ppe-requests"
                             element={
-                                <ModulePlaceholderPage
-                                    title="Solicitudes EPP"
-                                    description="Creación y seguimiento de solicitudes de equipo para empleados."
-                                />
+                                <PPERequestsPage />
                             }
                         />
                     </Route>

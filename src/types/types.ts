@@ -69,14 +69,13 @@ export interface PPEProduct {
 
     minimumStock: number;
 
-    maxQuantityPerRequest: number | null;
+    defaultMaxQuantityPerCycle: number | null;
 
     replacementIntervalDays: number | null;
 
     isActive: boolean;
 
     createdAt: string;
-    updatedAt: string | null;
 }
 
 export interface CreatePPEProductRequest {
@@ -98,7 +97,7 @@ export interface CreatePPEProductRequest {
 
     minimumStock: number;
 
-    maxQuantityPerRequest?: number | null;
+    defaultMaxQuantityPerCycle?: number | null;
 
     replacementIntervalDays?: number | null;
 }
@@ -300,4 +299,176 @@ export interface LowStock {
 
     minimumStock: number;
     shortageQuantity: number;
+}
+
+// EMPLEADOS
+
+export interface Employee {
+    id: number;
+    employeeNumber: string;
+    name: string;
+
+    departmentId: number | null;
+    departmentName: string | null;
+
+    lineId: number | null;
+    lineName: string | null;
+
+    organizationalUnitId: number | null;
+    organizationalUnitName: string | null;
+    organizationalUnitType: OrganizationalUnitType | null;
+
+    isActive: boolean;
+    createdAt: string;
+}
+
+
+// UNIDADES ORGANIZACIONALES
+
+export type OrganizationalUnitType =
+    | 1 // Department
+    | 2 // Area
+    | 3 // Line
+    | 4 // Subarea
+    | 5; // Team
+
+export interface OrganizationalUnit {
+    id: number;
+    name: string;
+    description: string | null;
+    type: OrganizationalUnitType;
+
+    parentId: number | null;
+    parentName: string | null;
+
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+
+// MOTIVOS DE SOLICITUD
+
+export type RequestReasonCode =
+    | "INITIAL_ASSIGNMENT"
+    | "SCHEDULED_REPLACEMENT"
+    | "WEAR"
+    | "DAMAGE"
+    | "LOST"
+    | "JOB_CHANGE"
+    | "OTHER";
+
+export interface RequestReason {
+    id: number;
+    code: RequestReasonCode;
+    name: string;
+    description: string | null;
+}
+
+
+// PPE REQUESTS
+
+export type PPERequestStatus =
+    | 1 // Pending
+    | 2 // Delivered
+    | 3; // Cancelled
+
+export interface PPERequestItem {
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+    quantity: number;
+    replacementIntervalDays: number | null;
+}
+
+export interface PPERequest {
+    id: number;
+    folio: string;
+    status: PPERequestStatus;
+
+    employeeId: number;
+    employeeNumber: string;
+    employeeName: string;
+
+    requestedForOrganizationalUnitId: number | null;
+    requestedForOrganizationalUnitName: string | null;
+
+    warehouseId: number;
+    warehouseName: string;
+
+    requestReasonId: number;
+    requestReason: string;
+
+    notes: string | null;
+
+    createdAt: string;
+    deliveredAt: string | null;
+    cancelledAt: string | null;
+    cancellationReason: string | null;
+
+    items: PPERequestItem[];
+}
+
+
+// CREAR PPE REQUEST
+
+export interface CreatePPERequestItemRequest {
+    ppeProductId: number;
+    quantity: number;
+}
+
+export interface CreatePPERequestRequest {
+    employeeNumber: string;
+    requestedForOrganizationalUnitId: number;
+    warehouseId: number;
+    requestReasonId: number;
+    notes?: string | null;
+    items: CreatePPERequestItemRequest[];
+}
+
+
+// RESPUESTA AL CREAR PPE REQUEST
+
+export interface PPERequestWarning {
+    code: string;
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+    lastDeliveredAt: string;
+    nextEligibleDate: string;
+    message: string;
+}
+
+export interface CreatePPERequestResult {
+    request: PPERequest;
+    warnings: PPERequestWarning[];
+}
+
+export interface CancelPPERequestRequest {
+    cancellationReason: string;
+}
+
+export interface CancelledPPEItem {
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+
+    releasedQuantity: number;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+}
+
+export interface CancelPPERequestResult {
+    ppeRequestId: number;
+    folio: string;
+
+    employeeNumber: string;
+    employeeName: string;
+
+    cancelledAt: string;
+    cancellationReason: string;
+
+    items: CancelledPPEItem[];
 }

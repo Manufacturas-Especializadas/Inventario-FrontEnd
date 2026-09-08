@@ -92,8 +92,8 @@ export const PPEProductsPage = () => {
     ] = useState("0");
 
     const [
-        maxQuantityPerRequest,
-        setMaxQuantityPerRequest,
+        defaultMaxQuantityPerCycle,
+        setDefaultMaxQuantityPerCycle,
     ] = useState("");
 
     const [
@@ -123,7 +123,7 @@ export const PPEProductsPage = () => {
         setSpecification("");
         setStockUnit("Pieza");
         setMinimumStock("0");
-        setMaxQuantityPerRequest("");
+        setDefaultMaxQuantityPerCycle("");
         setReplacementIntervalDays("");
     };
 
@@ -216,11 +216,9 @@ export const PPEProductsPage = () => {
                         minimumStock:
                             minimum,
 
-                        maxQuantityPerRequest:
-                            maxQuantityPerRequest
-                                ? Number(
-                                    maxQuantityPerRequest
-                                )
+                        defaultMaxQuantityPerCycle:
+                            defaultMaxQuantityPerCycle
+                                ? Number(defaultMaxQuantityPerCycle)
                                 : null,
 
                         replacementIntervalDays:
@@ -434,17 +432,18 @@ export const PPEProductsPage = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700">
-                                Máximo por solicitud (Opcional)
+                                Cantidad Máximo por ciclo (Opcional)
                             </label>
 
                             <input
                                 type="number"
                                 min="1"
                                 value={
-                                    maxQuantityPerRequest
+                                    defaultMaxQuantityPerCycle
                                 }
+
                                 onChange={(event) =>
-                                    setMaxQuantityPerRequest(
+                                    setDefaultMaxQuantityPerCycle(
                                         event.target.value
                                     )
                                 }
