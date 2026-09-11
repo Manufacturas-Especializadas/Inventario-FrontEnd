@@ -130,6 +130,7 @@ export interface PPEProduct {
 
     sizeId: number | null;
     size: string | null;
+    colorId: number | null;
     color: string | null;
     model: string | null;
     specification: string | null;
@@ -158,7 +159,7 @@ export interface CreatePPEProductRequest {
 
     sizeId?: number | null;
 
-    color?: string | null;
+    colorId?: number | null;
 
     model?: string | null;
 
@@ -171,6 +172,24 @@ export interface CreatePPEProductRequest {
     defaultMaxQuantityPerCycle?: number | null;
 
     replacementIntervalDays?: number | null;
+}
+
+export interface UpdatePPEProductRequest {
+    categoryId: number;
+    name: string;
+    description?: string | null;
+    sizeId?: number | null;
+    colorId?: number | null;
+    model?: string | null;
+    specification?: string | null;
+    stockUnitId: number;
+    minimumStock: number;
+    defaultMaxQuantityPerCycle?: number | null;
+    replacementIntervalDays?: number | null;
+}
+
+export interface SetPPEProductStatusRequest {
+    isActive: boolean;
 }
 
 //PROVEEDORES
@@ -822,5 +841,25 @@ export interface UpdateProductSizeRequest {
 }
 
 export interface SetProductSizeStatusRequest {
+    isActive: boolean;
+}
+
+export interface ProductColor {
+    id: number;
+    name: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+export interface CreateProductColorRequest {
+    name: string;
+}
+
+export interface UpdateProductColorRequest {
+    name: string;
+}
+
+export interface SetProductColorStatusRequest {
     isActive: boolean;
 }

@@ -63,6 +63,15 @@ export const navigationItems: NavigationItem[] = [
     },
 
     {
+        label: "Colores",
+        path: "/colors",
+        group: "catalog",
+        roles: [
+            "Administrator",
+        ],
+    },
+
+    {
         label: "Productos",
         path: "/ppe-products",
         group: "catalog",

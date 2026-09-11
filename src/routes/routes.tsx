@@ -1,4 +1,9 @@
 import {
+    lazy,
+    Suspense,
+} from "react";
+
+import {
     Navigate,
     Route,
     Routes,
@@ -9,80 +14,146 @@ import {
 } from "../layouts/AppLayout";
 
 import {
-    DashboardPage,
-} from "../pages/DashboardPage";
-
-import {
-    LoginPage,
-} from "../pages/LoginPage";
-
-import {
-    ModulePlaceholderPage,
-} from "../pages/ModulePlaceholderPage";
-
-import {
-    UnauthorizedPage,
-} from "../pages/UnauthorizedPage";
-
-import {
     ProtectedRoute,
 } from "./ProtectedRoute";
 
-import {
-    PPECategoriesPage,
-} from "../pages/PPECategoriesPage";
+const DashboardPage = lazy(() =>
+    import("../pages/DashboardPage").then((module) => ({
+        default: module.DashboardPage,
+    }))
+);
 
-import {
-    PPEProductsPage,
-} from "../pages/PPEProductsPage";
+const LoginPage = lazy(() =>
+    import("../pages/LoginPage").then((module) => ({
+        default: module.LoginPage,
+    }))
+);
 
-import {
-    SuppliersPage,
-} from "../pages/SuppliersPage";
+const ModulePlaceholderPage = lazy(() =>
+    import("../pages/ModulePlaceholderPage").then((module) => ({
+        default: module.ModulePlaceholderPage,
+    }))
+);
 
-import {
-    ProductSuppliersPage,
-} from "../pages/ProductSuppliersPage";
+const UnauthorizedPage = lazy(() =>
+    import("../pages/UnauthorizedPage").then((module) => ({
+        default: module.UnauthorizedPage,
+    }))
+);
 
-import {
-    WarehousesPage,
-} from "../pages/WarehousesPage";
+const PPECategoriesPage = lazy(() =>
+    import("../pages/PPECategoriesPage").then((module) => ({
+        default: module.PPECategoriesPage,
+    }))
+);
 
-import {
-    PurchaseOrdersPage,
-} from "../pages/PurchaseOrdersPage";
+const PPEProductsPage = lazy(() =>
+    import("../pages/PPEProductsPage").then((module) => ({
+        default: module.PPEProductsPage,
+    }))
+);
 
-import {
-    ReceivingPage,
-} from "../pages/ReceivingPage";
+const SuppliersPage = lazy(() =>
+    import("../pages/SuppliersPage").then((module) => ({
+        default: module.SuppliersPage,
+    }))
+);
 
-import {
-    InventoryPage,
-} from "../pages/InventoryPage";
-import { PPERequestsPage } from "../pages/PPERequestsPage";
-import {
-    DeliveriesPage,
-} from "../pages/DeliveriesPage";
-import { InventoryCountsPage } from "../pages/InventoryCountsPage";
-import {
-    InventoryAdjustmentsPage,
-} from "../pages/InventoryAdjustmentsPage";
-import {
-    OrganizationalUnitsPage,
-} from "../pages/OrganizationalUnitsPage";
-import {
-    AuditLogsPage,
-} from "../pages/AuditLogsPage";
-import {
-    EmployeesPage,
-} from "../pages/EmployeesPage";
-import {
-    UsersPage,
-} from "../pages/UsersPage";
-import {
-    UnitsPage,
-} from "../pages/UnitsPage";
-import { SizesPage } from "../pages/SizesPage";
+const ProductSuppliersPage = lazy(() =>
+    import("../pages/ProductSuppliersPage").then((module) => ({
+        default: module.ProductSuppliersPage,
+    }))
+);
+
+const WarehousesPage = lazy(() =>
+    import("../pages/WarehousesPage").then((module) => ({
+        default: module.WarehousesPage,
+    }))
+);
+
+const PurchaseOrdersPage = lazy(() =>
+    import("../pages/PurchaseOrdersPage").then((module) => ({
+        default: module.PurchaseOrdersPage,
+    }))
+);
+
+const ReceivingPage = lazy(() =>
+    import("../pages/ReceivingPage").then((module) => ({
+        default: module.ReceivingPage,
+    }))
+);
+
+const InventoryPage = lazy(() =>
+    import("../pages/InventoryPage").then((module) => ({
+        default: module.InventoryPage,
+    }))
+);
+
+const PPERequestsPage = lazy(() =>
+    import("../pages/PPERequestsPage").then((module) => ({
+        default: module.PPERequestsPage,
+    }))
+);
+
+const DeliveriesPage = lazy(() =>
+    import("../pages/DeliveriesPage").then((module) => ({
+        default: module.DeliveriesPage,
+    }))
+);
+
+const InventoryCountsPage = lazy(() =>
+    import("../pages/InventoryCountsPage").then((module) => ({
+        default: module.InventoryCountsPage,
+    }))
+);
+
+const InventoryAdjustmentsPage = lazy(() =>
+    import("../pages/InventoryAdjustmentsPage").then((module) => ({
+        default: module.InventoryAdjustmentsPage,
+    }))
+);
+
+const OrganizationalUnitsPage = lazy(() =>
+    import("../pages/OrganizationalUnitsPage").then((module) => ({
+        default: module.OrganizationalUnitsPage,
+    }))
+);
+
+const AuditLogsPage = lazy(() =>
+    import("../pages/AuditLogsPage").then((module) => ({
+        default: module.AuditLogsPage,
+    }))
+);
+
+const EmployeesPage = lazy(() =>
+    import("../pages/EmployeesPage").then((module) => ({
+        default: module.EmployeesPage,
+    }))
+);
+
+const UsersPage = lazy(() =>
+    import("../pages/UsersPage").then((module) => ({
+        default: module.UsersPage,
+    }))
+);
+
+const UnitsPage = lazy(() =>
+    import("../pages/UnitsPage").then((module) => ({
+        default: module.UnitsPage,
+    }))
+);
+
+const SizesPage = lazy(() =>
+    import("../pages/SizesPage").then((module) => ({
+        default: module.SizesPage,
+    }))
+);
+
+const ColorsPage = lazy(() =>
+    import("../pages/ColorsPage").then((module) => ({
+        default: module.ColorsPage,
+    }))
+);
 
 export const AppRoutes = () => {
     return (
@@ -91,14 +162,30 @@ export const AppRoutes = () => {
             <Route
                 path="/login"
                 element={
-                    <LoginPage />
+                    <Suspense
+                        fallback={
+                            <div role="status" className="p-6 text-sm text-slate-500">
+                                Cargando módulo...
+                            </div>
+                        }
+                    >
+                        <LoginPage />
+                    </Suspense>
                 }
             />
 
             <Route
                 path="/unauthorized"
                 element={
-                    <UnauthorizedPage />
+                    <Suspense
+                        fallback={
+                            <div role="status" className="p-6 text-sm text-slate-500">
+                                Cargando módulo...
+                            </div>
+                        }
+                    >
+                        <UnauthorizedPage />
+                    </Suspense>
                 }
             />
 
@@ -235,6 +322,13 @@ export const AppRoutes = () => {
                             path="sizes"
                             element={
                                 <SizesPage />
+                            }
+                        />
+
+                        <Route
+                            path="colors"
+                            element={
+                                <ColorsPage />
                             }
                         />
 

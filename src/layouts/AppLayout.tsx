@@ -1,4 +1,5 @@
 import {
+    Suspense,
     useState,
 } from "react";
 
@@ -43,7 +44,15 @@ export const AppLayout = () => {
                 />
 
                 <main className="p-4 sm:p-6 lg:p-8">
-                    <Outlet />
+                    <Suspense
+                        fallback={
+                            <div role="status" className="p-6 text-sm text-slate-500">
+                                Cargando módulo...
+                            </div>
+                        }
+                    >
+                        <Outlet />
+                    </Suspense>
                 </main>
             </div>
         </div>

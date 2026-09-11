@@ -5,19 +5,19 @@ import {
 } from "react";
 
 import {
-    sizesService,
-} from "../api/services/sizesService";
+    colorsService,
+} from "../api/services/colorsService";
 
 import {
     useAuth,
 } from "../hooks/useAuth";
 
 import {
-    useSizes,
-} from "../hooks/useSizes";
+    useColors,
+} from "../hooks/useColors";
 
 import type {
-    ProductSize,
+    ProductColor,
 } from "../types/types";
 
 import {
@@ -36,13 +36,13 @@ const normalizeText = (
         .trim()
         .toLocaleLowerCase("es");
 
-export const SizesPage = () => {
+export const ColorsPage = () => {
     const {
-        sizes,
+        colors,
         loading,
         error,
         refresh,
-    } = useSizes();
+    } = useColors();
 
     const {
         hasRole,
@@ -57,8 +57,8 @@ export const SizesPage = () => {
     ] = useState("");
 
     const [
-        editingSizeId,
-        setEditingSizeId,
+        editingColorId,
+        setEditingColorId,
     ] = useState<number | null>(
         null
     );
@@ -111,40 +111,40 @@ export const SizesPage = () => {
     const summary =
         useMemo(() => {
             const active =
-                sizes.filter(
-                    (size) =>
-                        size.isActive
+                colors.filter(
+                    (color) =>
+                        color.isActive
                 ).length;
 
             return {
-                total: sizes.length,
+                total: colors.length,
                 active,
                 inactive:
-                    sizes.length -
+                    colors.length -
                     active,
             };
-        }, [sizes]);
+        }, [colors]);
 
-    const filteredSizes =
+    const filteredColors =
         useMemo(() => {
             const normalizedSearch =
                 normalizeText(search);
 
-            return sizes
-                .filter((size) => {
+            return colors
+                .filter((color) => {
                     const matchesStatus =
                         statusFilter ===
                         "all" ||
                         (
                             statusFilter ===
                                 "active"
-                                ? size.isActive
-                                : !size.isActive
+                                ? color.isActive
+                                : !color.isActive
                         );
 
                     const matchesSearch =
                         normalizeText(
-                            size.name
+                            color.name
                         ).includes(
                             normalizedSearch
                         );
@@ -175,12 +175,12 @@ export const SizesPage = () => {
                         )
                 );
         }, [
-            sizes,
+            colors,
             search,
             statusFilter,
         ]);
 
-    const duplicateSize =
+    const duplicateColor =
         useMemo(() => {
             const normalizedName =
                 normalizeText(name);
@@ -189,36 +189,36 @@ export const SizesPage = () => {
                 return undefined;
             }
 
-            return sizes.find(
-                (size) =>
-                    size.id !==
-                    editingSizeId &&
+            return colors.find(
+                (color) =>
+                    color.id !==
+                    editingColorId &&
                     normalizeText(
-                        size.name
+                        color.name
                     ) ===
                     normalizedName
             );
         }, [
-            sizes,
+            colors,
             name,
-            editingSizeId,
+            editingColorId,
         ]);
 
     const resetForm = () => {
         setName("");
-        setEditingSizeId(null);
+        setEditingColorId(null);
         setFormError(null);
     };
 
     const startEditing = (
-        size: ProductSize
+        color: ProductColor
     ) => {
-        setEditingSizeId(
-            size.id
+        setEditingColorId(
+            color.id
         );
 
         setName(
-            size.name
+            color.name
         );
 
         setFormError(null);
@@ -268,15 +268,15 @@ export const SizesPage = () => {
 
             if (!trimmedName) {
                 setFormError(
-                    "El nombre de la talla es obligatorio."
+                    "El nombre del color es obligatorio."
                 );
 
                 return;
             }
 
-            if (duplicateSize) {
+            if (duplicateColor) {
                 setFormError(
-                    `Ya existe una talla llamada "${duplicateSize.name}".`
+                    `Ya existe un color llamado "${duplicateColor.name}".`
                 );
 
                 return;
@@ -286,13 +286,13 @@ export const SizesPage = () => {
 
             try {
                 if (
-                    editingSizeId !==
+                    editingColorId !==
                     null
                 ) {
-                    const updatedSize =
-                        await sizesService
+                    const updatedColor =
+                        await colorsService
                             .update(
-                                editingSizeId,
+                                editingColorId,
                                 {
                                     name:
                                         trimmedName,
@@ -304,11 +304,11 @@ export const SizesPage = () => {
                     resetForm();
 
                     setSuccessMessage(
-                        `Talla "${updatedSize.name}" actualizada correctamente.`
+                        `Color "${updatedColor.name}" actualizado correctamente.`
                     );
                 } else {
-                    const createdSize =
-                        await sizesService
+                    const createdColor =
+                        await colorsService
                             .create({
                                 name:
                                     trimmedName,
@@ -319,17 +319,17 @@ export const SizesPage = () => {
                     resetForm();
 
                     setSuccessMessage(
-                        `Talla "${createdSize.name}" creada correctamente.`
+                        `Color "${createdColor.name}" creado correctamente.`
                     );
                 }
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
                         error,
-                        editingSizeId !==
+                        editingColorId !==
                             null
-                            ? "No fue posible actualizar la talla."
-                            : "No fue posible crear la talla."
+                            ? "No fue posible actualizar el color."
+                            : "No fue posible crear el color."
                     )
                 );
             } finally {
@@ -339,7 +339,7 @@ export const SizesPage = () => {
 
     const handleStatusChange =
         async (
-            size: ProductSize
+            color: ProductColor
         ) => {
             if (
                 !isAdministrator ||
@@ -353,35 +353,35 @@ export const SizesPage = () => {
             setSuccessMessage(null);
 
             setChangingStatusId(
-                size.id
+                color.id
             );
 
             try {
-                const updatedSize =
-                    await sizesService
+                const updatedColor =
+                    await colorsService
                         .setStatus(
-                            size.id,
+                            color.id,
                             {
                                 isActive:
-                                    !size.isActive,
+                                    !color.isActive,
                             }
                         );
 
                 await refresh();
 
                 setSuccessMessage(
-                    `Talla "${updatedSize.name}" ${updatedSize.isActive
-                        ? "activada"
-                        : "desactivada"
+                    `Color "${updatedColor.name}" ${updatedColor.isActive
+                        ? "activado"
+                        : "desactivado"
                     } correctamente.`
                 );
             } catch (error) {
                 setActionError(
                     getApiErrorMessage(
                         error,
-                        size.isActive
-                            ? "No fue posible desactivar la talla."
-                            : "No fue posible activar la talla."
+                        color.isActive
+                            ? "No fue posible desactivar el color."
+                            : "No fue posible activar el color."
                     )
                 );
             } finally {
@@ -399,11 +399,11 @@ export const SizesPage = () => {
                 </p>
 
                 <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Tallas de producto
+                    Colores de producto
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                    Administra las tallas disponibles
+                    Administra los colores disponibles
                     para los productos de inventario.
                 </p>
             </div>
@@ -411,15 +411,15 @@ export const SizesPage = () => {
             {isAdministrator && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <h2 className="text-lg font-semibold text-slate-900">
-                        {editingSizeId !== null
-                            ? "Editar talla"
-                            : "Nueva talla"}
+                        {editingColorId !== null
+                            ? "Editar color"
+                            : "Nuevo color"}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        {editingSizeId !== null
-                            ? "Modifica el nombre de la talla seleccionada."
-                            : "Registra una talla que podrá utilizarse en los productos."}
+                        {editingColorId !== null
+                            ? "Modifica el nombre del color seleccionado."
+                            : "Registra un color que podrá utilizarse en los productos."}
                     </p>
 
                     {successMessage && (
@@ -439,14 +439,14 @@ export const SizesPage = () => {
                     >
                         <div>
                             <label
-                                htmlFor="size-name"
+                                htmlFor="color-name"
                                 className="block text-sm font-medium text-slate-700"
                             >
                                 Nombre
                             </label>
 
                             <input
-                                id="size-name"
+                                id="color-name"
                                 value={name}
                                 onChange={(
                                     event
@@ -468,17 +468,16 @@ export const SizesPage = () => {
                                 disabled={
                                     isSubmitting
                                 }
-                                placeholder="Ej. Chica, Mediana, Grande, XL"
+                                placeholder="Ej. Negro, Azul, Rojo, Amarillo"
                                 autoComplete="off"
                                 className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
 
-                            {duplicateSize && (
+                            {duplicateColor && (
                                 <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-800">
-                                    Ya existe la
-                                    talla "
+                                    Ya existe el color "
                                     {
-                                        duplicateSize.name
+                                        duplicateColor.name
                                     }
                                     ".
                                 </p>
@@ -495,7 +494,7 @@ export const SizesPage = () => {
                         )}
 
                         <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
-                            {editingSizeId !==
+                            {editingColorId !==
                                 null && (
                                     <button
                                         type="button"
@@ -516,17 +515,17 @@ export const SizesPage = () => {
                                 disabled={
                                     isSubmitting ||
                                     Boolean(
-                                        duplicateSize
+                                        duplicateColor
                                     )
                                 }
                                 className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                             >
                                 {isSubmitting
                                     ? "Guardando..."
-                                    : editingSizeId !==
+                                    : editingColorId !==
                                         null
                                         ? "Guardar cambios"
-                                        : "Crear talla"}
+                                        : "Crear Color"}
                             </button>
                         </div>
                     </form>
@@ -576,16 +575,16 @@ export const SizesPage = () => {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h2 className="text-lg font-semibold text-slate-900">
-                                Tallas registradas
+                                Colores registrados
                             </h2>
 
                             {!loading &&
                                 !error && (
                                     <p className="mt-1 text-sm text-slate-500">
                                         {
-                                            filteredSizes.length
+                                            filteredColors.length
                                         }{" "}
-                                        {filteredSizes.length ===
+                                        {filteredColors.length ===
                                             1
                                             ? "resultado"
                                             : "resultados"}
@@ -597,14 +596,14 @@ export const SizesPage = () => {
                     <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row sm:items-end">
                         <div className="min-w-0 flex-1">
                             <label
-                                htmlFor="size-search"
+                                htmlFor="color-search"
                                 className="block text-sm font-medium text-slate-700"
                             >
                                 Buscar
                             </label>
 
                             <input
-                                id="size-search"
+                                id="color-search"
                                 type="search"
                                 value={search}
                                 onChange={(
@@ -616,21 +615,21 @@ export const SizesPage = () => {
                                             .value
                                     )
                                 }
-                                placeholder="Nombre de la talla"
+                                placeholder="Nombre del color"
                                 className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none sm:text-sm"
                             />
                         </div>
 
                         <div className="sm:w-48 sm:shrink-0">
                             <label
-                                htmlFor="size-status"
+                                htmlFor="color-status"
                                 className="block text-sm font-medium text-slate-700"
                             >
                                 Estado
                             </label>
 
                             <select
-                                id="size-status"
+                                id="color-status"
                                 value={
                                     statusFilter
                                 }
@@ -686,7 +685,7 @@ export const SizesPage = () => {
 
                 {loading && (
                     <div className="p-6 text-sm text-slate-500">
-                        Cargando tallas...
+                        Cargando colores...
                     </div>
                 )}
 
@@ -699,20 +698,20 @@ export const SizesPage = () => {
 
                 {!loading &&
                     !error &&
-                    sizes.length === 0 && (
+                    colors.length === 0 && (
                         <div className="p-8 text-center text-sm text-slate-500">
-                            No hay tallas
-                            registradas.
+                            No hay colores
+                            registrados.
                         </div>
                     )}
 
                 {!loading &&
                     !error &&
-                    sizes.length > 0 &&
-                    filteredSizes.length ===
+                    colors.length > 0 &&
+                    filteredColors.length ===
                     0 && (
                         <div className="p-8 text-center text-sm text-slate-500">
-                            No hay tallas que
+                            No hay colores que
                             coincidan con los
                             filtros.
                         </div>
@@ -720,13 +719,13 @@ export const SizesPage = () => {
 
                 {!loading &&
                     !error &&
-                    filteredSizes.length >
+                    filteredColors.length >
                     0 && (
                         <div
                             className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
                             tabIndex={0}
                             role="region"
-                            aria-label="Tallas registradas"
+                            aria-label="Colores registrados"
                         >
                             <table className="w-full min-w-150 text-left text-sm">
                                 <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
@@ -748,30 +747,30 @@ export const SizesPage = () => {
                                 </thead>
 
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredSizes.map(
+                                    {filteredColors.map(
                                         (
-                                            size
+                                            color
                                         ) => (
                                             <tr
                                                 key={
-                                                    size.id
+                                                    color.id
                                                 }
                                                 className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
                                             >
                                                 <td className="px-6 py-5 font-semibold text-slate-900">
                                                     {
-                                                        size.name
+                                                        color.name
                                                     }
                                                 </td>
 
                                                 <td className="px-6 py-5">
                                                     <span
-                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${size.isActive
-                                                                ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                                : "bg-slate-100 text-slate-600 ring-slate-200"
+                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${color.isActive
+                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
                                                             }`}
                                                     >
-                                                        {size.isActive
+                                                        {color.isActive
                                                             ? "Activo"
                                                             : "Inactivo"}
                                                     </span>
@@ -784,7 +783,7 @@ export const SizesPage = () => {
                                                                 type="button"
                                                                 onClick={() =>
                                                                     startEditing(
-                                                                        size
+                                                                        color
                                                                     )
                                                                 }
                                                                 disabled={
@@ -802,7 +801,7 @@ export const SizesPage = () => {
                                                                 type="button"
                                                                 onClick={() =>
                                                                     void handleStatusChange(
-                                                                        size
+                                                                        color
                                                                     )
                                                                 }
                                                                 disabled={
@@ -810,15 +809,15 @@ export const SizesPage = () => {
                                                                     null ||
                                                                     isSubmitting
                                                                 }
-                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${size.isActive
-                                                                        ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                        : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
+                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${color.isActive
+                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
+                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
                                                                     }`}
                                                             >
                                                                 {changingStatusId ===
-                                                                    size.id
+                                                                    color.id
                                                                     ? "Guardando..."
-                                                                    : size.isActive
+                                                                    : color.isActive
                                                                         ? "Desactivar"
                                                                         : "Activar"}
                                                             </button>

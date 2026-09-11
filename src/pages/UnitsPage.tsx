@@ -437,7 +437,7 @@ export const UnitsPage = () => {
             </div>
 
             {isAdministrator && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <h2 className="text-lg font-semibold text-slate-900">
                         {editingUnitId !== null
                             ? "Editar unidad"
@@ -453,7 +453,7 @@ export const UnitsPage = () => {
                     {successMessage && (
                         <div
                             role="status"
-                            className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                            className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800"
                         >
                             {successMessage}
                         </div>
@@ -494,11 +494,11 @@ export const UnitsPage = () => {
                                 }
                                 placeholder="Ej. Pieza, Caja, Par"
                                 autoComplete="off"
-                                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
 
                             {duplicateUnit && (
-                                <p className="mt-2 text-sm text-amber-700">
+                                <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-800">
                                     Ya existe la
                                     unidad "
                                     {
@@ -541,14 +541,14 @@ export const UnitsPage = () => {
                                 }
                                 placeholder="Ej. pza, cj, par"
                                 autoComplete="off"
-                                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
                         </div>
 
                         {formError && (
                             <div
                                 role="alert"
-                                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2"
+                                className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 md:col-span-2"
                             >
                                 {formError}
                             </div>
@@ -579,7 +579,7 @@ export const UnitsPage = () => {
                                         duplicateUnit
                                     )
                                 }
-                                className="rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                                className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                             >
                                 {isSubmitting
                                     ? "Guardando..."
@@ -593,8 +593,8 @@ export const UnitsPage = () => {
                 </section>
             )}
 
-            <dl className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5">
+            <dl className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
+                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                     <dt className="text-sm text-slate-600">
                         Total
                     </dt>
@@ -606,7 +606,7 @@ export const UnitsPage = () => {
                     </dd>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5">
+                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                     <dt className="text-sm text-slate-600">
                         Activas
                     </dt>
@@ -618,7 +618,7 @@ export const UnitsPage = () => {
                     </dd>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5">
+                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                     <dt className="text-sm text-slate-600">
                         Inactivas
                     </dt>
@@ -631,7 +631,7 @@ export const UnitsPage = () => {
                 </div>
             </dl>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="border-b border-slate-200 p-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -654,7 +654,7 @@ export const UnitsPage = () => {
                         </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row">
                         <div className="flex-1">
                             <label
                                 htmlFor="unit-search"
@@ -677,7 +677,7 @@ export const UnitsPage = () => {
                                     )
                                 }
                                 placeholder="Nombre o símbolo"
-                                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
                         </div>
 
@@ -703,7 +703,7 @@ export const UnitsPage = () => {
                                             .value as StatusFilter
                                     )
                                 }
-                                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             >
                                 <option value="all">
                                     Todas
@@ -738,7 +738,7 @@ export const UnitsPage = () => {
                 {actionError && (
                     <div
                         role="alert"
-                        className="m-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                        className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
                     >
                         {actionError}
                     </div>
@@ -830,9 +830,9 @@ export const UnitsPage = () => {
 
                                                 <td className="px-6 py-5">
                                                     <span
-                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${unit.isActive
-                                                                ? "bg-emerald-50 text-emerald-800"
-                                                                : "bg-slate-100 text-slate-600"
+                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${unit.isActive
+                                                                ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                                                                : "bg-slate-100 text-slate-600 ring-slate-200"
                                                             }`}
                                                     >
                                                         {unit.isActive
@@ -856,7 +856,7 @@ export const UnitsPage = () => {
                                                                     changingStatusId !==
                                                                     null
                                                                 }
-                                                                className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                                                             >
                                                                 Editar
                                                             </button>
@@ -873,9 +873,9 @@ export const UnitsPage = () => {
                                                                     null ||
                                                                     isSubmitting
                                                                 }
-                                                                className={`rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50 ${unit.isActive
-                                                                        ? "border-red-200 text-red-700"
-                                                                        : "border-emerald-200 text-emerald-700"
+                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${unit.isActive
+                                                                        ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
+                                                                        : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
                                                                     }`}
                                                             >
                                                                 {changingStatusId ===
