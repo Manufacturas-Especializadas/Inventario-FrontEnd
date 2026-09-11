@@ -82,6 +82,7 @@ import {
 import {
     UnitsPage,
 } from "../pages/UnitsPage";
+import { SizesPage } from "../pages/SizesPage";
 
 export const AppRoutes = () => {
     return (
@@ -227,6 +228,13 @@ export const AppRoutes = () => {
                             path="units"
                             element={
                                 <UnitsPage />
+                            }
+                        />
+
+                        <Route
+                            path="sizes"
+                            element={
+                                <SizesPage />
                             }
                         />
 

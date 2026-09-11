@@ -54,6 +54,15 @@ export const navigationItems: NavigationItem[] = [
     },
 
     {
+        label: "Tallas",
+        path: "/sizes",
+        group: "catalog",
+        roles: [
+            "Administrator",
+        ],
+    },
+
+    {
         label: "Productos",
         path: "/ppe-products",
         group: "catalog",

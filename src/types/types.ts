@@ -128,6 +128,7 @@ export interface PPEProduct {
     name: string;
     description: string | null;
 
+    sizeId: number | null;
     size: string | null;
     color: string | null;
     model: string | null;
@@ -155,7 +156,7 @@ export interface CreatePPEProductRequest {
 
     description?: string | null;
 
-    size?: string | null;
+    sizeId?: number | null;
 
     color?: string | null;
 
@@ -799,5 +800,27 @@ export interface UpdateUnitOfMeasureRequest {
 }
 
 export interface SetUnitOfMeasureStatusRequest {
+    isActive: boolean;
+}
+
+// TALLAS
+
+export interface ProductSize {
+    id: number;
+    name: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string | null;
+}
+
+export interface CreateProductSizeRequest {
+    name: string;
+}
+
+export interface UpdateProductSizeRequest {
+    name: string;
+}
+
+export interface SetProductSizeStatusRequest {
     isActive: boolean;
 }

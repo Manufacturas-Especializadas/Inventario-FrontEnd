@@ -26,10 +26,19 @@ import {
 import {
     useUnits,
 } from "../hooks/useUnits";
+import {
+    useSizes,
+} from "../hooks/useSizes";
 
 type StatusFilter = "all" | "active" | "inactive";
-type ProductFormField = "category" | "name" | "stock-unit" | "minimum-stock" | "max-cycle" | "replacement-days";
-
+type ProductFormField =
+    | "category"
+    | "name"
+    | "size"
+    | "stock-unit"
+    | "minimum-stock"
+    | "max-cycle"
+    | "replacement-days";
 const normalizeProductText = (value: string | null) =>
     (value ?? "").trim().toLocaleLowerCase("es");
 
@@ -53,6 +62,12 @@ export const PPEProductsPage = () => {
         loading: loadingUnits,
         error: unitsError,
     } = useUnits();
+
+    const {
+        activeSizes,
+        loading: loadingSizes,
+        error: sizesError,
+    } = useSizes();
 
     const {
         hasRole,
@@ -79,8 +94,8 @@ export const PPEProductsPage = () => {
     ] = useState("");
 
     const [
-        size,
-        setSize,
+        sizeId,
+        setSizeId,
     ] = useState("");
 
     const [
@@ -177,15 +192,44 @@ export const PPEProductsPage = () => {
             return undefined;
         }
 
-        return products.find((product) => product.categoryId === Number(categoryId) &&
-            normalizeProductText(product.name) === normalizeProductText(name) &&
-            normalizeProductText(product.size) === normalizeProductText(size) &&
-            normalizeProductText(product.color) === normalizeProductText(color) &&
-            normalizeProductText(product.model) === normalizeProductText(model) &&
-            normalizeProductText(product.specification) === normalizeProductText(specification) &&
-            normalizeProductText(product.stockUnit) === normalizeProductText(stockUnitId));
-    }, [products, categoryId, name, size, color, model, specification, stockUnitId]);
+        const selectedSizeId =
+            sizeId
+                ? Number(sizeId)
+                : null;
 
+        return products.find(
+            (product) =>
+                product.categoryId ===
+                Number(categoryId) &&
+
+                normalizeProductText(product.name) ===
+                normalizeProductText(name) &&
+
+                product.sizeId ===
+                selectedSizeId &&
+
+                normalizeProductText(product.color) ===
+                normalizeProductText(color) &&
+
+                normalizeProductText(product.model) ===
+                normalizeProductText(model) &&
+
+                normalizeProductText(product.specification) ===
+                normalizeProductText(specification) &&
+
+                product.stockUnitId ===
+                Number(stockUnitId)
+        );
+    }, [
+        products,
+        categoryId,
+        name,
+        sizeId,
+        color,
+        model,
+        specification,
+        stockUnitId,
+    ]);
     const hasFilters = search.length > 0 || statusFilter !== "all" || categoryFilter !== "";
 
     const clearFilters = () => {
@@ -204,7 +248,7 @@ export const PPEProductsPage = () => {
         setCategoryId("");
         setName("");
         setDescription("");
-        setSize("");
+        setSizeId("");
         setColor("");
         setModel("");
         setSpecification("");
@@ -239,6 +283,21 @@ export const PPEProductsPage = () => {
             if (!name.trim()) {
                 reportFormError(
                     "name", "El nombre del producto es obligatorio."
+                );
+
+                return;
+            }
+
+            if (
+                sizeId &&
+                !activeSizes.some(
+                    (size) =>
+                        size.id === Number(sizeId)
+                )
+            ) {
+                reportFormError(
+                    "size",
+                    "Selecciona una talla activa."
                 );
 
                 return;
@@ -304,9 +363,10 @@ export const PPEProductsPage = () => {
                             description.trim() ||
                             null,
 
-                        size:
-                            size.trim() ||
-                            null,
+                        sizeId:
+                            sizeId
+                                ? Number(sizeId)
+                                : null,
 
                         color:
                             color.trim() ||
@@ -541,22 +601,58 @@ export const PPEProductsPage = () => {
                                 <h3 className="text-sm font-semibold text-slate-800">Características y variantes</h3>
                             </div>
                             <div>
-                                <label htmlFor="product-size" className="block text-sm font-medium text-slate-700">
+                                <label
+                                    htmlFor="product-size"
+                                    className="block text-sm font-medium text-slate-700"
+                                >
                                     Talla / tamaño
                                 </label>
 
-                                <input
+                                <select
                                     id="product-size"
-                                    autoComplete="off"
-                                    value={size}
+                                    aria-invalid={
+                                        invalidField === "size"
+                                    }
+                                    aria-describedby={
+                                        invalidField === "size"
+                                            ? "product-form-error"
+                                            : undefined
+                                    }
+                                    value={sizeId}
                                     onChange={(event) =>
-                                        setSize(
+                                        setSizeId(
                                             event.target.value
                                         )
                                     }
-                                    placeholder="Ej. M, L, 10"
+                                    disabled={
+                                        loadingSizes ||
+                                        isSubmitting
+                                    }
                                     className="mt-2 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 transition-colors focus:border-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-100 aria-invalid:border-amber-500 aria-invalid:bg-amber-50/50 aria-invalid:focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                />
+                                >
+                                    <option value="">
+                                        {loadingSizes
+                                            ? "Cargando tallas..."
+                                            : "Sin talla"}
+                                    </option>
+
+                                    {activeSizes.map(
+                                        (size) => (
+                                            <option
+                                                key={size.id}
+                                                value={size.id}
+                                            >
+                                                {size.name}
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+
+                                {sizesError && (
+                                    <p className="mt-1 text-xs text-red-600">
+                                        {sizesError}
+                                    </p>
+                                )}
                             </div>
 
                             <div>
