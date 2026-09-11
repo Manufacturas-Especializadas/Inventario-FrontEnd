@@ -23,6 +23,61 @@ export interface AuthUser {
     roles: UserRole[];
 }
 
+// ADMINISTRACIÓN DE USUARIOS
+
+export interface AdminUser {
+    id: number;
+
+    employeeId: number;
+    employeeNumber: string;
+    employeeName: string;
+
+    username: string;
+
+    roles: UserRole[];
+
+    isActive: boolean;
+    employeeIsActive: boolean;
+
+    lastLoginAt: string | null;
+
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+
+export interface CreateUserRequest {
+    employeeNumber: string;
+    username: string;
+    password: string;
+    roles: UserRole[];
+}
+
+
+export interface CreateUserResponse {
+    userId: number;
+}
+
+
+export interface UpdateUserRequest {
+    username: string;
+}
+
+
+export interface SetUserRolesRequest {
+    roles: UserRole[];
+}
+
+
+export interface ResetUserPasswordRequest {
+    newPassword: string;
+}
+
+
+export interface SetUserStatusRequest {
+    isActive: boolean;
+}
+
 export interface ApiProblemDetails {
     type?: string;
     title?: string;
@@ -36,18 +91,31 @@ export interface ApiProblemDetails {
 
 //EPP CATEGORIAS
 
+// EPP CATEGORÍAS
+
 export interface PPECategory {
     id: number;
     name: string;
     description: string | null;
     isActive: boolean;
     createdAt: string;
-    updatedAt: string | null;
+
+    // El backend actual no lo devuelve todavía.
+    updatedAt?: string | null;
 }
 
 export interface CreatePPECategoryRequest {
     name: string;
     description?: string | null;
+}
+
+export interface UpdatePPECategoryRequest {
+    name: string;
+    description?: string | null;
+}
+
+export interface SetPPECategoryStatusRequest {
+    isActive: boolean;
 }
 
 export interface PPEProduct {
@@ -65,7 +133,9 @@ export interface PPEProduct {
     model: string | null;
     specification: string | null;
 
+    stockUnitId: number;
     stockUnit: string;
+    stockUnitSymbol: string | null;
 
     minimumStock: number;
 
@@ -93,7 +163,7 @@ export interface CreatePPEProductRequest {
 
     specification?: string | null;
 
-    stockUnit: string;
+    stockUnitId: number;
 
     minimumStock: number;
 
@@ -120,7 +190,10 @@ export interface ProductSupplier {
 
     supplierProductCode: string | null;
 
+    purchaseUnitId: number;
     purchaseUnit: string;
+    purchaseUnitSymbol: string | null;
+
     unitsPerPackage: number;
 
     packageBarcode: string | null;
@@ -135,7 +208,7 @@ export interface CreateProductSupplierRequest {
 
     supplierProductCode?: string | null;
 
-    purchaseUnit: string;
+    purchaseUnitId: number;
     unitsPerPackage: number;
 
     packageBarcode?: string | null;
@@ -322,6 +395,23 @@ export interface Employee {
     createdAt: string;
 }
 
+export interface CreateEmployeeRequest {
+    employeeNumber: string;
+    name: string;
+    organizationalUnitId: number;
+}
+
+export interface UpdateEmployeeRequest {
+    id: number;
+    employeeNumber: string;
+    name: string;
+    organizationalUnitId: number;
+}
+
+export interface SetEmployeeStatusRequest {
+    isActive: boolean;
+}
+
 
 // UNIDADES ORGANIZACIONALES
 
@@ -471,4 +561,243 @@ export interface CancelPPERequestResult {
     cancellationReason: string;
 
     items: CancelledPPEItem[];
+}
+
+export interface DeliverPPERequestRequest {
+    employeeNumber: string;
+}
+
+export interface DeliveredPPEItem {
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+
+    deliveredQuantity: number;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+}
+
+export interface DeliverPPERequestResult {
+    ppeRequestId: number;
+    folio: string;
+
+    employeeNumber: string;
+    employeeName: string;
+
+    warehouseId: number;
+    warehouseName: string;
+
+    deliveredAt: string;
+
+    items: DeliveredPPEItem[];
+}
+
+// CONTEOS FÍSICOS
+
+export type InventoryCountStatus =
+    | 1 // Draft
+    | 2 // PendingReview
+    | 3 // Posted
+    | 4; // Cancelled
+
+export interface InventoryCountItem {
+    id: number;
+
+    ppeProductId: number;
+
+    sku: string;
+    productName: string;
+    categoryName: string;
+
+    countedQuantity: number | null;
+
+    systemQuantity: number | null;
+    variance: number | null;
+
+    countedAt: string | null;
+}
+
+export interface InventoryCount {
+    id: number;
+
+    folio: string;
+
+    warehouseId: number;
+    warehouseCode: string;
+    warehouseName: string;
+
+    status: InventoryCountStatus;
+
+    notes: string | null;
+
+    createdAt: string;
+
+    submittedAt: string | null;
+    postedAt: string | null;
+
+    items: InventoryCountItem[];
+}
+
+export interface StartInventoryCountRequest {
+    warehouseId: number;
+    notes?: string | null;
+}
+
+export interface CaptureInventoryCountItemRequest {
+    countedQuantity: number;
+}
+
+// AJUSTES MANUALES DE INVENTARIO
+
+export interface InventoryAdjustmentItem {
+    ppeProductId: number;
+
+    sku: string;
+    productName: string;
+
+    quantityAdjustment: number;
+
+    previousOnHandQuantity: number;
+    newOnHandQuantity: number;
+
+    reservedQuantity: number;
+    availableQuantity: number;
+}
+
+export interface InventoryAdjustment {
+    id: number;
+
+    folio: string;
+
+    warehouseId: number;
+    warehouseCode: string;
+    warehouseName: string;
+
+    reason: string;
+
+    createdByUserId: number;
+    createdAt: string;
+
+    items: InventoryAdjustmentItem[];
+}
+
+export interface CreateInventoryAdjustmentItemRequest {
+    ppeProductId: number;
+    quantityAdjustment: number;
+}
+
+export interface CreateInventoryAdjustmentRequest {
+    warehouseId: number;
+    reason: string;
+    items: CreateInventoryAdjustmentItemRequest[];
+}
+export interface CreateOrganizationalUnitRequest {
+    name: string;
+    description?: string | null;
+    type: OrganizationalUnitType;
+    parentId?: number | null;
+}
+
+
+// LÍMITES EPP POR UNIDAD ORGANIZACIONAL
+
+export interface OrganizationalUnitPPELimit {
+    id: number;
+
+    organizationalUnitId: number;
+    organizationalUnitName: string;
+
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+
+    maxQuantityPerCycle: number;
+
+    isActive: boolean;
+
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+
+export interface SetOrganizationalUnitPPELimitRequest {
+    organizationalUnitId: number;
+    ppeProductId: number;
+
+    maxQuantityPerCycle: number;
+
+    isActive: boolean;
+}
+
+// AUDITORÍA
+
+export interface AuditLog {
+    id: number;
+
+    entityName: string;
+    entityId: string;
+
+    action: string;
+    description: string | null;
+
+    oldValuesJson: string | null;
+    newValuesJson: string | null;
+
+    performedByUserId: number;
+    performedByUsername: string;
+    performedByEmployeeName: string;
+
+    createdAt: string;
+}
+
+
+export interface PagedResult<T> {
+    items: T[];
+
+    pageNumber: number;
+    pageSize: number;
+
+    totalCount: number;
+    totalPages: number;
+
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+}
+
+
+export interface GetAuditLogsParams {
+    entityName?: string | null;
+
+    performedByUserId?: number | null;
+
+    dateFrom?: string | null;
+    dateTo?: string | null;
+
+    pageNumber?: number;
+    pageSize?: number;
+}
+
+export interface UnitOfMeasure {
+    id: number;
+    name: string;
+    symbol: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string | null;
+}
+
+export interface CreateUnitOfMeasureRequest {
+    name: string;
+    symbol?: string | null;
+}
+
+export interface UpdateUnitOfMeasureRequest {
+    name: string;
+    symbol?: string | null;
+}
+
+export interface SetUnitOfMeasureStatusRequest {
+    isActive: boolean;
 }

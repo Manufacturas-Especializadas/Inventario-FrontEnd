@@ -60,6 +60,28 @@ import {
     InventoryPage,
 } from "../pages/InventoryPage";
 import { PPERequestsPage } from "../pages/PPERequestsPage";
+import {
+    DeliveriesPage,
+} from "../pages/DeliveriesPage";
+import { InventoryCountsPage } from "../pages/InventoryCountsPage";
+import {
+    InventoryAdjustmentsPage,
+} from "../pages/InventoryAdjustmentsPage";
+import {
+    OrganizationalUnitsPage,
+} from "../pages/OrganizationalUnitsPage";
+import {
+    AuditLogsPage,
+} from "../pages/AuditLogsPage";
+import {
+    EmployeesPage,
+} from "../pages/EmployeesPage";
+import {
+    UsersPage,
+} from "../pages/UsersPage";
+import {
+    UnitsPage,
+} from "../pages/UnitsPage";
 
 export const AppRoutes = () => {
     return (
@@ -142,6 +164,13 @@ export const AppRoutes = () => {
                                 <PPERequestsPage />
                             }
                         />
+
+                        <Route
+                            path="employees"
+                            element={
+                                <EmployeesPage />
+                            }
+                        />
                     </Route>
 
                     {/* Warehouse */}
@@ -165,20 +194,14 @@ export const AppRoutes = () => {
                         <Route
                             path="deliveries"
                             element={
-                                <ModulePlaceholderPage
-                                    title="Entregas"
-                                    description="Entrega de EPP reservado a los empleados."
-                                />
+                                <DeliveriesPage />
                             }
                         />
 
                         <Route
                             path="inventory-counts"
                             element={
-                                <ModulePlaceholderPage
-                                    title="Conteos físicos"
-                                    description="Captura y revisión de conteos físicos del inventario."
-                                />
+                                <InventoryCountsPage />
                             }
                         />
                     </Route>
@@ -201,6 +224,13 @@ export const AppRoutes = () => {
                         />
 
                         <Route
+                            path="units"
+                            element={
+                                <UnitsPage />
+                            }
+                        />
+
+                        <Route
                             path="suppliers"
                             element={
                                 <SuppliersPage />
@@ -215,6 +245,13 @@ export const AppRoutes = () => {
                         />
 
                         <Route
+                            path="inventory-adjustments"
+                            element={
+                                <InventoryAdjustmentsPage />
+                            }
+                        />
+
+                        <Route
                             path="admin"
                             element={
                                 <ModulePlaceholderPage
@@ -223,6 +260,28 @@ export const AppRoutes = () => {
                                 />
                             }
                         />
+
+                        <Route
+                            path="organizational-units"
+                            element={
+                                <OrganizationalUnitsPage />
+                            }
+                        />
+
+                        <Route
+                            path="audit-logs"
+                            element={
+                                <AuditLogsPage />
+                            }
+                        />
+
+                        <Route
+                            path="users"
+                            element={
+                                <UsersPage />
+                            }
+                        />
+
                     </Route>
                 </Route>
             </Route>

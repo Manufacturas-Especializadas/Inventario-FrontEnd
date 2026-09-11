@@ -5,6 +5,8 @@ import type {
     CancelPPERequestResult,
     CreatePPERequestRequest,
     CreatePPERequestResult,
+    DeliverPPERequestRequest,
+    DeliverPPERequestResult,
     PPERequest,
 } from "../../types/types";
 
@@ -66,5 +68,37 @@ export const ppeRequestsService = {
 
         return response.data;
     },
+
+    async deliver(
+        folio: string,
+        request: DeliverPPERequestRequest
+    ): Promise<DeliverPPERequestResult> {
+        const response =
+            await apiClient.post<DeliverPPERequestResult>(
+                `/ppe-requests/${encodeURIComponent(
+                    folio
+                )}/deliver`,
+                request
+            );
+
+        return response.data;
+    },
+
+    async getHistory(
+        employeeNumber: string
+    ): Promise<PPERequest[]> {
+        const response =
+            await apiClient.get<PPERequest[]>(
+                "/ppe-requests/history",
+                {
+                    params: {
+                        employeeNumber,
+                    },
+                }
+            );
+
+        return response.data;
+    },
+
 };
 

@@ -434,32 +434,44 @@ export const PurchaseOrdersPage = () => {
         }
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div>
-                <p className="text-sm font-medium text-slate-500">
-                    Compras
+        <div className="mx-auto max-w-7xl space-y-6">
+            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
+                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                    MESA · Compras
                 </p>
 
-                <h1 className="mt-1 text-2xl font-bold text-slate-900">
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
                     Órdenes de compra
                 </h1>
 
-                <p className="mt-2 text-sm text-slate-600">
-                    Registra pedidos de EPP realizados
-                    a proveedores.
+                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
+                    Organiza los pedidos de artículos y materiales para la operación de MESA.
                 </p>
             </div>
 
-            <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">
-                    Nueva orden de compra
-                </h2>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                        <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" /></svg>
+                    </span>
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-900">
+                            Nueva orden de compra
+                        </h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Define el proveedor, la entrega y los productos de tu pedido.</p>
+                    </div>
+                </div>
 
                 <form
                     onSubmit={handleSubmit}
-                    className="mt-6"
+                    className="mt-7"
                 >
-                    <div className="grid gap-5 md:grid-cols-2">
+                    <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-3">
+                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">01</span>
+                        <h3 className="text-sm font-semibold text-slate-800">Datos de la orden</h3>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2">
                         <div>
                             <label className="block text-sm font-medium text-slate-700">
                                 Proveedor
@@ -594,15 +606,16 @@ export const PurchaseOrdersPage = () => {
                         </div>
                     </div>
 
-                    <div className="mt-8 border-t border-slate-200 pt-6">
-                        <div className="flex items-center justify-between">
+                    <div className="mt-8 border-t border-slate-100 pt-6">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
                             <div>
                                 <h3 className="font-semibold text-slate-900">
+                                    <span aria-hidden="true" className="mr-3 text-xs font-semibold text-sky-700">02</span>
                                     Productos
                                 </h3>
 
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Agrega los EPP incluidos en la orden.
+                                <p className="mt-1 text-sm leading-6 text-slate-500">
+                                    Agrega los artículos incluidos en la orden.
                                 </p>
                             </div>
 
@@ -621,10 +634,10 @@ export const PurchaseOrdersPage = () => {
                                 (item, index) => (
                                     <div
                                         key={item.key}
-                                        className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                                        className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 sm:p-6"
                                     >
-                                        <div className="mb-4 flex items-center justify-between">
-                                            <span className="text-sm font-semibold text-slate-700">
+                                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 pb-4">
+                                            <span className="rounded-lg border border-sky-100 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800">
                                                 Producto {index + 1}
                                             </span>
 
@@ -636,17 +649,17 @@ export const PurchaseOrdersPage = () => {
                                                             item.key
                                                         )
                                                     }
-                                                    className="text-sm font-medium text-red-600 hover:text-red-700"
+                                                    className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
                                                 >
                                                     Quitar
                                                 </button>
                                             )}
                                         </div>
 
-                                        <div className="grid gap-4 md:grid-cols-3">
+                                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700">
-                                                    Producto EPP
+                                                    Producto
                                                 </label>
 
                                                 <select
@@ -758,22 +771,22 @@ export const PurchaseOrdersPage = () => {
                     </div>
 
                     {formError && (
-                        <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {formError}
                         </div>
                     )}
 
                     {successMessage && (
-                        <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                             {successMessage}
                         </div>
                     )}
 
-                    <div className="mt-6">
+                    <div className="mt-6 flex justify-end border-t border-slate-100 pt-6">
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                         >
                             {isSubmitting
                                 ? "Creando orden..."
@@ -784,15 +797,15 @@ export const PurchaseOrdersPage = () => {
                 </form>
             </section>
 
-            <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-6 sm:px-8">
                     <div>
-                        <h2 className="font-semibold text-slate-900">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                             Órdenes registradas
                         </h2>
 
                         {!loading && !error && (
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
                                 {purchaseOrders.length} órdenes
                             </p>
                         )}
@@ -811,13 +824,13 @@ export const PurchaseOrdersPage = () => {
                 </div>
 
                 {loading && (
-                    <div className="p-6 text-sm text-slate-500">
+                    <div role="status" className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
                         Cargando órdenes...
                     </div>
                 )}
 
                 {!loading && error && (
-                    <div className="p-6 text-sm text-red-600">
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
                         {error}
                     </div>
                 )}
@@ -825,17 +838,19 @@ export const PurchaseOrdersPage = () => {
                 {!loading &&
                     !error &&
                     purchaseOrders.length === 0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
-                            No existen órdenes de compra.
+                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                            <svg aria-hidden="true" className="mx-auto mb-4 h-9 w-9 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" /></svg>
+                            <p className="text-sm font-semibold text-slate-900">Aún no hay órdenes de compra</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">Registra tu primer pedido utilizando el formulario superior.</p>
                         </div>
                     )}
 
                 {!loading &&
                     !error &&
                     purchaseOrders.length > 0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Órdenes de compra registradas">
+                            <table className="w-full min-w-225 text-left text-sm">
+                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
                                     <tr>
                                         <th className="px-5 py-3">
                                             Folio
@@ -867,12 +882,12 @@ export const PurchaseOrdersPage = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-slate-200">
+                                <tbody className="divide-y divide-slate-100">
                                     {purchaseOrders.map(
                                         (order) => (
                                             <tr
                                                 key={order.id}
-                                                className="hover:bg-slate-50"
+                                                className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
                                             >
                                                 <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-900">
                                                     {
@@ -921,8 +936,9 @@ export const PurchaseOrdersPage = () => {
 
                                                         return (
                                                             <span
-                                                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}
+                                                                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ring-current/15 ${status.className}`}
                                                             >
+                                                                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
                                                                 {status.label}
                                                             </span>
                                                         );

@@ -22,6 +22,9 @@ import {
 import {
     getApiErrorMessage,
 } from "../utils/utils";
+import {
+    useUnits,
+} from "../hooks/useUnits";
 
 export const ProductSuppliersPage = () => {
     const {
@@ -33,6 +36,12 @@ export const ProductSuppliersPage = () => {
         suppliers,
         loading: loadingSuppliers,
     } = useSuppliers();
+
+    const {
+        activeUnits,
+        loading: loadingUnits,
+        error: unitsError,
+    } = useUnits();
 
     const [
         ppeProductId,
@@ -50,9 +59,9 @@ export const ProductSuppliersPage = () => {
     ] = useState("");
 
     const [
-        purchaseUnit,
-        setPurchaseUnit,
-    ] = useState("Caja");
+        purchaseUnitId,
+        setPurchaseUnitId,
+    ] = useState("");
 
     const [
         unitsPerPackage,
@@ -94,7 +103,7 @@ export const ProductSuppliersPage = () => {
         setPPEProductId("");
         setSupplierId("");
         setSupplierProductCode("");
-        setPurchaseUnit("Caja");
+        setPurchaseUnitId("");
         setUnitsPerPackage("1");
         setPackageBarcode("");
         setIsPreferred(false);
@@ -114,6 +123,19 @@ export const ProductSuppliersPage = () => {
         }
 
         return `${product.sku} - ${product.name}`;
+    };
+
+    const getStockUnitName = (
+        productId: number
+    ) => {
+        const product =
+            products.find(
+                (product) =>
+                    product.id === productId
+            );
+
+        return product?.stockUnit ??
+            "unidades";
     };
 
     const getSupplierName = (
@@ -153,9 +175,9 @@ export const ProductSuppliersPage = () => {
                 return;
             }
 
-            if (!purchaseUnit.trim()) {
+            if (!purchaseUnitId) {
                 setFormError(
-                    "La unidad de compra es obligatoria."
+                    "Selecciona una unidad de compra."
                 );
 
                 return;
@@ -195,8 +217,8 @@ export const ProductSuppliersPage = () => {
                                 .trim() ||
                             null,
 
-                        purchaseUnit:
-                            purchaseUnit.trim(),
+                        purchaseUnitId:
+                            Number(purchaseUnitId),
 
                         unitsPerPackage:
                             parsedUnits,
@@ -226,38 +248,50 @@ export const ProductSuppliersPage = () => {
 
     const catalogsLoading =
         loadingProducts ||
-        loadingSuppliers;
+        loadingSuppliers ||
+        loadingUnits;
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div>
-                <p className="text-sm font-medium text-slate-500">
-                    Catálogos
+        <div className="mx-auto max-w-7xl space-y-6">
+            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
+                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                    MESA · Catálogos
                 </p>
 
-                <h1 className="mt-1 text-2xl font-bold text-slate-900">
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
                     Productos por proveedor
                 </h1>
 
-                <p className="mt-2 text-sm text-slate-600">
-                    Configura qué proveedor
-                    suministra cada producto EPP y
-                    cómo se compra o recibe.
+                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
+                    Vincula tus productos con sus proveedores y define cómo se compran y reciben.
                 </p>
             </div>
 
-            <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">
-                    Nueva relación
-                </h2>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                        <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m10 13 4-4M8 16l-1 1a4.2 4.2 0 0 1-6-6l4-4a4.2 4.2 0 0 1 6 0M16 8l1-1a4.2 4.2 0 0 1 6 6l-4 4a4.2 4.2 0 0 1-6 0" transform="translate(0 -1)" /></svg>
+                    </span>
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-900">
+                            Nueva relación
+                        </h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Asocia un proveedor y configura la presentación de compra del producto.</p>
+                    </div>
+                </div>
 
                 <form
                     onSubmit={handleSubmit}
-                    className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+                    className="mt-7 grid gap-6 md:grid-cols-2 xl:grid-cols-3"
                 >
+                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3">
+                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">01</span>
+                        <h3 className="text-sm font-semibold text-slate-800">Producto y proveedor</h3>
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700">
-                            Producto EPP
+                            Producto
                         </label>
 
                         <select
@@ -361,41 +395,59 @@ export const ProductSuppliersPage = () => {
                                     event.target.value
                                 )
                             }
-                            placeholder="Ej. GUA-AC-L"
+                            placeholder="Ej. ART-001"
                             className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
                         />
                     </div>
 
+                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3 pt-3">
+                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">02</span>
+                        <h3 className="text-sm font-semibold text-slate-800">Compra y empaque</h3>
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700">
                             Unidad de compra
                         </label>
 
                         <select
-                            value={purchaseUnit}
+                            value={purchaseUnitId}
                             onChange={(event) =>
-                                setPurchaseUnit(
+                                setPurchaseUnitId(
                                     event.target.value
                                 )
                             }
+                            disabled={
+                                loadingUnits ||
+                                isSubmitting
+                            }
                             className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
                         >
-                            <option value="Caja">
-                                Caja
+                            <option value="">
+                                {loadingUnits
+                                    ? "Cargando unidades..."
+                                    : "Selecciona..."}
                             </option>
 
-                            <option value="Paquete">
-                                Paquete
-                            </option>
-
-                            <option value="Pieza">
-                                Pieza
-                            </option>
-
-                            <option value="Par">
-                                Par
-                            </option>
+                            {activeUnits.map(
+                                (unit) => (
+                                    <option
+                                        key={unit.id}
+                                        value={unit.id}
+                                    >
+                                        {unit.name}
+                                        {unit.symbol
+                                            ? ` (${unit.symbol})`
+                                            : ""}
+                                    </option>
+                                )
+                            )}
                         </select>
+
+                        {unitsError && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {unitsError}
+                            </p>
+                        )}
                     </div>
 
                     <div>
@@ -440,7 +492,7 @@ export const ProductSuppliersPage = () => {
                     </div>
 
                     <div className="md:col-span-2 xl:col-span-3">
-                        <label className="flex cursor-pointer items-center gap-3">
+                        <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-sky-200 bg-sky-50/60 p-5 transition-colors hover:bg-sky-50 focus-within:ring-4 focus-within:ring-sky-100 motion-reduce:transition-none">
                             <input
                                 type="checkbox"
                                 checked={
@@ -452,38 +504,38 @@ export const ProductSuppliersPage = () => {
                                             .checked
                                     )
                                 }
-                                className="h-4 w-4"
+                                className="h-5 w-5 shrink-0 accent-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
                             />
 
-                            <div>
-                                <p className="text-sm font-medium text-slate-700">
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-800">
                                     Proveedor preferido
-                                </p>
+                                </span>
 
-                                <p className="text-xs text-slate-500">
+                                <span className="mt-1 block text-xs leading-5 text-slate-600">
                                     Será la opción
                                     principal para
                                     comprar este
                                     producto.
-                                </p>
-                            </div>
+                                </span>
+                            </span>
                         </label>
                     </div>
 
                     {formError && (
-                        <div className="md:col-span-2 xl:col-span-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 xl:col-span-3">
                             {formError}
                         </div>
                     )}
 
-                    <div className="md:col-span-2 xl:col-span-3">
+                    <div className="flex justify-end border-t border-slate-100 pt-5 md:col-span-2 xl:col-span-3">
                         <button
                             type="submit"
                             disabled={
                                 catalogsLoading ||
                                 isSubmitting
                             }
-                            className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                         >
                             {isSubmitting
                                 ? "Guardando..."
@@ -493,15 +545,15 @@ export const ProductSuppliersPage = () => {
                 </form>
             </section>
 
-            <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-6 sm:px-8">
                     <div>
-                        <h2 className="font-semibold text-slate-900">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                             Relaciones registradas
                         </h2>
 
                         {!loading && !error && (
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
                                 {
                                     productSuppliers.length
                                 }{" "}
@@ -516,20 +568,21 @@ export const ProductSuppliersPage = () => {
                             void refresh()
                         }
                         disabled={loading}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 enabled:active:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                     >
+                        <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" /></svg>
                         Actualizar
                     </button>
                 </div>
 
                 {loading && (
-                    <div className="p-6 text-sm text-slate-500">
+                    <div role="status" className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
                         Cargando relaciones...
                     </div>
                 )}
 
                 {!loading && error && (
-                    <div className="p-6 text-sm text-red-600">
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
                         {error}
                     </div>
                 )}
@@ -538,10 +591,9 @@ export const ProductSuppliersPage = () => {
                     !error &&
                     productSuppliers.length ===
                     0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
-                            No hay relaciones
-                            producto-proveedor
-                            registradas.
+                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                            <p className="text-sm font-semibold text-slate-900">No hay relaciones registradas para esta consulta</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">Utiliza el formulario superior para asociar un producto con su proveedor.</p>
                         </div>
                     )}
 
@@ -549,9 +601,9 @@ export const ProductSuppliersPage = () => {
                     !error &&
                     productSuppliers.length >
                     0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Relaciones entre productos y proveedores">
+                            <table className="w-full min-w-225 text-left text-sm">
+                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
                                     <tr>
                                         <th className="px-5 py-3">
                                             Producto
@@ -583,14 +635,14 @@ export const ProductSuppliersPage = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-slate-200">
+                                <tbody className="divide-y divide-slate-100">
                                     {productSuppliers.map(
                                         (relation) => (
                                             <tr
 
                                                 key={`${relation.ppeProductId}-${relation.supplierId}`}
 
-                                                className="hover:bg-slate-50"
+                                                className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
                                             >
                                                 <td className="px-5 py-4 font-medium text-slate-900">
                                                     {getProductName(
@@ -610,15 +662,20 @@ export const ProductSuppliersPage = () => {
                                                 </td>
 
                                                 <td className="px-5 py-4">
-                                                    {
-                                                        relation.purchaseUnit
-                                                    }
+                                                    {relation.purchaseUnit}
+
+                                                    {relation.purchaseUnitSymbol && (
+                                                        <span className="ml-1 text-xs text-slate-400">
+                                                            ({relation.purchaseUnitSymbol})
+                                                        </span>
+                                                    )}
                                                 </td>
 
                                                 <td className="px-5 py-4">
-                                                    {
-                                                        relation.unitsPerPackage
-                                                    }
+                                                    {relation.unitsPerPackage}{" "}
+                                                    {getStockUnitName(
+                                                        relation.ppeProductId
+                                                    )}
                                                 </td>
 
                                                 <td className="px-5 py-4">
@@ -629,11 +686,12 @@ export const ProductSuppliersPage = () => {
 
                                                 <td className="px-5 py-4">
                                                     <span
-                                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${relation.isActive
-                                                            ? "bg-emerald-50 text-emerald-700"
-                                                            : "bg-slate-100 text-slate-500"
+                                                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${relation.isActive
+                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
                                                             }`}
                                                     >
+                                                        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
                                                         {relation.isActive
                                                             ? "Activo"
                                                             : "Inactivo"}

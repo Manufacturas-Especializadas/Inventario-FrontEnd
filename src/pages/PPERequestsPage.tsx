@@ -60,6 +60,39 @@ const formatDateTime = (
     );
 };
 
+const getRequestStatusConfig = (
+    status: number
+) => {
+    switch (status) {
+        case 1:
+            return {
+                label: "Pendiente",
+                className:
+                    "bg-amber-50 text-amber-700",
+            };
+
+        case 2:
+            return {
+                label: "Entregada",
+                className:
+                    "bg-emerald-50 text-emerald-700",
+            };
+
+        case 3:
+            return {
+                label: "Cancelada",
+                className:
+                    "bg-red-50 text-red-700",
+            };
+
+        default:
+            return {
+                label: "Desconocido",
+                className:
+                    "bg-slate-100 text-slate-600",
+            };
+    }
+};
 
 const getOrganizationalUnitTypeLabel = (
     type: number
@@ -121,19 +154,26 @@ export const PPERequestsPage = () => {
 
     const {
         pendingRequests,
+        history,
         createResult,
 
         loading: loadingRequest,
         loadingPending,
+        loadingHistory,
         cancellingFolio,
 
         error: requestError,
         pendingError,
+        historyError,
         cancelError,
 
         getPending,
+        getHistory,
+
         createRequest,
         cancelRequest,
+
+        clearHistory,
     } = usePPERequests();
 
     const [
@@ -201,6 +241,10 @@ export const PPERequestsPage = () => {
         null
     );
 
+    const [
+        historyWasSearched,
+        setHistoryWasSearched,
+    ] = useState(false);
 
     const loadingCatalogs =
         loadingOrganizationalUnits ||
@@ -222,6 +266,9 @@ export const PPERequestsPage = () => {
         setEmployeeNumber(value);
 
         clearEmployee();
+        clearHistory();
+
+        setHistoryWasSearched(false);
 
         setFormError(null);
         setSuccessMessage(null);
@@ -293,6 +340,9 @@ export const PPERequestsPage = () => {
         setEmployeeNumber("");
 
         clearEmployee();
+        clearHistory();
+
+        setHistoryWasSearched(false);
 
         setRequestedForOrganizationalUnitId(
             ""
@@ -556,46 +606,45 @@ export const PPERequestsPage = () => {
 
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div>
-                <p className="text-sm font-medium text-slate-500">
-                    Producción
+        <div className="mx-auto max-w-7xl space-y-6">
+            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
+                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                    MESA · Producción
                 </p>
 
-                <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                    Solicitudes EPP
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                    Solicitudes de inventario
                 </h1>
 
-                <p className="mt-2 text-sm text-slate-600">
-                    Registra solicitudes de equipo de
-                    protección personal para las
-                    unidades organizacionales.
+                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
+                    Solicita artículos y materiales para las unidades organizacionales de MESA y consulta su seguimiento.
                 </p>
             </div>
 
 
             {catalogError && (
-                <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {catalogError}
                 </div>
             )}
 
 
             {successMessage && (
-                <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                     {successMessage}
                 </div>
             )}
 
             {cancellationSuccessMessage && (
-                <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                     {cancellationSuccessMessage}
                 </div>
             )}
 
 
             {(formError || requestError) && (
-                <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {formError || requestError}
                 </div>
             )}
@@ -604,7 +653,7 @@ export const PPERequestsPage = () => {
             {createResult &&
                 createResult.warnings.length >
                 0 && (
-                    <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
                         <p className="text-sm font-semibold text-amber-800">
                             Advertencias de la solicitud
                         </p>
@@ -636,17 +685,15 @@ export const PPERequestsPage = () => {
             >
                 {/* Solicitante */}
 
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div>
-                        <p className="text-sm font-medium text-slate-500">
-                            Paso 1
-                        </p>
+                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>01</p>
 
-                        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
                             Solicitante
                         </h2>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
                             Busca al empleado que está
                             realizando físicamente la
                             solicitud.
@@ -678,7 +725,7 @@ export const PPERequestsPage = () => {
                                     loadingRequest
                                 }
                                 placeholder="Ej. 1234"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
 
                             <button
@@ -690,7 +737,7 @@ export const PPERequestsPage = () => {
                                     loadingEmployee ||
                                     !employeeNumber.trim()
                                 }
-                                className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="shrink-0 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
                             >
                                 {loadingEmployee
                                     ? "Buscando..."
@@ -709,7 +756,7 @@ export const PPERequestsPage = () => {
 
 
                         {employee && (
-                            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                                 <p className="text-sm font-semibold text-emerald-800">
                                     Empleado encontrado
                                 </p>
@@ -723,27 +770,258 @@ export const PPERequestsPage = () => {
                                         employee.name
                                     }
                                 </p>
+
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setHistoryWasSearched(
+                                            true
+                                        );
+
+                                        await getHistory(
+                                            employee.employeeNumber
+                                        );
+                                    }}
+                                    disabled={
+                                        loadingHistory
+                                    }
+                                    className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                >
+                                    {loadingHistory
+                                        ? "Consultando..."
+                                        : "Consultar historial"}
+                                </button>
                             </div>
                         )}
+
+                        {historyError && (
+                            <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {historyError}
+                            </div>
+                        )}
+
+
+                        {employee &&
+                            !loadingHistory &&
+                            history.length > 0 && (
+                                <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50/50 p-4 sm:p-6">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                            Historial
+                                        </p>
+
+                                        <h3 className="mt-1 text-base font-semibold text-slate-900">
+                                            Solicitudes anteriores de{" "}
+                                            {employee.name}
+                                        </h3>
+
+                                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                                            {history.length}{" "}
+                                            {history.length === 1
+                                                ? "solicitud encontrada"
+                                                : "solicitudes encontradas"}
+                                        </p>
+                                    </div>
+
+
+                                    <div className="mt-5 space-y-4">
+                                        {history.map(
+                                            (historyRequest) => {
+                                                const status =
+                                                    getRequestStatusConfig(
+                                                        historyRequest.status
+                                                    );
+
+                                                return (
+                                                    <div
+                                                        key={
+                                                            historyRequest.id
+                                                        }
+                                                        className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm"
+                                                    >
+                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div>
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <p className="font-semibold text-slate-900">
+                                                                        {
+                                                                            historyRequest.folio
+                                                                        }
+                                                                    </p>
+
+                                                                    <span
+                                                                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-current/15 ${status.className}`}
+                                                                    >
+                                                                        {
+                                                                            status.label
+                                                                        }
+                                                                    </span>
+                                                                </div>
+
+                                                                <p className="mt-2 text-xs text-slate-500">
+                                                                    Creada{" "}
+                                                                    {formatDateTime(
+                                                                        historyRequest.createdAt
+                                                                    )}
+                                                                </p>
+                                                            </div>
+
+
+                                                            <div className="text-left sm:text-right">
+                                                                <p className="text-xs text-slate-500">
+                                                                    Almacén
+                                                                </p>
+
+                                                                <p className="text-sm font-medium text-slate-700">
+                                                                    {
+                                                                        historyRequest.warehouseName
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Unidad destino
+                                                                </p>
+
+                                                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                    {historyRequest.requestedForOrganizationalUnitName ??
+                                                                        "Sin unidad"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Motivo
+                                                                </p>
+
+                                                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                    {
+                                                                        historyRequest.requestReason
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <div className="mt-4 border-t border-slate-100 pt-4">
+                                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                                Equipo
+                                                            </p>
+
+                                                            <div className="mt-2 space-y-2">
+                                                                {historyRequest.items.map(
+                                                                    (
+                                                                        item
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                item.ppeProductId
+                                                                            }
+                                                                            className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                                                        >
+                                                                            <div>
+                                                                                <p className="text-sm font-medium text-slate-800">
+                                                                                    {
+                                                                                        item.productName
+                                                                                    }
+                                                                                </p>
+
+                                                                                <p className="text-xs text-slate-500">
+                                                                                    {
+                                                                                        item.sku
+                                                                                    }
+                                                                                </p>
+                                                                            </div>
+
+                                                                            <p className="text-sm font-semibold text-slate-700">
+                                                                                Cantidad:{" "}
+                                                                                {
+                                                                                    item.quantity
+                                                                                }
+                                                                            </p>
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+
+                                                        {historyRequest.status ===
+                                                            2 &&
+                                                            historyRequest.deliveredAt && (
+                                                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                    <p className="text-xs text-emerald-700">
+                                                                        Entregada{" "}
+                                                                        {formatDateTime(
+                                                                            historyRequest.deliveredAt
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+
+
+                                                        {historyRequest.status ===
+                                                            3 && (
+                                                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                    {historyRequest.cancelledAt && (
+                                                                        <p className="text-xs text-red-700">
+                                                                            Cancelada{" "}
+                                                                            {formatDateTime(
+                                                                                historyRequest.cancelledAt
+                                                                            )}
+                                                                        </p>
+                                                                    )}
+
+                                                                    {historyRequest.cancellationReason && (
+                                                                        <p className="mt-1 text-sm text-red-700">
+                                                                            Motivo:{" "}
+                                                                            {
+                                                                                historyRequest.cancellationReason
+                                                                            }
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                        {employee &&
+                                                            historyWasSearched &&
+                                                            !loadingHistory &&
+                                                            !historyError &&
+                                                            history.length === 0 && (
+                                                                <div className="mt-6 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-8 text-center">
+                                                                    <p className="text-sm font-medium text-slate-700">
+                                                                        Este empleado todavía no tiene
+                                                                        solicitudes de artículos.
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                );
+                                            }
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                     </div>
                 </section>
 
 
                 {/* Información de solicitud */}
 
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div>
-                        <p className="text-sm font-medium text-slate-500">
-                            Paso 2
-                        </p>
+                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
 
-                        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
                             Información de la solicitud
                         </h2>
                     </div>
 
 
-                    <div className="mt-6 grid gap-5 md:grid-cols-3">
+                    <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
                         <div>
                             <label className="block text-sm font-medium text-slate-700">
                                 Unidad organizacional
@@ -766,7 +1044,7 @@ export const PPERequestsPage = () => {
                                     loadingOrganizationalUnits ||
                                     loadingRequest
                                 }
-                                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             >
                                 <option value="">
                                     Selecciona una unidad
@@ -804,7 +1082,7 @@ export const PPERequestsPage = () => {
 
                             <p className="mt-2 text-xs text-slate-500">
                                 Esta unidad es la que
-                                consumirá el cupo del EPP.
+                                consumirá el cupo de los artículos.
                             </p>
                         </div>
 
@@ -830,7 +1108,7 @@ export const PPERequestsPage = () => {
                                     loadingWarehouses ||
                                     loadingRequest
                                 }
-                                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             >
                                 <option value="">
                                     Selecciona un almacén
@@ -888,7 +1166,7 @@ export const PPERequestsPage = () => {
                                     loadingRequestReasons ||
                                     loadingRequest
                                 }
-                                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             >
                                 <option value="">
                                     Selecciona un motivo
@@ -918,20 +1196,18 @@ export const PPERequestsPage = () => {
 
                 {/* Productos */}
 
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <p className="text-sm font-medium text-slate-500">
-                                Paso 3
-                            </p>
+                            <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
 
-                            <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                                Equipo solicitado
+                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                Artículos solicitados
                             </h2>
 
-                            <p className="mt-1 text-sm text-slate-500">
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
                                 Agrega uno o varios
-                                productos EPP y la cantidad
+                                productos y la cantidad
                                 requerida.
                             </p>
                         </div>
@@ -943,7 +1219,7 @@ export const PPERequestsPage = () => {
                                 loadingProducts ||
                                 loadingRequest
                             }
-                            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                         >
                             Agregar producto
                         </button>
@@ -960,12 +1236,12 @@ export const PPERequestsPage = () => {
                                     key={
                                         item.key
                                     }
-                                    className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                                    className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
                                 >
-                                    <div className="grid gap-4 md:grid-cols-[1fr_180px_auto] md:items-end">
+                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700">
-                                                Producto EPP
+                                                Producto
                                             </label>
 
                                             <select
@@ -987,7 +1263,7 @@ export const PPERequestsPage = () => {
                                                     loadingProducts ||
                                                     loadingRequest
                                                 }
-                                                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                                             >
                                                 <option value="">
                                                     Selecciona un producto
@@ -1052,7 +1328,7 @@ export const PPERequestsPage = () => {
                                                 disabled={
                                                     loadingRequest
                                                 }
-                                                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                                             />
                                         </div>
 
@@ -1069,13 +1345,13 @@ export const PPERequestsPage = () => {
                                                 1 ||
                                                 loadingRequest
                                             }
-                                            className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                            className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
                                         >
                                             Quitar
                                         </button>
                                     </div>
 
-                                    <p className="mt-3 text-xs text-slate-400">
+                                    <p className="mt-3 text-xs text-slate-500">
                                         Producto{" "}
                                         {index + 1}
                                     </p>
@@ -1088,13 +1364,11 @@ export const PPERequestsPage = () => {
 
                 {/* Observaciones */}
 
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div>
-                        <p className="text-sm font-medium text-slate-500">
-                            Paso 4
-                        </p>
+                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
 
-                        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
                             Observaciones
                         </h2>
                     </div>
@@ -1118,7 +1392,7 @@ export const PPERequestsPage = () => {
                             }
                             rows={4}
                             placeholder="Agrega información adicional sobre la solicitud..."
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                            className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                         />
 
                         <p className="mt-2 text-xs text-slate-500">
@@ -1137,7 +1411,7 @@ export const PPERequestsPage = () => {
                             loadingRequest ||
                             loadingCatalogs
                         }
-                        className="rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
                     >
                         {loadingRequest
                             ? "Creando solicitud..."
@@ -1145,18 +1419,18 @@ export const PPERequestsPage = () => {
                     </button>
                 </div>
             </form>
-            <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="mt-10 rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p className="text-sm font-medium text-slate-500">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">
                             Seguimiento
                         </p>
 
-                        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
                             Solicitudes pendientes
                         </h2>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
                             Solicitudes creadas que todavía
                             no han sido entregadas ni
                             canceladas.
@@ -1171,7 +1445,7 @@ export const PPERequestsPage = () => {
                         disabled={
                             loadingPending
                         }
-                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                     >
                         {loadingPending
                             ? "Actualizando..."
@@ -1181,7 +1455,7 @@ export const PPERequestsPage = () => {
 
 
                 {pendingError && (
-                    <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {pendingError}
                     </div>
                 )}
@@ -1189,7 +1463,7 @@ export const PPERequestsPage = () => {
 
                 {loadingPending &&
                     pendingRequests.length === 0 && (
-                        <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
                             <p className="text-sm text-slate-500">
                                 Cargando solicitudes
                                 pendientes...
@@ -1201,13 +1475,13 @@ export const PPERequestsPage = () => {
                 {!loadingPending &&
                     !pendingError &&
                     pendingRequests.length === 0 && (
-                        <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
                             <p className="text-sm font-medium text-slate-700">
                                 No hay solicitudes
                                 pendientes.
                             </p>
 
-                            <p className="mt-1 text-sm text-slate-500">
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
                                 Las nuevas solicitudes
                                 aparecerán aquí.
                             </p>
@@ -1223,7 +1497,7 @@ export const PPERequestsPage = () => {
                                     key={
                                         request.id
                                     }
-                                    className="rounded-xl border border-slate-200 p-5"
+                                    className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm sm:p-6"
                                 >
                                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div>
@@ -1234,7 +1508,7 @@ export const PPERequestsPage = () => {
                                                     }
                                                 </h3>
 
-                                                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                                <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
                                                     Pendiente
                                                 </span>
                                             </div>
@@ -1259,16 +1533,16 @@ export const PPERequestsPage = () => {
                                                 cancellingFolio ===
                                                 request.folio
                                             }
-                                            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             Cancelar solicitud
                                         </button>
                                     </div>
 
 
-                                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                    <div className="mt-5 grid gap-5 rounded-xl bg-sky-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0 [&>div]:wrap-break-word">
                                         <div>
-                                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Solicitante
                                             </p>
 
@@ -1288,7 +1562,7 @@ export const PPERequestsPage = () => {
 
 
                                         <div>
-                                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Unidad destino
                                             </p>
 
@@ -1300,7 +1574,7 @@ export const PPERequestsPage = () => {
 
 
                                         <div>
-                                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Almacén
                                             </p>
 
@@ -1313,7 +1587,7 @@ export const PPERequestsPage = () => {
 
 
                                         <div>
-                                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Motivo
                                             </p>
 
@@ -1327,8 +1601,8 @@ export const PPERequestsPage = () => {
 
 
                                     <div className="mt-5 border-t border-slate-100 pt-5">
-                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                                            Equipo solicitado
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                            Artículos solicitados
                                         </p>
 
                                         <div className="mt-3 space-y-2">
@@ -1340,7 +1614,7 @@ export const PPERequestsPage = () => {
                                                         key={
                                                             item.ppeProductId
                                                         }
-                                                        className="flex flex-col gap-1 rounded-lg bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                                        className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                                                     >
                                                         <div>
                                                             <p className="text-sm font-medium text-slate-800">
@@ -1371,7 +1645,7 @@ export const PPERequestsPage = () => {
 
                                     {request.notes && (
                                         <div className="mt-5 border-t border-slate-100 pt-5">
-                                            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Observaciones
                                             </p>
 
@@ -1386,7 +1660,7 @@ export const PPERequestsPage = () => {
                                     {cancelFolio ===
                                         request.folio && (
                                             <div className="mt-5 border-t border-red-100 pt-5">
-                                                <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                                                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                                                     <h4 className="text-sm font-semibold text-red-800">
                                                         Cancelar solicitud
                                                     </h4>
@@ -1422,7 +1696,7 @@ export const PPERequestsPage = () => {
                                                                 request.folio
                                                             }
                                                             placeholder="Explica por qué se cancela esta solicitud..."
-                                                            className="mt-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm text-slate-800"
+                                                            className="mt-2 w-full resize-y rounded-xl border border-red-200 bg-white px-4 py-3 text-base text-slate-800 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-100 disabled:opacity-60"
                                                         />
 
                                                         <div className="mt-1 flex justify-between">
@@ -1431,7 +1705,7 @@ export const PPERequestsPage = () => {
                                                                 obligatorio.
                                                             </p>
 
-                                                            <p className="text-xs text-slate-400">
+                                                            <p className="text-xs text-slate-500">
                                                                 {
                                                                     cancellationReason.length
                                                                 }
@@ -1460,7 +1734,7 @@ export const PPERequestsPage = () => {
                                                                 cancellingFolio ===
                                                                 request.folio
                                                             }
-                                                            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                                                         >
                                                             Volver
                                                         </button>
@@ -1477,7 +1751,7 @@ export const PPERequestsPage = () => {
                                                                 cancellingFolio ===
                                                                 request.folio
                                                             }
-                                                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            className="min-h-11 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors enabled:hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
                                                             {cancellingFolio ===
                                                                 request.folio

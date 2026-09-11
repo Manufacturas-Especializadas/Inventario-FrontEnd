@@ -12,6 +12,7 @@ import type {
     CancelPPERequestResult,
     CreatePPERequestRequest,
     CreatePPERequestResult,
+    DeliverPPERequestResult,
     PPERequest,
 } from "../types/types";
 
@@ -77,6 +78,43 @@ export const usePPERequests = () => {
     ] = useState<string | null>(
         null
     );
+
+    const [
+        deliveringFolio,
+        setDeliveringFolio,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        deliverError,
+        setDeliverError,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        history,
+        setHistory,
+    ] = useState<PPERequest[]>([]);
+
+    const [
+        loadingHistory,
+        setLoadingHistory,
+    ] = useState(false);
+
+    const [
+        historyError,
+        setHistoryError,
+    ] = useState<string | null>(
+        null
+    );
+
+    const clearHistory =
+        useCallback(() => {
+            setHistory([]);
+            setHistoryError(null);
+        }, []);
 
 
     const getPending =
@@ -270,30 +308,147 @@ export const usePPERequests = () => {
             setError(null);
         }, []);
 
+    const clearDeliverError =
+        useCallback(() => {
+            setDeliverError(null);
+        }, []);
+
 
     useEffect(() => {
         void getPending();
     }, [getPending]);
+
+    const deliverRequest =
+        useCallback(
+            async (
+                folio: string,
+                employeeNumber: string,
+                warehouseId?: number | null
+            ): Promise<DeliverPPERequestResult | null> => {
+                const normalizedEmployeeNumber =
+                    employeeNumber.trim();
+
+                if (!normalizedEmployeeNumber) {
+                    setDeliverError(
+                        "El número de empleado es obligatorio."
+                    );
+
+                    return null;
+                }
+
+                setDeliveringFolio(
+                    folio
+                );
+
+                setDeliverError(null);
+
+                try {
+                    const data =
+                        await ppeRequestsService
+                            .deliver(
+                                folio,
+                                {
+                                    employeeNumber:
+                                        normalizedEmployeeNumber,
+                                }
+                            );
+
+                    await getPending(
+                        warehouseId
+                    );
+
+                    return data;
+                } catch (error) {
+                    setDeliverError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible entregar la solicitud EPP."
+                        )
+                    );
+
+                    return null;
+                } finally {
+                    setDeliveringFolio(
+                        null
+                    );
+                }
+            },
+            [getPending]
+        );
+
+    const getHistory =
+        useCallback(
+            async (
+                employeeNumber: string
+            ): Promise<PPERequest[]> => {
+                const normalizedEmployeeNumber =
+                    employeeNumber.trim();
+
+                if (!normalizedEmployeeNumber) {
+                    setHistory([]);
+
+                    setHistoryError(
+                        "Ingresa un número de empleado."
+                    );
+
+                    return [];
+                }
+
+                setLoadingHistory(true);
+                setHistoryError(null);
+
+                try {
+                    const data =
+                        await ppeRequestsService
+                            .getHistory(
+                                normalizedEmployeeNumber
+                            );
+
+                    setHistory(data);
+
+                    return data;
+                } catch (error) {
+                    setHistory([]);
+
+                    setHistoryError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible consultar el historial de EPP."
+                        )
+                    );
+
+                    return [];
+                } finally {
+                    setLoadingHistory(false);
+                }
+            },
+            []
+        );
 
 
     return {
         request,
         pendingRequests,
         createResult,
-
         loading,
         loadingPending,
-
         error,
+        clearDeliverError,
         pendingError,
-
         getByFolio,
         getPending,
         createRequest,
         clearRequest,
         cancellingFolio,
         cancelError,
-
         cancelRequest,
+        deliveringFolio,
+        deliverError,
+        deliverRequest,
+        history,
+        loadingHistory,
+        historyError,
+        getHistory,
+        clearHistory,
     };
 };
