@@ -565,7 +565,7 @@ export const UnitsPage = () => {
                                         disabled={
                                             isSubmitting
                                         }
-                                        className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                                        className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
                                     >
                                         Cancelar
                                     </button>
@@ -726,7 +726,7 @@ export const UnitsPage = () => {
                                     onClick={
                                         clearFilters
                                     }
-                                    className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
                                 >
                                     Limpiar
                                 </button>
@@ -831,8 +831,8 @@ export const UnitsPage = () => {
                                                 <td className="px-6 py-5">
                                                     <span
                                                         className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${unit.isActive
-                                                                ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                                : "bg-slate-100 text-slate-600 ring-slate-200"
+                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
                                                             }`}
                                                     >
                                                         {unit.isActive
@@ -843,7 +843,7 @@ export const UnitsPage = () => {
 
                                                 {isAdministrator && (
                                                     <td className="px-6 py-5">
-                                                        <div className="flex justify-end gap-2">
+                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
@@ -858,6 +858,7 @@ export const UnitsPage = () => {
                                                                 }
                                                                 className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                                                             >
+                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
                                                                 Editar
                                                             </button>
 
@@ -874,8 +875,8 @@ export const UnitsPage = () => {
                                                                     isSubmitting
                                                                 }
                                                                 className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${unit.isActive
-                                                                        ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                        : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
+                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
+                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
                                                                     }`}
                                                             >
                                                                 {changingStatusId ===

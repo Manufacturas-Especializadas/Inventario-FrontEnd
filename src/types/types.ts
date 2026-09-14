@@ -196,17 +196,43 @@ export interface SetPPEProductStatusRequest {
 export interface Supplier {
     id: number;
     name: string;
+
+    contactName: string | null;
+    email: string | null;
+    phone: string | null;
+
     isActive: boolean;
+    createdAt: string;
 }
 
 export interface CreateSupplierRequest {
     name: string;
+    contactName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+}
+
+export interface UpdateSupplierRequest {
+    name: string;
+    contactName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+}
+
+export interface SetSupplierStatusRequest {
+    isActive: boolean;
 }
 
 //Productos proveedor
 export interface ProductSupplier {
     ppeProductId: number;
+    sku: string;
+    productName: string;
+    stockUnitId: number;
+    stockUnit: string;
+    stockUnitSymbol: string | null;
     supplierId: number;
+    supplierName: string;
 
     supplierProductCode: string | null;
 
@@ -296,8 +322,31 @@ export interface PurchaseOrder {
     notes: string | null;
 
     createdAt: string;
+    updatedAt: string | null;
+
+    cancelledAt: string | null;
+    cancellationReason: string | null;
 
     items: PurchaseOrderItem[];
+}
+
+export interface UpdatePurchaseOrderItemRequest {
+    ppeProductId: number;
+    orderedPurchaseQuantity: number;
+    purchaseUnitCost?: number | null;
+}
+
+export interface UpdatePurchaseOrderRequest {
+    supplierId: number;
+    purchaseOrderNumber: string;
+    confirmedDeliveryDate: string;
+    currencyCode: string;
+    notes?: string | null;
+    items: UpdatePurchaseOrderItemRequest[];
+}
+
+export interface CancelPurchaseOrderRequest {
+    reason: string;
 }
 
 export interface CreatePurchaseOrderItemRequest {

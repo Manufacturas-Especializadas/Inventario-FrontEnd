@@ -4,7 +4,9 @@ import {
 
 import type {
     CreatePurchaseOrderRequest,
+    CancelPurchaseOrderRequest,
     PurchaseOrder,
+    UpdatePurchaseOrderRequest,
 } from "../../types/types";
 
 export const purchaseOrdersService = {
@@ -36,6 +38,36 @@ export const purchaseOrdersService = {
         const response =
             await apiClient.post<PurchaseOrder>(
                 "/purchase-orders",
+                request
+            );
+
+        return response.data;
+    },
+
+    async update(
+        folio: string,
+        request: UpdatePurchaseOrderRequest
+    ): Promise<PurchaseOrder> {
+        const response =
+            await apiClient.put<PurchaseOrder>(
+                `/purchase-orders/${encodeURIComponent(
+                    folio
+                )}`,
+                request
+            );
+
+        return response.data;
+    },
+
+    async cancel(
+        folio: string,
+        request: CancelPurchaseOrderRequest
+    ): Promise<PurchaseOrder> {
+        const response =
+            await apiClient.put<PurchaseOrder>(
+                `/purchase-orders/${encodeURIComponent(
+                    folio
+                )}/cancel`,
                 request
             );
 

@@ -19,6 +19,17 @@ export const productSuppliersService = {
         return response.data;
     },
 
+    async getBySupplier(
+        supplierId: number
+    ): Promise<ProductSupplier[]> {
+        const response =
+            await apiClient.get<ProductSupplier[]>(
+                `/product-suppliers/by-supplier/${supplierId}`
+            );
+
+        return response.data;
+    },
+
     async create(
         request: CreateProductSupplierRequest
     ): Promise<ProductSupplier> {
