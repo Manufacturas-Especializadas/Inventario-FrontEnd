@@ -1,6 +1,5 @@
 import {
     useCallback,
-    useEffect,
     useState,
 } from "react";
 
@@ -25,6 +24,10 @@ export const usePPECategories = () => {
         setCategories,
     ] = useState<PPECategory[]>([]);
 
+    const [
+        hasLoaded,
+        setHasLoaded,
+    ] = useState(false);
 
     const [
         loading,
@@ -87,10 +90,8 @@ export const usePPECategories = () => {
                     await ppeCategoriesService
                         .getAll();
 
-                setCategories(
-                    data
-                );
-
+                setCategories(data);
+                setHasLoaded(true);
                 return data;
             } catch (error) {
                 setError(
@@ -211,22 +212,17 @@ export const usePPECategories = () => {
         }, []);
 
 
-    useEffect(() => {
-        void getCategories();
-    }, [getCategories]);
-
-
     return {
         categories,
 
         loading,
+        hasLoaded,
         updatingId,
         changingStatusId,
         actionError,
         error,
 
-        refresh:
-            getCategories,
+        refresh: getCategories,
 
         updateCategory,
         setCategoryStatus,

@@ -20,14 +20,14 @@ import {
 } from "../hooks/useRequestReasons";
 
 import {
-    usePPEProducts,
-} from "../hooks/usePPEProducts";
-
-import {
     usePPERequests,
 } from "../hooks/usePPERequests";
 
 import { PageHeader } from "../components/ui/PageHeader";
+
+import { inventoryService } from "../api/services/InventoryService";
+
+import type { InventoryBalance } from "../types/types";
 
 
 interface PPERequestFormItem {
@@ -130,6 +130,26 @@ export const PPERequestsPage = () => {
         clearEmployee,
     } = useEmployeeLookup();
 
+    const [
+        warehouseProducts,
+        setWarehouseProducts,
+    ] = useState<InventoryBalance[]>([]);
+
+    const [
+        loadingWarehouseProducts,
+        setLoadingWarehouseProducts,
+    ] = useState(false);
+
+    const [
+        warehouseProductsError,
+        setWarehouseProductsError,
+    ] = useState<string | null>(null);
+
+    const [
+        loadedWarehouseId,
+        setLoadedWarehouseId,
+    ] = useState<number | null>(null);
+
     const {
         organizationalUnits,
         loading: loadingOrganizationalUnits,
@@ -147,12 +167,6 @@ export const PPERequestsPage = () => {
         loading: loadingRequestReasons,
         error: requestReasonsError,
     } = useRequestReasons();
-
-    const {
-        products,
-        loading: loadingProducts,
-        error: productsError,
-    } = usePPEProducts();
 
     const {
         pendingRequests,
@@ -251,15 +265,13 @@ export const PPERequestsPage = () => {
     const loadingCatalogs =
         loadingOrganizationalUnits ||
         loadingWarehouses ||
-        loadingRequestReasons ||
-        loadingProducts;
+        loadingRequestReasons;
 
 
     const catalogError =
         organizationalUnitsError ||
         warehousesError ||
-        requestReasonsError ||
-        productsError;
+        requestReasonsError;
 
 
     const handleEmployeeNumberChange = (
@@ -604,6 +616,61 @@ export const PPERequestsPage = () => {
             );
 
             setCancellationReason("");
+        };
+
+    const handleLoadWarehouseProducts =
+        async () => {
+            const parsedWarehouseId =
+                Number(warehouseId);
+
+            if (
+                !Number.isInteger(
+                    parsedWarehouseId
+                ) ||
+                parsedWarehouseId <= 0
+            ) {
+                setWarehouseProductsError(
+                    "Selecciona un almacén."
+                );
+
+                return;
+            }
+
+            setLoadingWarehouseProducts(
+                true
+            );
+
+            setWarehouseProductsError(
+                null
+            );
+
+            setWarehouseProducts([]);
+
+            try {
+                const balances =
+                    await inventoryService
+                        .getBalances(
+                            parsedWarehouseId
+                        );
+
+                setWarehouseProducts(
+                    balances
+                );
+
+                setLoadedWarehouseId(
+                    parsedWarehouseId
+                );
+            } catch {
+                setWarehouseProductsError(
+                    "No fue posible obtener los productos del almacén."
+                );
+
+                setLoadedWarehouseId(null);
+            } finally {
+                setLoadingWarehouseProducts(
+                    false
+                );
+            }
         };
 
 
@@ -1002,415 +1069,473 @@ export const PPERequestsPage = () => {
                 </section>
 
 
-                {/* Información de solicitud */}
+                {employee && (
+                    <>
+                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                            <div>
+                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
 
-                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div>
-                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
-
-                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                            Información de la solicitud
-                        </h2>
-                    </div>
-
-
-                    <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">
-                                Unidad organizacional
-                            </label>
-
-                            <select
-                                value={
-                                    requestedForOrganizationalUnitId
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setRequestedForOrganizationalUnitId(
-                                        event
-                                            .target
-                                            .value
-                                    )
-                                }
-                                disabled={
-                                    loadingOrganizationalUnits ||
-                                    loadingRequest
-                                }
-                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="">
-                                    Selecciona una unidad
-                                </option>
-
-                                {organizationalUnits
-                                    .filter(
-                                        (unit) =>
-                                            unit.isActive
-                                    )
-                                    .map(
-                                        (unit) => (
-                                            <option
-                                                key={
-                                                    unit.id
-                                                }
-                                                value={
-                                                    unit.id
-                                                }
-                                            >
-                                                {
-                                                    unit.name
-                                                }
-                                                {" — "}
-                                                {getOrganizationalUnitTypeLabel(
-                                                    unit.type
-                                                )}
-                                                {unit.parentName
-                                                    ? ` / ${unit.parentName}`
-                                                    : ""}
-                                            </option>
-                                        )
-                                    )}
-                            </select>
-
-                            <p className="mt-2 text-xs text-slate-500">
-                                Esta unidad es la que
-                                consumirá el cupo de los artículos.
-                            </p>
-                        </div>
+                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                    Información de la solicitud
+                                </h2>
+                            </div>
 
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">
-                                Almacén
-                            </label>
+                            <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Unidad organizacional
+                                    </label>
 
-                            <select
-                                value={
-                                    warehouseId
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setWarehouseId(
-                                        event.target
-                                            .value
-                                    )
-                                }
-                                disabled={
-                                    loadingWarehouses ||
-                                    loadingRequest
-                                }
-                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="">
-                                    Selecciona un almacén
-                                </option>
-
-                                {warehouses
-                                    .filter(
-                                        (warehouse) =>
-                                            warehouse.isActive
-                                    )
-                                    .map(
-                                        (
-                                            warehouse
-                                        ) => (
-                                            <option
-                                                key={
-                                                    warehouse.id
-                                                }
-                                                value={
-                                                    warehouse.id
-                                                }
-                                            >
-                                                {
-                                                    warehouse.code
-                                                }
-                                                {" — "}
-                                                {
-                                                    warehouse.name
-                                                }
-                                            </option>
-                                        )
-                                    )}
-                            </select>
-                        </div>
-
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">
-                                Motivo
-                            </label>
-
-                            <select
-                                value={
-                                    requestReasonId
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setRequestReasonId(
-                                        event.target
-                                            .value
-                                    )
-                                }
-                                disabled={
-                                    loadingRequestReasons ||
-                                    loadingRequest
-                                }
-                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="">
-                                    Selecciona un motivo
-                                </option>
-
-                                {requestReasons.map(
-                                    (reason) => (
-                                        <option
-                                            key={
-                                                reason.id
-                                            }
-                                            value={
-                                                reason.id
-                                            }
-                                        >
-                                            {
-                                                reason.name
-                                            }
+                                    <select
+                                        value={
+                                            requestedForOrganizationalUnitId
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setRequestedForOrganizationalUnitId(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                        disabled={
+                                            loadingOrganizationalUnits ||
+                                            loadingRequest
+                                        }
+                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                    >
+                                        <option value="">
+                                            Selecciona una unidad
                                         </option>
-                                    )
-                                )}
-                            </select>
-                        </div>
-                    </div>
-                </section>
+
+                                        {organizationalUnits
+                                            .filter(
+                                                (unit) =>
+                                                    unit.isActive
+                                            )
+                                            .map(
+                                                (unit) => (
+                                                    <option
+                                                        key={
+                                                            unit.id
+                                                        }
+                                                        value={
+                                                            unit.id
+                                                        }
+                                                    >
+                                                        {
+                                                            unit.name
+                                                        }
+                                                        {" — "}
+                                                        {getOrganizationalUnitTypeLabel(
+                                                            unit.type
+                                                        )}
+                                                        {unit.parentName
+                                                            ? ` / ${unit.parentName}`
+                                                            : ""}
+                                                    </option>
+                                                )
+                                            )}
+                                    </select>
+
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        Esta unidad es la que
+                                        consumirá el cupo de los artículos.
+                                    </p>
+                                </div>
 
 
-                {/* Productos */}
+                                <div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Motivo
+                                        </label>
 
-                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
-
-                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                                Artículos solicitados
-                            </h2>
-
-                            <p className="mt-2 text-sm leading-6 text-slate-500">
-                                Agrega uno o varios
-                                productos y la cantidad
-                                requerida.
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={addItem}
-                            disabled={
-                                loadingProducts ||
-                                loadingRequest
-                            }
-                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                        >
-                            Agregar producto
-                        </button>
-                    </div>
-
-
-                    <div className="mt-6 space-y-4">
-                        {items.map(
-                            (
-                                item,
-                                index
-                            ) => (
-                                <div
-                                    key={
-                                        item.key
-                                    }
-                                    className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
-                                >
-                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700">
-                                                Producto
-                                            </label>
-
-                                            <select
-                                                value={
-                                                    item.ppeProductId
-                                                }
-                                                onChange={(
-                                                    event
-                                                ) =>
-                                                    updateItem(
-                                                        item.key,
-                                                        "ppeProductId",
-                                                        event
-                                                            .target
-                                                            .value
-                                                    )
-                                                }
-                                                disabled={
-                                                    loadingProducts ||
-                                                    loadingRequest
-                                                }
-                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                            >
-                                                <option value="">
-                                                    Selecciona un producto
-                                                </option>
-
-                                                {products
-                                                    .filter(
-                                                        (
-                                                            product
-                                                        ) =>
-                                                            product.isActive
-                                                    )
-                                                    .map(
-                                                        (
-                                                            product
-                                                        ) => (
-                                                            <option
-                                                                key={
-                                                                    product.id
-                                                                }
-                                                                value={
-                                                                    product.id
-                                                                }
-                                                            >
-                                                                {
-                                                                    product.sku
-                                                                }
-                                                                {" — "}
-                                                                {
-                                                                    product.name
-                                                                }
-                                                            </option>
-                                                        )
-                                                    )}
-                                            </select>
-                                        </div>
-
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700">
-                                                Cantidad
-                                            </label>
-
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                step="1"
-                                                value={
-                                                    item.quantity
-                                                }
-                                                onChange={(
-                                                    event
-                                                ) =>
-                                                    updateItem(
-                                                        item.key,
-                                                        "quantity",
-                                                        event
-                                                            .target
-                                                            .value
-                                                    )
-                                                }
-                                                disabled={
-                                                    loadingRequest
-                                                }
-                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                            />
-                                        </div>
-
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                removeItem(
-                                                    item.key
+                                        <select
+                                            value={
+                                                requestReasonId
+                                            }
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                setRequestReasonId(
+                                                    event.target
+                                                        .value
                                                 )
                                             }
                                             disabled={
-                                                items.length ===
-                                                1 ||
+                                                loadingRequestReasons ||
                                                 loadingRequest
                                             }
-                                            className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
+                                            className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                                         >
-                                            Quitar
+                                            <option value="">
+                                                Selecciona un motivo
+                                            </option>
+
+                                            {requestReasons.map(
+                                                (reason) => (
+                                                    <option
+                                                        key={
+                                                            reason.id
+                                                        }
+                                                        value={
+                                                            reason.id
+                                                        }
+                                                    >
+                                                        {
+                                                            reason.name
+                                                        }
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+                                    </div>
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Almacén
+                                    </label>
+
+                                    <select
+                                        value={
+                                            warehouseId
+                                        }
+                                        onChange={(event) => {
+                                            setWarehouseId(
+                                                event.target.value
+                                            );
+
+                                            setWarehouseProducts([]);
+                                            setWarehouseProductsError(null);
+                                            setLoadedWarehouseId(null);
+
+                                            setItems([
+                                                createEmptyItem(),
+                                            ]);
+
+                                            setFormError(null);
+                                        }}
+                                        disabled={
+                                            loadingWarehouses ||
+                                            loadingRequest
+                                        }
+                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                    >
+                                        <option value="">
+                                            Selecciona un almacén
+                                        </option>
+
+                                        {warehouses
+                                            .filter(
+                                                (warehouse) =>
+                                                    warehouse.isActive
+                                            )
+                                            .map(
+                                                (
+                                                    warehouse
+                                                ) => (
+                                                    <option
+                                                        key={
+                                                            warehouse.id
+                                                        }
+                                                        value={
+                                                            warehouse.id
+                                                        }
+                                                    >
+                                                        {
+                                                            warehouse.code
+                                                        }
+                                                        {" — "}
+                                                        {
+                                                            warehouse.name
+                                                        }
+                                                    </option>
+                                                )
+                                            )}
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void handleLoadWarehouseProducts()
+                                        }
+                                        disabled={
+                                            !warehouseId ||
+                                            loadingWarehouseProducts ||
+                                            loadingRequest
+                                        }
+                                        className="mt-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {loadingWarehouseProducts
+                                            ? "Obteniendo productos..."
+                                            : "Obtener productos"}
+                                    </button>
+
+                                    {warehouseProductsError && (
+                                        <p className="mt-2 text-sm text-red-700">
+                                            {warehouseProductsError}
+                                        </p>
+                                    )}
+
+                                    {loadedWarehouseId !== null &&
+                                        !loadingWarehouseProducts && (
+                                            <p className="mt-2 text-sm text-emerald-700">
+                                                {
+                                                    warehouseProducts.length
+                                                }{" "}
+                                                productos encontrados en el almacén.
+                                            </p>
+                                        )}
+                                </div>
+
+
+
+                            </div>
+                        </section>
+
+
+
+
+                        {loadedWarehouseId === Number(warehouseId) &&
+                            !loadingWarehouseProducts &&
+                            warehouseProducts.length > 0 && (
+                                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
+
+                                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                                Artículos solicitados
+                                            </h2>
+
+                                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                                Agrega uno o varios
+                                                productos y la cantidad
+                                                requerida.
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={addItem}
+                                            disabled={
+                                                !warehouseId ||
+                                                loadedWarehouseId !==
+                                                Number(warehouseId) ||
+                                                loadingWarehouseProducts ||
+                                                loadingRequest
+                                            }
+                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                        >
+                                            Agregar producto
                                         </button>
                                     </div>
 
-                                    <p className="mt-3 text-xs text-slate-500">
-                                        Producto{" "}
-                                        {index + 1}
-                                    </p>
-                                </div>
-                            )
-                        )}
-                    </div>
-                </section>
+
+                                    <div className="mt-6 space-y-4">
+                                        {items.map(
+                                            (
+                                                item,
+                                                index
+                                            ) => (
+                                                <div
+                                                    key={
+                                                        item.key
+                                                    }
+                                                    className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
+                                                >
+                                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-slate-700">
+                                                                Producto
+                                                            </label>
+
+                                                            <select
+                                                                value={
+                                                                    item.ppeProductId
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    updateItem(
+                                                                        item.key,
+                                                                        "ppeProductId",
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    !warehouseId ||
+                                                                    loadedWarehouseId !==
+                                                                    Number(warehouseId) ||
+                                                                    loadingWarehouseProducts ||
+                                                                    loadingRequest
+                                                                }
+                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                            >
+                                                                <option value="">
+                                                                    {!warehouseId
+                                                                        ? "Selecciona primero un almacén"
+                                                                        : loadingWarehouseProducts
+                                                                            ? "Cargando productos..."
+                                                                            : loadedWarehouseId !==
+                                                                                Number(warehouseId)
+                                                                                ? "Haz clic en Obtener productos"
+                                                                                : warehouseProducts.length === 0
+                                                                                    ? "El almacén no tiene productos"
+                                                                                    : "Selecciona un producto"}
+                                                                </option>
+
+                                                                {warehouseProducts
+                                                                    .filter(
+                                                                        (balance) =>
+                                                                            balance.availableQuantity > 0
+                                                                    )
+                                                                    .map(
+                                                                        (balance) => (
+                                                                            <option
+                                                                                key={
+                                                                                    balance.ppeProductId
+                                                                                }
+                                                                                value={
+                                                                                    balance.ppeProductId
+                                                                                }
+                                                                            >
+                                                                                {balance.sku}
+                                                                                {" - "}
+                                                                                {balance.productName}
+                                                                                {" · Disponibles: "}
+                                                                                {
+                                                                                    balance.availableQuantity
+                                                                                }
+                                                                            </option>
+                                                                        )
+                                                                    )}
+                                                            </select>
+                                                        </div>
 
 
-                {/* Observaciones */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-slate-700">
+                                                                Cantidad
+                                                            </label>
 
-                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div>
-                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
-
-                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                            Observaciones
-                        </h2>
-                    </div>
-
-
-                    <div className="mt-6">
-                        <label className="block text-sm font-medium text-slate-700">
-                            Notas
-                        </label>
-
-                        <textarea
-                            value={notes}
-                            onChange={(event) =>
-                                setNotes(
-                                    event.target
-                                        .value
-                                )
-                            }
-                            disabled={
-                                loadingRequest
-                            }
-                            rows={4}
-                            placeholder="Agrega información adicional sobre la solicitud..."
-                            className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                        />
-
-                        <p className="mt-2 text-xs text-slate-500">
-                            Algunos motivos excepcionales
-                            pueden requerir una
-                            explicación.
-                        </p>
-                    </div>
-                </section>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                step="1"
+                                                                value={
+                                                                    item.quantity
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    updateItem(
+                                                                        item.key,
+                                                                        "quantity",
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    loadingRequest
+                                                                }
+                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                            />
+                                                        </div>
 
 
-                <div className="flex justify-end">
-                    <button
-                        type="submit"
-                        disabled={
-                            loadingRequest ||
-                            loadingCatalogs
-                        }
-                        className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
-                    >
-                        {loadingRequest
-                            ? "Creando solicitud..."
-                            : "Crear solicitud"}
-                    </button>
-                </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                removeItem(
+                                                                    item.key
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                items.length ===
+                                                                1 ||
+                                                                loadingRequest
+                                                            }
+                                                            className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            Quitar
+                                                        </button>
+                                                    </div>
+
+                                                    <p className="mt-3 text-xs text-slate-500">
+                                                        Producto{" "}
+                                                        {index + 1}
+                                                    </p>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                </section>
+                            )}
+
+
+                        {/* Observaciones */}
+
+                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                            <div>
+                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
+
+                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                    Observaciones
+                                </h2>
+                            </div>
+
+
+                            <div className="mt-6">
+                                <label className="block text-sm font-medium text-slate-700">
+                                    Notas
+                                </label>
+
+                                <textarea
+                                    value={notes}
+                                    onChange={(event) =>
+                                        setNotes(
+                                            event.target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        loadingRequest
+                                    }
+                                    rows={4}
+                                    placeholder="Agrega información adicional sobre la solicitud..."
+                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                />
+
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Algunos motivos excepcionales
+                                    pueden requerir una
+                                    explicación.
+                                </p>
+                            </div>
+                        </section>
+
+
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={
+                                    loadingRequest ||
+                                    loadingCatalogs
+                                }
+                                className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                            >
+                                {loadingRequest
+                                    ? "Creando solicitud..."
+                                    : "Crear solicitud"}
+                            </button>
+                        </div>
+                    </>
+                )}
             </form>
             <section className="mt-10 rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
