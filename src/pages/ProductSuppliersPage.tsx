@@ -26,6 +26,8 @@ import {
     useUnits,
 } from "../hooks/useUnits";
 
+import { PageHeader } from "../components/ui/PageHeader";
+
 export const ProductSuppliersPage = () => {
     const {
         products,
@@ -253,20 +255,11 @@ export const ProductSuppliersPage = () => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
-            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
-                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                    MESA · Catálogos
-                </p>
-
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Productos por proveedor
-                </h1>
-
-                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                    Vincula tus productos con sus proveedores y define cómo se compran y reciben.
-                </p>
-            </div>
+            <PageHeader
+                eyebrow="MESA · Catálogos"
+                title="Productos por proveedor"
+                description="Vincula tus productos con sus proveedores y define cómo se compran y reciben."
+            />
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex items-center gap-3">

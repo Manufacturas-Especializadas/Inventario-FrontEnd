@@ -24,6 +24,12 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
+import { StatCard } from "../components/ui/StatCard";
+import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
+import { CatalogStatusFilters } from "../components/catalogs/CatalogStatusFilters";
+import { CatalogNameForm } from "../components/catalogs/CatalogNameForm";
+import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
+
 type StatusFilter =
     | "all"
     | "active"
@@ -431,143 +437,54 @@ export const ColorsPage = () => {
                         </div>
                     )}
 
-                    <form
-                        onSubmit={
-                            handleSubmit
-                        }
-                        className="mt-6"
-                    >
-                        <div>
-                            <label
-                                htmlFor="color-name"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Nombre
-                            </label>
-
-                            <input
-                                id="color-name"
-                                value={name}
-                                onChange={(
-                                    event
-                                ) => {
-                                    setName(
-                                        event
-                                            .target
-                                            .value
-                                    );
-
-                                    setFormError(
-                                        null
-                                    );
-
-                                    setSuccessMessage(
-                                        null
-                                    );
-                                }}
-                                disabled={
-                                    isSubmitting
-                                }
-                                placeholder="Ej. Negro, Azul, Rojo, Amarillo"
-                                autoComplete="off"
-                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            />
-
-                            {duplicateColor && (
-                                <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-800">
-                                    Ya existe el color "
-                                    {
-                                        duplicateColor.name
-                                    }
-                                    ".
-                                </p>
-                            )}
-                        </div>
-
-                        {formError && (
-                            <div
-                                role="alert"
-                                className="mt-5 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
-                            >
-                                {formError}
-                            </div>
-                        )}
-
-                        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
-                            {editingColorId !==
-                                null && (
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            cancelEditing
-                                        }
-                                        disabled={
-                                            isSubmitting
-                                        }
-                                        className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
-                                    >
-                                        Cancelar
-                                    </button>
-                                )}
-
-                            <button
-                                type="submit"
-                                disabled={
-                                    isSubmitting ||
-                                    Boolean(
-                                        duplicateColor
-                                    )
-                                }
-                                className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
-                            >
-                                {isSubmitting
-                                    ? "Guardando..."
-                                    : editingColorId !==
-                                        null
-                                        ? "Guardar cambios"
-                                        : "Crear Color"}
-                            </button>
-                        </div>
-                    </form>
+                    <CatalogNameForm
+                        inputId="color-name"
+                        name={name}
+                        placeholder="Ej. Negro, Azul, Rojo, Amarillo"
+                        onNameChange={(event) => {
+                            setName(event.target.value);
+                            setFormError(null);
+                            setSuccessMessage(null);
+                        }}
+                        onSubmit={handleSubmit}
+                        isSubmitting={isSubmitting}
+                        duplicateMessage={duplicateColor
+                            ? `Ya existe el color "${duplicateColor.name}".`
+                            : null}
+                        errorMessage={formError}
+                        showCancel={editingColorId !== null}
+                        onCancel={cancelEditing}
+                        submitDisabled={isSubmitting || Boolean(duplicateColor)}
+                        submitLabel={isSubmitting
+                            ? "Guardando..."
+                            : editingColorId !== null
+                                ? "Guardar cambios"
+                                : "Crear Color"}
+                    />
                 </section>
             )}
 
             <dl className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Total
-                    </dt>
+                <StatCard
+                    label="Total"
+                    value={loading
+                        ? "…"
+                        : summary.total}
+                />
 
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.total}
-                    </dd>
-                </div>
+                <StatCard
+                    label="Activas"
+                    value={loading
+                        ? "…"
+                        : summary.active}
+                />
 
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Activas
-                    </dt>
-
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.active}
-                    </dd>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Inactivas
-                    </dt>
-
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.inactive}
-                    </dd>
-                </div>
+                <StatCard
+                    label="Inactivas"
+                    value={loading
+                        ? "…"
+                        : summary.inactive}
+                />
             </dl>
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
@@ -593,85 +510,33 @@ export const ColorsPage = () => {
                         </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row sm:items-end">
-                        <div className="min-w-0 flex-1">
-                            <label
-                                htmlFor="color-search"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Buscar
-                            </label>
-
-                            <input
-                                id="color-search"
-                                type="search"
-                                value={search}
-                                onChange={(
-                                    event
-                                ) =>
-                                    setSearch(
-                                        event
-                                            .target
-                                            .value
-                                    )
-                                }
-                                placeholder="Nombre del color"
-                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none sm:text-sm"
-                            />
-                        </div>
-
-                        <div className="sm:w-48 sm:shrink-0">
-                            <label
-                                htmlFor="color-status"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Estado
-                            </label>
-
-                            <select
-                                id="color-status"
-                                value={
-                                    statusFilter
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setStatusFilter(
-                                        event
-                                            .target
-                                            .value as StatusFilter
-                                    )
-                                }
-                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base text-slate-900 outline-none transition-colors hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none sm:text-sm"
-                            >
-                                <option value="all">
-                                    Todas
-                                </option>
-
-                                <option value="active">
-                                    Activas
-                                </option>
-
-                                <option value="inactive">
-                                    Inactivas
-                                </option>
-                            </select>
-                        </div>
-
-                        {hasFilters && (
-                            <div className="flex items-end">
-                                <button
-                                    type="button"
-                                    onClick={
-                                        clearFilters
-                                    }
-                                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
-                                >
-                                    Limpiar
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <CatalogStatusFilters
+                        searchId="color-search"
+                        statusId="color-status"
+                        search={search}
+                        searchPlaceholder="Nombre del color"
+                        status={statusFilter}
+                        onSearchChange={(
+                            event
+                        ) =>
+                            setSearch(
+                                event
+                                    .target
+                                    .value
+                            )
+                        }
+                        onStatusChange={(
+                            event
+                        ) =>
+                            setStatusFilter(
+                                event
+                                    .target
+                                    .value as StatusFilter
+                            )
+                        }
+                        showClear={hasFilters}
+                        onClear={clearFilters}
+                    />
                 </div>
 
                 {actionError && (
@@ -764,64 +629,18 @@ export const ColorsPage = () => {
                                                 </td>
 
                                                 <td className="px-6 py-5">
-                                                    <span
-                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${color.isActive
-                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
-                                                            }`}
-                                                    >
-                                                        {color.isActive
-                                                            ? "Activo"
-                                                            : "Inactivo"}
-                                                    </span>
+                                                    <ActiveStatusBadge isActive={color.isActive} />
                                                 </td>
 
                                                 {isAdministrator && (
                                                     <td className="px-6 py-5">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    startEditing(
-                                                                        color
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    isSubmitting ||
-                                                                    changingStatusId !==
-                                                                    null
-                                                                }
-                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                            >
-                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
-                                                                Editar
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    void handleStatusChange(
-                                                                        color
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    changingStatusId !==
-                                                                    null ||
-                                                                    isSubmitting
-                                                                }
-                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${color.isActive
-                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
-                                                                    }`}
-                                                            >
-                                                                {changingStatusId ===
-                                                                    color.id
-                                                                    ? "Guardando..."
-                                                                    : color.isActive
-                                                                        ? "Desactivar"
-                                                                        : "Activar"}
-                                                            </button>
-                                                        </div>
+                                                        <CatalogRowActions
+                                                            isActive={color.isActive}
+                                                            isChanging={changingStatusId === color.id}
+                                                            disabled={isSubmitting || changingStatusId !== null}
+                                                            onEdit={() => startEditing(color)}
+                                                            onToggleStatus={() => void handleStatusChange(color)}
+                                                        />
                                                     </td>
                                                 )}
                                             </tr>

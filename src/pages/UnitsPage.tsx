@@ -24,6 +24,10 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
+import { StatCard } from "../components/ui/StatCard";
+import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
+import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
+
 type StatusFilter =
     | "all"
     | "active"
@@ -594,41 +598,26 @@ export const UnitsPage = () => {
             )}
 
             <dl className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Total
-                    </dt>
+                <StatCard
+                    label="Total"
+                    value={loading
+                        ? "…"
+                        : summary.total}
+                />
 
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.total}
-                    </dd>
-                </div>
+                <StatCard
+                    label="Activas"
+                    value={loading
+                        ? "…"
+                        : summary.active}
+                />
 
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Activas
-                    </dt>
-
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.active}
-                    </dd>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                    <dt className="text-sm text-slate-600">
-                        Inactivas
-                    </dt>
-
-                    <dd className="mt-2 text-2xl font-semibold text-slate-900">
-                        {loading
-                            ? "…"
-                            : summary.inactive}
-                    </dd>
-                </div>
+                <StatCard
+                    label="Inactivas"
+                    value={loading
+                        ? "…"
+                        : summary.inactive}
+                />
             </dl>
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
@@ -829,64 +818,18 @@ export const UnitsPage = () => {
                                                 </td>
 
                                                 <td className="px-6 py-5">
-                                                    <span
-                                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${unit.isActive
-                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
-                                                            }`}
-                                                    >
-                                                        {unit.isActive
-                                                            ? "Activo"
-                                                            : "Inactivo"}
-                                                    </span>
+                                                    <ActiveStatusBadge isActive={unit.isActive} />
                                                 </td>
 
                                                 {isAdministrator && (
                                                     <td className="px-6 py-5">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    startEditing(
-                                                                        unit
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    isSubmitting ||
-                                                                    changingStatusId !==
-                                                                    null
-                                                                }
-                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                            >
-                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
-                                                                Editar
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    void handleStatusChange(
-                                                                        unit
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    changingStatusId !==
-                                                                    null ||
-                                                                    isSubmitting
-                                                                }
-                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${unit.isActive
-                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
-                                                                    }`}
-                                                            >
-                                                                {changingStatusId ===
-                                                                    unit.id
-                                                                    ? "Guardando..."
-                                                                    : unit.isActive
-                                                                        ? "Desactivar"
-                                                                        : "Activar"}
-                                                            </button>
-                                                        </div>
+                                                        <CatalogRowActions
+                                                            isActive={unit.isActive}
+                                                            isChanging={changingStatusId === unit.id}
+                                                            disabled={isSubmitting || changingStatusId !== null}
+                                                            onEdit={() => startEditing(unit)}
+                                                            onToggleStatus={() => void handleStatusChange(unit)}
+                                                        />
                                                     </td>
                                                 )}
                                             </tr>

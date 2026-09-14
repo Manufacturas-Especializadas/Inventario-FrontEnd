@@ -28,6 +28,8 @@ import {
 } from "../api/services/ProductSuppliersService";
 import { getApiErrorMessage } from "../utils/utils";
 
+import { PageHeader } from "../components/ui/PageHeader";
+
 interface PurchaseOrderFormItem {
     key: string;
 
@@ -867,20 +869,11 @@ export const PurchaseOrdersPage = () => {
 
     return (
         <div className="mx-auto min-w-0 max-w-7xl space-y-6">
-            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
-                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                    MESA · Compras
-                </p>
-
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Órdenes de compra
-                </h1>
-
-                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                    Organiza los pedidos de artículos y materiales para la operación de MESA.
-                </p>
-            </div>
+            <PageHeader
+                eyebrow="MESA · Compras"
+                title="Órdenes de compra"
+                description="Organiza los pedidos de artículos y materiales para la operación de MESA."
+            />
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex items-center gap-3">
@@ -1744,7 +1737,7 @@ export const PurchaseOrdersPage = () => {
                                                     </td>
 
                                                     <td className="px-5 py-4">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-[25rem] sm:grid-cols-3">
+                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-100 sm:grid-cols-3">
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
@@ -1820,7 +1813,7 @@ export const PurchaseOrdersPage = () => {
                                         Orden de compra
                                     </p>
 
-                                    <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-slate-900">
+                                    <h2 className="mt-2 wrap-break-word text-2xl font-semibold tracking-tight text-slate-900">
                                         {detailOrder
                                             ? detailOrder.folio
                                             : "Detalle"}
@@ -1894,7 +1887,7 @@ export const PurchaseOrdersPage = () => {
                                             : null;
 
                                     return (
-                                        <div className="space-y-6 p-4 sm:p-8 [&_dd]:break-words">
+                                        <div className="space-y-6 p-4 sm:p-8 [&_dd]:wrap-break-word">
                                             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                                 <div>
                                                     <p className="text-sm text-slate-500">
@@ -1973,7 +1966,7 @@ export const PurchaseOrdersPage = () => {
                                                         Notas
                                                     </h3>
 
-                                                    <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                                                    <p className="mt-2 whitespace-pre-wrap wrap-break-word rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                                                         {
                                                             detailOrder.notes
                                                         }
@@ -2050,7 +2043,7 @@ export const PurchaseOrdersPage = () => {
                                                                 key={
                                                                     item.id
                                                                 }
-                                                                className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_h4]:break-words"
+                                                                className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_h4]:wrap-break-word"
                                                             >
                                                                 <div className="flex flex-wrap justify-between gap-4">
                                                                     <div>
@@ -2183,7 +2176,7 @@ export const PurchaseOrdersPage = () => {
                                 Cancelación
                             </p>
 
-                            <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-slate-900">
+                            <h2 className="mt-2 wrap-break-word text-2xl font-semibold tracking-tight text-slate-900">
                                 Cancelar{" "}
                                 {
                                     cancellingOrder.folio
