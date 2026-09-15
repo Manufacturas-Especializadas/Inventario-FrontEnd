@@ -16,7 +16,11 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
-export const useWarehouses = () => {
+interface UseWarehousesOptions {
+    autoLoad?: boolean;
+}
+
+export const useWarehouses = ({ autoLoad = true }: UseWarehousesOptions = {}) => {
     const [
         warehouses,
         setWarehouses,
@@ -32,6 +36,8 @@ export const useWarehouses = () => {
         setError,
     ] = useState<string | null>(null);
 
+    const [hasLoaded, setHasLoaded] = useState(false);
+
     const getWarehouses =
         useCallback(async () => {
             setLoading(true);
@@ -43,6 +49,7 @@ export const useWarehouses = () => {
                         .getAll();
 
                 setWarehouses(data);
+                setHasLoaded(true);
             } catch (error) {
                 setError(
                     getApiErrorMessage(
@@ -56,13 +63,16 @@ export const useWarehouses = () => {
         }, []);
 
     useEffect(() => {
-        void getWarehouses();
-    }, [getWarehouses]);
+        if (autoLoad) {
+            void getWarehouses();
+        }
+    }, [autoLoad, getWarehouses]);
 
     return {
         warehouses,
         loading,
         error,
+        hasLoaded,
         refresh: getWarehouses,
     };
 };

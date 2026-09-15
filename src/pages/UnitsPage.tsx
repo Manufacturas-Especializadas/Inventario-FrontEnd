@@ -27,6 +27,8 @@ import {
 import { StatCard } from "../components/ui/StatCard";
 import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
 import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
+import { CatalogDisclosure } from "../components/catalogs/CatalogDisclosure";
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 
 type StatusFilter =
     | "all"
@@ -46,7 +48,20 @@ export const UnitsPage = () => {
         loading,
         error,
         refresh,
-    } = useUnits();
+        hasLoaded,
+        upsertUnit,
+    } = useUnits({ autoLoad: false });
+
+    const [showCatalog, setShowCatalog] = useState(false);
+
+    const toggleCatalog = () => {
+        const nextOpen = !showCatalog;
+        setShowCatalog(nextOpen);
+
+        if (nextOpen && !hasLoaded) {
+            void refresh();
+        }
+    };
 
     const {
         hasRole,
@@ -316,7 +331,7 @@ export const UnitsPage = () => {
                                 }
                             );
 
-                    await refresh();
+                    upsertUnit(updatedUnit);
 
                     resetForm();
 
@@ -335,7 +350,7 @@ export const UnitsPage = () => {
                                     null,
                             });
 
-                    await refresh();
+                    upsertUnit(createdUnit);
 
                     resetForm();
 
@@ -388,7 +403,7 @@ export const UnitsPage = () => {
                             }
                         );
 
-                await refresh();
+                upsertUnit(updatedUnit);
 
                 setSuccessMessage(
                     `Unidad "${updatedUnit.name}" ${updatedUnit.isActive
@@ -597,249 +612,274 @@ export const UnitsPage = () => {
                 </section>
             )}
 
-            <dl className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
-                <StatCard
-                    label="Total"
-                    value={loading
-                        ? "…"
-                        : summary.total}
-                />
-
-                <StatCard
-                    label="Activas"
-                    value={loading
-                        ? "…"
-                        : summary.active}
-                />
-
-                <StatCard
-                    label="Inactivas"
-                    value={loading
-                        ? "…"
-                        : summary.inactive}
-                />
-            </dl>
-
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                <div className="border-b border-slate-200 p-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-900">
-                                Unidades registradas
-                            </h2>
-
-                            {!loading &&
-                                !error && (
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        {
-                                            filteredUnits.length
-                                        }{" "}
-                                        {filteredUnits.length ===
-                                            1
-                                            ? "resultado"
-                                            : "resultados"}
-                                    </p>
-                                )}
-                        </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row">
-                        <div className="flex-1">
-                            <label
-                                htmlFor="unit-search"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Buscar
-                            </label>
-
-                            <input
-                                id="unit-search"
-                                type="search"
-                                value={search}
-                                onChange={(
-                                    event
-                                ) =>
-                                    setSearch(
-                                        event
-                                            .target
-                                            .value
-                                    )
-                                }
-                                placeholder="Nombre o símbolo"
-                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div className="sm:w-48">
-                            <label
-                                htmlFor="unit-status"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Estado
-                            </label>
-
-                            <select
-                                id="unit-status"
-                                value={
-                                    statusFilter
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setStatusFilter(
-                                        event
-                                            .target
-                                            .value as StatusFilter
-                                    )
-                                }
-                                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="all">
-                                    Todas
-                                </option>
-
-                                <option value="active">
-                                    Activas
-                                </option>
-
-                                <option value="inactive">
-                                    Inactivas
-                                </option>
-                            </select>
-                        </div>
-
-                        {hasFilters && (
-                            <div className="flex items-end">
+            <CatalogDisclosure
+                id="units-list"
+                title="Listado de unidades"
+                description="Consulta, busca y administra las unidades registradas."
+                isOpen={showCatalog}
+                onToggle={toggleCatalog}
+            >
+                {showCatalog && (
+                    <>
+                        {loading && <CatalogLoadingSkeleton label="Cargando unidades" />}
+                        {!loading && error && (
+                            <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm leading-6 text-red-700 sm:mx-8">
+                                <p className="font-semibold">No fue posible cargar el listado.</p>
+                                <p className="mt-1">{error}</p>
                                 <button
                                     type="button"
-                                    onClick={
-                                        clearFilters
-                                    }
-                                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
+                                    onClick={() => void refresh()}
+                                    className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
                                 >
-                                    Limpiar
+                                    Reintentar
                                 </button>
                             </div>
                         )}
-                    </div>
-                </div>
+                        {!loading && hasLoaded && !error && (
+                            <>
+                                <dl className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
+                                    <StatCard
+                                        label="Total"
+                                        value={loading
+                                            ? "…"
+                                            : summary.total}
+                                    />
 
-                {actionError && (
-                    <div
-                        role="alert"
-                        className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
-                    >
-                        {actionError}
-                    </div>
-                )}
+                                    <StatCard
+                                        label="Activas"
+                                        value={loading
+                                            ? "…"
+                                            : summary.active}
+                                    />
 
-                {loading && (
-                    <div className="p-6 text-sm text-slate-500">
-                        Cargando unidades...
-                    </div>
-                )}
+                                    <StatCard
+                                        label="Inactivas"
+                                        value={loading
+                                            ? "…"
+                                            : summary.inactive}
+                                    />
+                                </dl>
 
-                {!loading &&
-                    error && (
-                        <div className="p-6 text-sm text-red-600">
-                            {error}
-                        </div>
-                    )}
+                                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                                    <div className="border-b border-slate-200 p-6">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <h2 className="text-lg font-semibold text-slate-900">
+                                                    Unidades registradas
+                                                </h2>
 
-                {!loading &&
-                    !error &&
-                    units.length === 0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
-                            No hay unidades
-                            registradas.
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    units.length > 0 &&
-                    filteredUnits.length ===
-                    0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
-                            No hay unidades que
-                            coincidan con los
-                            filtros.
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    filteredUnits.length >
-                    0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-180 text-left text-sm">
-                                <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
-                                    <tr>
-                                        <th className="px-6 py-4">
-                                            Nombre
-                                        </th>
-
-                                        <th className="px-6 py-4">
-                                            Símbolo
-                                        </th>
-
-                                        <th className="px-6 py-4">
-                                            Estado
-                                        </th>
-
-                                        {isAdministrator && (
-                                            <th className="px-6 py-4 text-right">
-                                                Acciones
-                                            </th>
-                                        )}
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredUnits.map(
-                                        (
-                                            unit
-                                        ) => (
-                                            <tr
-                                                key={
-                                                    unit.id
-                                                }
-                                                className="hover:bg-sky-50/50"
+                                                {!loading &&
+                                                    !error && (
+                                                        <p className="mt-1 text-sm text-slate-500">
+                                                            {
+                                                                filteredUnits.length
+                                                            }{" "}
+                                                            {filteredUnits.length ===
+                                                                1
+                                                                ? "resultado"
+                                                                : "resultados"}
+                                                        </p>
+                                                    )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void refresh()}
+                                                disabled={loading}
+                                                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                                             >
-                                                <td className="px-6 py-5 font-semibold text-slate-900">
-                                                    {
-                                                        unit.name
+                                                Actualizar
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row">
+                                            <div className="flex-1">
+                                                <label
+                                                    htmlFor="unit-search"
+                                                    className="block text-sm font-medium text-slate-700"
+                                                >
+                                                    Buscar
+                                                </label>
+
+                                                <input
+                                                    id="unit-search"
+                                                    type="search"
+                                                    value={search}
+                                                    onChange={(
+                                                        event
+                                                    ) =>
+                                                        setSearch(
+                                                            event
+                                                                .target
+                                                                .value
+                                                        )
                                                     }
-                                                </td>
+                                                    placeholder="Nombre o símbolo"
+                                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                />
+                                            </div>
 
-                                                <td className="px-6 py-5 text-slate-600">
-                                                    {unit.symbol ??
-                                                        "—"}
-                                                </td>
+                                            <div className="sm:w-48">
+                                                <label
+                                                    htmlFor="unit-status"
+                                                    className="block text-sm font-medium text-slate-700"
+                                                >
+                                                    Estado
+                                                </label>
 
-                                                <td className="px-6 py-5">
-                                                    <ActiveStatusBadge isActive={unit.isActive} />
-                                                </td>
+                                                <select
+                                                    id="unit-status"
+                                                    value={
+                                                        statusFilter
+                                                    }
+                                                    onChange={(
+                                                        event
+                                                    ) =>
+                                                        setStatusFilter(
+                                                            event
+                                                                .target
+                                                                .value as StatusFilter
+                                                        )
+                                                    }
+                                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                >
+                                                    <option value="all">
+                                                        Todas
+                                                    </option>
 
-                                                {isAdministrator && (
-                                                    <td className="px-6 py-5">
-                                                        <CatalogRowActions
-                                                            isActive={unit.isActive}
-                                                            isChanging={changingStatusId === unit.id}
-                                                            disabled={isSubmitting || changingStatusId !== null}
-                                                            onEdit={() => startEditing(unit)}
-                                                            onToggleStatus={() => void handleStatusChange(unit)}
-                                                        />
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        )
+                                                    <option value="active">
+                                                        Activas
+                                                    </option>
+
+                                                    <option value="inactive">
+                                                        Inactivas
+                                                    </option>
+                                                </select>
+                                            </div>
+
+                                            {hasFilters && (
+                                                <div className="flex items-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={
+                                                            clearFilters
+                                                        }
+                                                        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
+                                                    >
+                                                        Limpiar
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {actionError && (
+                                        <div
+                                            role="alert"
+                                            className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
+                                        >
+                                            {actionError}
+                                        </div>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-            </section>
+
+                                    {!loading &&
+                                        !error &&
+                                        units.length === 0 && (
+                                            <div className="p-8 text-center text-sm text-slate-500">
+                                                No hay unidades
+                                                registradas.
+                                            </div>
+                                        )}
+
+                                    {!loading &&
+                                        !error &&
+                                        units.length > 0 &&
+                                        filteredUnits.length ===
+                                        0 && (
+                                            <div className="p-8 text-center text-sm text-slate-500">
+                                                No hay unidades que
+                                                coincidan con los
+                                                filtros.
+                                            </div>
+                                        )}
+
+                                    {!loading &&
+                                        !error &&
+                                        filteredUnits.length >
+                                        0 && (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full min-w-180 text-left text-sm">
+                                                    <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
+                                                        <tr>
+                                                            <th className="px-6 py-4">
+                                                                Nombre
+                                                            </th>
+
+                                                            <th className="px-6 py-4">
+                                                                Símbolo
+                                                            </th>
+
+                                                            <th className="px-6 py-4">
+                                                                Estado
+                                                            </th>
+
+                                                            {isAdministrator && (
+                                                                <th className="px-6 py-4 text-right">
+                                                                    Acciones
+                                                                </th>
+                                                            )}
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {filteredUnits.map(
+                                                            (
+                                                                unit
+                                                            ) => (
+                                                                <tr
+                                                                    key={
+                                                                        unit.id
+                                                                    }
+                                                                    className="hover:bg-sky-50/50"
+                                                                >
+                                                                    <td className="px-6 py-5 font-semibold text-slate-900">
+                                                                        {
+                                                                            unit.name
+                                                                        }
+                                                                    </td>
+
+                                                                    <td className="px-6 py-5 text-slate-600">
+                                                                        {unit.symbol ??
+                                                                            "—"}
+                                                                    </td>
+
+                                                                    <td className="px-6 py-5">
+                                                                        <ActiveStatusBadge isActive={unit.isActive} />
+                                                                    </td>
+
+                                                                    {isAdministrator && (
+                                                                        <td className="px-6 py-5">
+                                                                            <CatalogRowActions
+                                                                                isActive={unit.isActive}
+                                                                                isChanging={changingStatusId === unit.id}
+                                                                                disabled={isSubmitting || changingStatusId !== null}
+                                                                                onEdit={() => startEditing(unit)}
+                                                                                onToggleStatus={() => void handleStatusChange(unit)}
+                                                                            />
+                                                                        </td>
+                                                                    )}
+                                                                </tr>
+                                                            )
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                </section>
+                            </>
+                        )}
+                    </>
+                )}
+            </CatalogDisclosure>
         </div>
     );
 };

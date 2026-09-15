@@ -12,6 +12,7 @@ import {
 } from "../hooks/useWarehouses";
 
 import { PageHeader } from "../components/ui/PageHeader";
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 
 export const InventoryPage = () => {
     const [
@@ -29,6 +30,8 @@ export const InventoryPage = () => {
         setOnlyLowStock,
     ] = useState(false);
 
+    const [hasRequested, setHasRequested] = useState(false);
+
     const selectedWarehouseId =
         warehouseId
             ? Number(warehouseId)
@@ -38,15 +41,20 @@ export const InventoryPage = () => {
         balances,
         loading,
         error,
+        hasLoaded,
         refresh,
+        invalidate,
     } = useInventory(
-        selectedWarehouseId
+        selectedWarehouseId,
+        { autoLoad: false }
     );
 
     const {
         warehouses,
         loading: loadingWarehouses,
     } = useWarehouses();
+
+    const showResults = hasRequested && hasLoaded && !loading && !error;
 
 
     const filteredBalances =
@@ -132,68 +140,70 @@ export const InventoryPage = () => {
                 description="Consulta existencias, cantidades reservadas y disponibilidad de los productos."
             />
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
-                    <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9" /></svg>
-                    <p className="text-sm font-medium text-slate-600">
-                        Productos
-                    </p>
+            {showResults && (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9" /></svg>
+                        <p className="text-sm font-medium text-slate-600">
+                            Productos
+                        </p>
 
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                        {summary.products}
-                    </p>
-                </div>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {summary.products}
+                        </p>
+                    </div>
 
-                <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
-                    <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21V8l9-5 9 5v13M7 21V11h10v10M7 15h10M7 18h10" /></svg>
-                    <p className="text-sm font-medium text-slate-600">
-                        Existencia física
-                    </p>
+                    <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21V8l9-5 9 5v13M7 21V11h10v10M7 15h10M7 18h10" /></svg>
+                        <p className="text-sm font-medium text-slate-600">
+                            Existencia física
+                        </p>
 
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                        {summary.onHand}
-                    </p>
-                </div>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {summary.onHand}
+                        </p>
+                    </div>
 
-                <div className="min-w-0 rounded-2xl border border-sky-700 bg-sky-700 p-6 text-white shadow-sm">
-                    <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/15 p-2 text-sky-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>
-                    <p className="text-sm font-medium text-sky-100">
-                        Disponible
-                    </p>
+                    <div className="min-w-0 rounded-2xl border border-sky-700 bg-sky-700 p-6 text-white shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/15 p-2 text-sky-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>
+                        <p className="text-sm font-medium text-sky-100">
+                            Disponible
+                        </p>
 
-                    <p className="mt-2 wrap-break-word text-3xl font-semibold tracking-tight text-white tabular-nums">
-                        {summary.available}
-                    </p>
-                </div>
+                        <p className="mt-2 wrap-break-word text-3xl font-semibold tracking-tight text-white tabular-nums">
+                            {summary.available}
+                        </p>
+                    </div>
 
-                <div
-                    className={`min-w-0 rounded-2xl border p-6 shadow-sm ${summary.lowStock > 0
-                        ? "border-red-200 bg-red-50"
-                        : "border-emerald-200 bg-emerald-50"
-                        }`}
-                >
-                    <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/70 p-2 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 20V10M12 20V4M20 20v-7" /></svg>
-                    <p
-                        className={`text-sm ${summary.lowStock > 0
-                            ? "text-red-600"
-                            : "text-emerald-600"
+                    <div
+                        className={`min-w-0 rounded-2xl border p-6 shadow-sm ${summary.lowStock > 0
+                            ? "border-red-200 bg-red-50"
+                            : "border-emerald-200 bg-emerald-50"
                             }`}
                     >
-                        {summary.lowStock > 0
-                            ? "Productos con stock bajo"
-                            : "Stock en buen estado"}
-                    </p>
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/70 p-2 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 20V10M12 20V4M20 20v-7" /></svg>
+                        <p
+                            className={`text-sm ${summary.lowStock > 0
+                                ? "text-red-600"
+                                : "text-emerald-600"
+                                }`}
+                        >
+                            {summary.lowStock > 0
+                                ? "Productos con stock bajo"
+                                : "Stock en buen estado"}
+                        </p>
 
-                    <p
-                        className={`mt-2 text-2xl font-bold ${summary.lowStock > 0
-                            ? "text-red-700"
-                            : "text-emerald-700"
-                            }`}
-                    >
-                        {summary.lowStock}
-                    </p>
+                        <p
+                            className={`mt-2 text-2xl font-bold ${summary.lowStock > 0
+                                ? "text-red-700"
+                                : "text-emerald-700"
+                                }`}
+                        >
+                            {summary.lowStock}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="mb-6 flex items-center gap-3">
@@ -212,11 +222,13 @@ export const InventoryPage = () => {
                         <select
                             id="inventory-warehouse"
                             value={warehouseId}
-                            onChange={(event) =>
+                            onChange={(event) => {
                                 setWarehouseId(
                                     event.target.value
-                                )
-                            }
+                                );
+                                setHasRequested(false);
+                                invalidate();
+                            }}
                             disabled={
                                 loadingWarehouses
                             }
@@ -296,6 +308,19 @@ export const InventoryPage = () => {
                         </label>
                     </div>
                 </div>
+                <div className="mt-6 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHasRequested(true);
+                            void refresh();
+                        }}
+                        disabled={loading || loadingWarehouses}
+                        className="min-h-11 w-full rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:w-auto"
+                    >
+                        Consultar inventario
+                    </button>
+                </div>
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
@@ -305,8 +330,7 @@ export const InventoryPage = () => {
                             Existencias
                         </h2>
 
-                        {!loading &&
-                            !error && (
+                        {showResults && (
                                 <p className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
                                     {
                                         filteredBalances.length
@@ -321,27 +345,37 @@ export const InventoryPage = () => {
                         onClick={() =>
                             void refresh()
                         }
-                        disabled={loading}
+                        disabled={!hasRequested || loading}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
                         Actualizar
                     </button>
                 </div>
 
-                {loading && (
-                    <div role="status" className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
-                        Cargando inventario...
+                {!hasRequested && (
+                    <div role="status" className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
+                        Selecciona un almacén o todos los almacenes y pulsa Consultar inventario para ver las existencias.
                     </div>
                 )}
 
-                {!loading && error && (
+                {hasRequested && loading && (
+                    <CatalogLoadingSkeleton label="Cargando inventario" />
+                )}
+
+                {hasRequested && !loading && error && (
                     <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                        {error}
+                        <p>{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                        >
+                            Reintentar
+                        </button>
                     </div>
                 )}
 
-                {!loading &&
-                    !error &&
+                {showResults &&
                     filteredBalances.length ===
                     0 && (
                         <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
@@ -352,8 +386,7 @@ export const InventoryPage = () => {
                     )}
 
 
-                {!loading &&
-                    !error &&
+                {showResults &&
                     filteredBalances.length >
                     0 && (
                         <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Existencias de inventario">

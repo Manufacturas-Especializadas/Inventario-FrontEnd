@@ -1,5 +1,6 @@
 import {
     useCallback,
+    useRef,
     useState,
 } from "react";
 
@@ -18,6 +19,8 @@ import {
 
 
 export const useInventoryAdjustments = () => {
+    const lookupRequestId = useRef(0);
+
     const [
         adjustment,
         setAdjustment,
@@ -48,10 +51,12 @@ export const useInventoryAdjustments = () => {
             async (
                 folio: string
             ): Promise<InventoryAdjustment | null> => {
+                const currentRequestId = ++lookupRequestId.current;
                 const normalizedFolio =
                     folio.trim();
 
                 if (!normalizedFolio) {
+                    setLoading(false);
                     setAdjustment(null);
 
                     setError(
@@ -71,12 +76,14 @@ export const useInventoryAdjustments = () => {
                                 normalizedFolio
                             );
 
+                    if (currentRequestId !== lookupRequestId.current) return null;
                     setAdjustment(
                         data
                     );
 
                     return data;
                 } catch (error) {
+                    if (currentRequestId !== lookupRequestId.current) return null;
                     setAdjustment(
                         null
                     );
@@ -90,7 +97,9 @@ export const useInventoryAdjustments = () => {
 
                     return null;
                 } finally {
-                    setLoading(false);
+                    if (currentRequestId === lookupRequestId.current) {
+                        setLoading(false);
+                    }
                 }
             },
             []
@@ -137,6 +146,8 @@ export const useInventoryAdjustments = () => {
 
     const clearAdjustment =
         useCallback(() => {
+            lookupRequestId.current += 1;
+            setLoading(false);
             setAdjustment(
                 null
             );

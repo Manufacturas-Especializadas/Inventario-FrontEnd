@@ -1,74 +1,74 @@
-import {
-    useCallback,
-    useEffect,
-    useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ppeProductsService } from "../api/services/PPEProductsService";
+import type { PPEProduct } from "../types/types";
+import { getApiErrorMessage } from "../utils/utils";
 
-import {
-    ppeProductsService,
-} from "../api/services/PPEProductsService";
+interface UsePPEProductsOptions {
+    autoLoad?: boolean;
+}
 
-import type {
-    PPEProduct,
-} from "../types/types";
+export function usePPEProducts({ autoLoad = true }: UsePPEProductsOptions = {}) {
+    const [products, setProducts] = useState<PPEProduct[]>([]);
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const pendingRequest = useRef<Promise<void> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, PPEProduct>());
 
-import {
-    getApiErrorMessage,
-} from "../utils/utils";
+    const getProducts = useCallback(() => {
+        if (pendingRequest.current) {
+            return pendingRequest.current;
+        }
 
-export const usePPEProducts = () => {
-    const [
-        products,
-        setProducts,
-    ] = useState<PPEProduct[]>([]);
+        setLoading(true);
+        setError(null);
+        updatesDuringLoad.current.clear();
 
-    const [
-        loading,
-        setLoading,
-    ] = useState(false);
-
-    const [
-        error,
-        setError,
-    ] = useState<string | null>(
-        null
-    );
-
-    const getProducts =
-        useCallback(async () => {
-            setLoading(true);
-
-            setError(null);
-
+        const request = (async () => {
             try {
-                const data =
-                    await ppeProductsService
-                        .getAll();
-
-                setProducts(
-                    data
-                );
+                const data = await ppeProductsService.getAll();
+                // Preserve successful mutations that finished while this GET was pending.
+                const merged = new Map(data.map((product) => [product.id, product]));
+                updatesDuringLoad.current.forEach((product) => {
+                    merged.set(product.id, product);
+                });
+                setProducts(Array.from(merged.values()));
+                setHasLoaded(true);
             } catch (error) {
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cargar los productos EPP."
-                    )
-                );
+                setError(getApiErrorMessage(error, "No se pudieron cargar los productes."));
             } finally {
                 setLoading(false);
+                pendingRequest.current = null;
+                updatesDuringLoad.current.clear();
             }
-        }, []);
+        })();
+
+        pendingRequest.current = request;
+        return request;
+    }, []);
+
+    const upsertProduct = useCallback((product: PPEProduct) => {
+        if (pendingRequest.current) {
+            updatesDuringLoad.current.set(product.id, product);
+        }
+
+        setProducts((current) => current.some((entry) => entry.id === product.id)
+            ? current.map((entry) => entry.id === product.id ? product : entry)
+            : [...current, product]);
+    }, []);
 
     useEffect(() => {
-        getProducts();
-    }, [getProducts]);
+        if (autoLoad) {
+            void getProducts();
+        }
+    }, [autoLoad, getProducts]);
 
     return {
         products,
         loading,
+        hasLoaded,
         error,
-        refresh:
-            getProducts,
+        refresh: getProducts,
+        upsertProduct,
     };
-};
+}

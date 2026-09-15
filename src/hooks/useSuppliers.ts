@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -16,7 +17,13 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
-export const useSuppliers = () => {
+interface UseSuppliersOptions {
+    autoLoad?: boolean;
+}
+
+export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const pendingRequest = useRef<Promise<void> | null>(null);
     const [
         suppliers,
         setSuppliers,
@@ -35,34 +42,42 @@ export const useSuppliers = () => {
     );
 
     const getSuppliers =
-        useCallback(async () => {
+        useCallback(() => {
+            if (pendingRequest.current) return pendingRequest.current;
             setLoading(true);
             setError(null);
 
-            try {
-                const data =
-                    await suppliersService
-                        .getAll();
+            const request = (async () => {
+                try {
+                    const data =
+                        await suppliersService
+                            .getAll();
 
-                setSuppliers(data);
-            } catch (error) {
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cargar los proveedores."
-                    )
-                );
-            } finally {
-                setLoading(false);
-            }
+                    setSuppliers(data);
+                    setHasLoaded(true);
+                } catch (error) {
+                    setError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cargar los proveedores."
+                        )
+                    );
+                } finally {
+                    setLoading(false);
+                    pendingRequest.current = null;
+                }
+            })();
+            pendingRequest.current = request;
+            return request;
         }, []);
 
     useEffect(() => {
-        void getSuppliers();
-    }, [getSuppliers]);
+        if (autoLoad) void getSuppliers();
+    }, [autoLoad, getSuppliers]);
 
     return {
         suppliers,
+        hasLoaded,
         loading,
         error,
         refresh: getSuppliers,
