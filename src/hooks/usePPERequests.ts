@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -21,7 +22,14 @@ import {
 } from "../utils/utils";
 
 
-export const usePPERequests = () => {
+interface UsePPERequestsOptions {
+    autoLoadPending?: boolean;
+}
+
+export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions = {}) => {
+    const pendingRequestId = useRef(0);
+    const deliveredDuringPendingLoad = useRef(new Set<string>());
+
     const [
         request,
         setRequest,
@@ -117,11 +125,21 @@ export const usePPERequests = () => {
         }, []);
 
 
+    const clearPending = useCallback(() => {
+        pendingRequestId.current += 1;
+        deliveredDuringPendingLoad.current.clear();
+        setPendingRequests([]);
+        setPendingError(null);
+        setLoadingPending(false);
+    }, []);
+
     const getPending =
         useCallback(
             async (
                 warehouseId?: number | null
             ): Promise<PPERequest[]> => {
+                const currentRequestId = ++pendingRequestId.current;
+                deliveredDuringPendingLoad.current.clear();
                 setLoadingPending(true);
                 setPendingError(null);
 
@@ -132,12 +150,17 @@ export const usePPERequests = () => {
                                 warehouseId
                             );
 
-                    setPendingRequests(
-                        data
-                    );
+                    if (currentRequestId !== pendingRequestId.current) return [];
 
-                    return data;
+                    // A GET started before a delivery must not restore that delivered folio.
+                    const pending = data.filter(
+                        (request) => !deliveredDuringPendingLoad.current.has(request.folio)
+                    );
+                    setPendingRequests(pending);
+
+                    return pending;
                 } catch (error) {
+                    if (currentRequestId !== pendingRequestId.current) return [];
                     setPendingRequests([]);
 
                     setPendingError(
@@ -149,7 +172,10 @@ export const usePPERequests = () => {
 
                     return [];
                 } finally {
-                    setLoadingPending(false);
+                    if (currentRequestId === pendingRequestId.current) {
+                        setLoadingPending(false);
+                        deliveredDuringPendingLoad.current.clear();
+                    }
                 }
             },
             []
@@ -315,15 +341,16 @@ export const usePPERequests = () => {
 
 
     useEffect(() => {
-        void getPending();
-    }, [getPending]);
+        if (autoLoadPending) {
+            void getPending();
+        }
+    }, [autoLoadPending, getPending]);
 
     const deliverRequest =
         useCallback(
             async (
                 folio: string,
-                employeeNumber: string,
-                warehouseId?: number | null
+                employeeNumber: string
             ): Promise<DeliverPPERequestResult | null> => {
                 const normalizedEmployeeNumber =
                     employeeNumber.trim();
@@ -353,8 +380,9 @@ export const usePPERequests = () => {
                                 }
                             );
 
-                    await getPending(
-                        warehouseId
+                    deliveredDuringPendingLoad.current.add(data.folio);
+                    setPendingRequests(
+                        (current) => current.filter((request) => request.folio !== data.folio)
                     );
 
                     return data;
@@ -373,7 +401,7 @@ export const usePPERequests = () => {
                     );
                 }
             },
-            [getPending]
+            []
         );
 
     const getHistory =
@@ -437,6 +465,7 @@ export const usePPERequests = () => {
         pendingError,
         getByFolio,
         getPending,
+        clearPending,
         createRequest,
         clearRequest,
         cancellingFolio,

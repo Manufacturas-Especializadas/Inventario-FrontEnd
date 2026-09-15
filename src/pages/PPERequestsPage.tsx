@@ -1,5 +1,6 @@
 import {
     useState,
+    useMemo,
     type FormEvent,
 } from "react";
 
@@ -120,6 +121,23 @@ const getOrganizationalUnitTypeLabel = (
     }
 };
 
+type PendingRequestsSort =
+    | "newest"
+    | "oldest";
+
+
+const normalizeText = (
+    value: string | null | undefined
+) => {
+    return (value ?? "")
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .trim()
+        .toLocaleLowerCase("es");
+};
 
 export const PPERequestsPage = () => {
     const {
@@ -262,6 +280,19 @@ export const PPERequestsPage = () => {
         setHistoryWasSearched,
     ] = useState(false);
 
+    const [
+        pendingSearch,
+        setPendingSearch,
+    ] = useState("");
+
+    const [
+        pendingSort,
+        setPendingSort,
+    ] =
+        useState<PendingRequestsSort>(
+            "newest"
+        );
+
     const loadingCatalogs =
         loadingOrganizationalUnits ||
         loadingWarehouses ||
@@ -272,6 +303,102 @@ export const PPERequestsPage = () => {
         organizationalUnitsError ||
         warehousesError ||
         requestReasonsError;
+
+    const filteredPendingRequests =
+        useMemo(() => {
+            const normalizedSearch =
+                normalizeText(
+                    pendingSearch
+                );
+
+            return pendingRequests
+                .filter((request) => {
+                    if (!normalizedSearch) {
+                        return true;
+                    }
+
+                    const matchesRequest =
+                        [
+                            request.folio,
+                            request.employeeNumber,
+                            request.employeeName,
+                            request
+                                .requestedForOrganizationalUnitName,
+                            request.warehouseName,
+                            request.requestReason,
+                            request.notes,
+                        ].some((value) =>
+                            normalizeText(
+                                value
+                            ).includes(
+                                normalizedSearch
+                            )
+                        );
+
+                    const matchesProduct =
+                        request.items.some(
+                            (item) =>
+                                normalizeText(
+                                    item.sku
+                                ).includes(
+                                    normalizedSearch
+                                ) ||
+                                normalizeText(
+                                    item.productName
+                                ).includes(
+                                    normalizedSearch
+                                )
+                        );
+
+                    return (
+                        matchesRequest ||
+                        matchesProduct
+                    );
+                })
+                .sort((first, second) => {
+                    const firstDate =
+                        new Date(
+                            first.createdAt
+                        ).getTime();
+
+                    const secondDate =
+                        new Date(
+                            second.createdAt
+                        ).getTime();
+
+                    if (
+                        pendingSort ===
+                        "oldest"
+                    ) {
+                        return (
+                            firstDate -
+                            secondDate
+                        );
+                    }
+
+                    return (
+                        secondDate -
+                        firstDate
+                    );
+                });
+        }, [
+            pendingRequests,
+            pendingSearch,
+            pendingSort,
+        ]);
+
+
+    const hasPendingFilters =
+        Boolean(
+            pendingSearch.trim() ||
+            pendingSort !== "newest"
+        );
+
+
+    const clearPendingFilters = () => {
+        setPendingSearch("");
+        setPendingSort("newest");
+    };
 
 
     const handleEmployeeNumberChange = (
@@ -1570,7 +1697,102 @@ export const PPERequestsPage = () => {
                             : "Actualizar"}
                     </button>
                 </div>
+                {pendingRequests.length > 0 && (
+                    <div className="mt-6 border-t border-slate-100 pt-6">
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px_auto] lg:items-end">
 
+                            <div>
+                                <label
+                                    htmlFor="pending-request-search"
+                                    className="block text-sm font-medium text-slate-700"
+                                >
+                                    Buscar solicitud
+                                </label>
+
+                                <input
+                                    id="pending-request-search"
+                                    type="search"
+                                    value={
+                                        pendingSearch
+                                    }
+                                    onChange={(event) =>
+                                        setPendingSearch(
+                                            event.target
+                                                .value
+                                        )
+                                    }
+                                    placeholder="Folio, nómina, empleado, SKU o producto..."
+                                    autoComplete="off"
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                />
+                            </div>
+
+
+                            <div>
+                                <label
+                                    htmlFor="pending-request-sort"
+                                    className="block text-sm font-medium text-slate-700"
+                                >
+                                    Ordenar
+                                </label>
+
+                                <select
+                                    id="pending-request-sort"
+                                    value={
+                                        pendingSort
+                                    }
+                                    onChange={(event) =>
+                                        setPendingSort(
+                                            event.target
+                                                .value as PendingRequestsSort
+                                        )
+                                    }
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                >
+                                    <option value="newest">
+                                        Más recientes
+                                    </option>
+
+                                    <option value="oldest">
+                                        Más antiguas
+                                    </option>
+                                </select>
+                            </div>
+
+
+                            <button
+                                type="button"
+                                onClick={
+                                    clearPendingFilters
+                                }
+                                disabled={
+                                    !hasPendingFilters
+                                }
+                                className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
+
+
+                        <p className="mt-4 text-sm text-slate-500">
+                            Mostrando{" "}
+                            <span className="font-semibold text-slate-800">
+                                {
+                                    filteredPendingRequests.length
+                                }
+                            </span>
+                            {" de "}
+                            {
+                                pendingRequests.length
+                            }
+                            {" "}
+                            {pendingRequests.length === 1
+                                ? "solicitud"
+                                : "solicitudes"}
+                        </p>
+                    </div>
+                )}
 
                 {pendingError && (
                     <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1606,10 +1828,34 @@ export const PPERequestsPage = () => {
                         </div>
                     )}
 
+                {!loadingPending &&
+                    !pendingError &&
+                    pendingRequests.length > 0 &&
+                    filteredPendingRequests.length === 0 && (
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                            <p className="text-sm font-semibold text-slate-700">
+                                No encontramos solicitudes
+                            </p>
 
-                {pendingRequests.length > 0 && (
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                Ninguna solicitud pendiente coincide con la búsqueda actual.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    clearPendingFilters
+                                }
+                                className="mt-5 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
+                    )}
+
+                {filteredPendingRequests.length > 0 && (
                     <div className="mt-6 space-y-4">
-                        {pendingRequests.map(
+                        {filteredPendingRequests.map(
                             (request) => (
                                 <article
                                     key={

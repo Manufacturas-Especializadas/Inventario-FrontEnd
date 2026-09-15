@@ -1,4 +1,6 @@
 import {
+    useMemo,
+    useRef,
     useState,
     type FormEvent,
 } from "react";
@@ -32,6 +34,25 @@ const formatDateTime = (
     );
 };
 
+type PendingRequestsSort =
+    | "newest"
+    | "oldest"
+    | "employee"
+    | "unit";
+
+
+const normalizeText = (
+    value: string | null | undefined
+) => {
+    return (value ?? "")
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .trim()
+        .toLocaleLowerCase("es");
+};
 
 export const DeliveriesPage = () => {
     const {
@@ -44,9 +65,10 @@ export const DeliveriesPage = () => {
         deliverError,
 
         getPending,
+        clearPending,
         deliverRequest,
         clearDeliverError,
-    } = usePPERequests();
+    } = usePPERequests({ autoLoadPending: false });
 
 
     const {
@@ -60,6 +82,37 @@ export const DeliveriesPage = () => {
         selectedWarehouseId,
         setSelectedWarehouseId,
     ] = useState("");
+
+    const [hasRequested, setHasRequested] = useState(false);
+    const warehouseSelectionVersion = useRef(0);
+
+    const [
+        pendingSearch,
+        setPendingSearch,
+    ] = useState("");
+
+    const [
+        destinationUnitFilter,
+        setDestinationUnitFilter,
+    ] = useState("");
+
+    const [
+        createdFrom,
+        setCreatedFrom,
+    ] = useState("");
+
+    const [
+        createdTo,
+        setCreatedTo,
+    ] = useState("");
+
+    const [
+        pendingSort,
+        setPendingSort,
+    ] =
+        useState<PendingRequestsSort>(
+            "newest"
+        );
 
     const [
         deliveryFolio,
@@ -80,7 +133,229 @@ export const DeliveriesPage = () => {
         useState<DeliverPPERequestResult | null>(
             null
         );
+    const resetPendingFilters = () => {
+        setPendingSearch("");
+        setDestinationUnitFilter("");
+        setCreatedFrom("");
+        setCreatedTo("");
+        setPendingSort("newest");
+    };
 
+
+    const destinationUnits =
+        useMemo(() => {
+            return Array.from(
+                new Set(
+                    pendingRequests
+                        .map(
+                            (request) =>
+                                request
+                                    .requestedForOrganizationalUnitName
+                                    ?.trim()
+                        )
+                        .filter(
+                            (
+                                value
+                            ): value is string =>
+                                Boolean(value)
+                        )
+                )
+            ).sort(
+                (first, second) =>
+                    first.localeCompare(
+                        second,
+                        "es",
+                        {
+                            sensitivity:
+                                "base",
+                        }
+                    )
+            );
+        }, [pendingRequests]);
+
+
+    const hasRequestsWithoutUnit =
+        useMemo(
+            () =>
+                pendingRequests.some(
+                    (request) =>
+                        !request
+                            .requestedForOrganizationalUnitName
+                ),
+            [pendingRequests]
+        );
+
+
+    const invalidDateRange =
+        Boolean(
+            createdFrom &&
+            createdTo &&
+            createdFrom > createdTo
+        );
+
+
+    const filteredPendingRequests =
+        useMemo(() => {
+            const normalizedSearch =
+                normalizeText(
+                    pendingSearch
+                );
+
+            const fromTimestamp =
+                createdFrom
+                    ? new Date(
+                        `${createdFrom}T00:00:00`
+                    ).getTime()
+                    : null;
+
+            const toTimestamp =
+                createdTo
+                    ? new Date(
+                        `${createdTo}T23:59:59.999`
+                    ).getTime()
+                    : null;
+
+            if (invalidDateRange) {
+                return [];
+            }
+
+            return pendingRequests
+                .filter((request) => {
+                    const matchesSearch =
+                        !normalizedSearch ||
+                        [
+                            request.folio,
+                            request.employeeNumber,
+                            request.employeeName,
+                            request
+                                .requestedForOrganizationalUnitName,
+                            request.requestReason,
+                            request.warehouseName,
+                        ].some((value) =>
+                            normalizeText(
+                                value
+                            ).includes(
+                                normalizedSearch
+                            )
+                        ) ||
+                        request.items.some(
+                            (item) =>
+                                normalizeText(
+                                    item.sku
+                                ).includes(
+                                    normalizedSearch
+                                ) ||
+                                normalizeText(
+                                    item.productName
+                                ).includes(
+                                    normalizedSearch
+                                )
+                        );
+
+                    const matchesUnit =
+                        !destinationUnitFilter ||
+                        (
+                            destinationUnitFilter ===
+                                "__without_unit__"
+                                ? !request
+                                    .requestedForOrganizationalUnitName
+                                : request
+                                    .requestedForOrganizationalUnitName ===
+                                destinationUnitFilter
+                        );
+
+                    const createdAt =
+                        new Date(
+                            request.createdAt
+                        ).getTime();
+
+                    const matchesFrom =
+                        fromTimestamp === null ||
+                        createdAt >=
+                        fromTimestamp;
+
+                    const matchesTo =
+                        toTimestamp === null ||
+                        createdAt <=
+                        toTimestamp;
+
+                    return (
+                        matchesSearch &&
+                        matchesUnit &&
+                        matchesFrom &&
+                        matchesTo
+                    );
+                })
+                .sort((first, second) => {
+                    switch (pendingSort) {
+                        case "oldest":
+                            return (
+                                new Date(
+                                    first.createdAt
+                                ).getTime() -
+                                new Date(
+                                    second.createdAt
+                                ).getTime()
+                            );
+
+                        case "employee":
+                            return first.employeeName
+                                .localeCompare(
+                                    second.employeeName,
+                                    "es",
+                                    {
+                                        sensitivity:
+                                            "base",
+                                    }
+                                );
+
+                        case "unit":
+                            return (
+                                first
+                                    .requestedForOrganizationalUnitName ??
+                                "Sin unidad"
+                            ).localeCompare(
+                                second
+                                    .requestedForOrganizationalUnitName ??
+                                "Sin unidad",
+                                "es",
+                                {
+                                    sensitivity:
+                                        "base",
+                                }
+                            );
+
+                        case "newest":
+                        default:
+                            return (
+                                new Date(
+                                    second.createdAt
+                                ).getTime() -
+                                new Date(
+                                    first.createdAt
+                                ).getTime()
+                            );
+                    }
+                });
+        }, [
+            pendingRequests,
+            pendingSearch,
+            destinationUnitFilter,
+            createdFrom,
+            createdTo,
+            pendingSort,
+            invalidDateRange,
+        ]);
+
+
+    const hasActivePendingFilters =
+        Boolean(
+            pendingSearch.trim() ||
+            destinationUnitFilter ||
+            createdFrom ||
+            createdTo ||
+            pendingSort !== "newest"
+        );
 
     const getWarehouseFilterId =
         (): number | null => {
@@ -114,15 +389,11 @@ export const DeliveriesPage = () => {
         setDeliveryFolio(null);
         setEmployeeNumber("");
         clearDeliverError();
-
-        const parsedWarehouseId =
-            value
-                ? Number(value)
-                : null;
-
-        void getPending(
-            parsedWarehouseId
-        );
+        setDeliveryResult(null);
+        warehouseSelectionVersion.current += 1;
+        setHasRequested(false);
+        clearPending();
+        resetPendingFilters();
     };
 
 
@@ -166,15 +437,15 @@ export const DeliveriesPage = () => {
             }
 
             setDeliveryResult(null);
+            const currentWarehouseVersion = warehouseSelectionVersion.current;
 
             const result =
                 await deliverRequest(
                     folio,
-                    normalizedEmployeeNumber,
-                    getWarehouseFilterId()
+                    normalizedEmployeeNumber
                 );
 
-            if (!result) {
+            if (!result || currentWarehouseVersion !== warehouseSelectionVersion.current) {
                 return;
             }
 
@@ -272,19 +543,22 @@ export const DeliveriesPage = () => {
 
                     <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                            setHasRequested(true);
                             void getPending(
                                 getWarehouseFilterId()
-                            )
-                        }
+                            );
+                        }}
                         disabled={
                             loadingPending
                         }
                         className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                     >
                         {loadingPending
-                            ? "Actualizando..."
-                            : "Actualizar"}
+                            ? "Consultando..."
+                            : hasRequested
+                                ? "Actualizar"
+                                : "Consultar entregas"}
                     </button>
                 </div>
 
@@ -419,325 +693,578 @@ export const DeliveriesPage = () => {
 
 
             {/* Solicitudes */}
+            {hasRequested && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="flex items-start gap-3">
+                        <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">02</span>
+                        <div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                <div className="flex items-start gap-3">
-                    <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">02</span>
-                    <div>
-
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                            Solicitudes por entregar
-                        </h2>
-
-                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                            Solo aparecen solicitudes
-                            que todavía se encuentran
-                            pendientes.
-                        </p>
-                    </div>
-                </div>
-
-
-                {pendingError && (
-                    <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {
-                            pendingError
-                        }
-                    </div>
-                )}
-
-
-                {loadingPending &&
-                    pendingRequests.length ===
-                    0 && (
-                        <div role="status" className="mt-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
-                            Cargando solicitudes
-                            pendientes...
-                        </div>
-                    )}
-
-
-                {!loadingPending &&
-                    !pendingError &&
-                    pendingRequests.length ===
-                    0 && (
-                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
-                            <p className="text-sm font-medium text-slate-700">
-                                No hay solicitudes
-                                pendientes.
-                            </p>
+                            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                                Solicitudes por entregar
+                            </h2>
 
                             <p className="mt-2 text-sm leading-6 text-slate-500">
-                                No hay artículos por entregar
-                                con el filtro actual.
+                                Solo aparecen solicitudes
+                                que todavía se encuentran
+                                pendientes.
                             </p>
                         </div>
-                    )}
+                    </div>
 
+                    {pendingRequests.length > 0 && (
+                        <div className="mt-6 border-t border-slate-100 pt-6">
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
 
-                {pendingRequests.length >
-                    0 && (
-                        <div className="mt-6 space-y-4">
-                            {pendingRequests.map(
-                                (
-                                    request
-                                ) => (
-                                    <article
-                                        key={
-                                            request.id
-                                        }
-                                        className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm sm:p-6"
+                                {/* Búsqueda general */}
+
+                                <div>
+                                    <label
+                                        htmlFor="pending-search"
+                                        className="block text-sm font-medium text-slate-700"
                                     >
-                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <h3 className="wrap-break-word font-mono text-sm font-semibold text-sky-800">
-                                                        {
-                                                            request.folio
-                                                        }
-                                                    </h3>
+                                        Buscar
+                                    </label>
 
-                                                    <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                                                        Pendiente
-                                                    </span>
-                                                </div>
-
-                                                <p className="mt-2 text-sm text-slate-500">
-                                                    Creada{" "}
-                                                    {formatDateTime(
-                                                        request.createdAt
-                                                    )}
-                                                </p>
-                                            </div>
-
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    openDelivery(
-                                                        request.folio
-                                                    )
-                                                }
-                                                disabled={
-                                                    deliveringFolio ===
-                                                    request.folio
-                                                }
-                                                className="min-h-11 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
-                                            >
-                                                Confirmar entrega
-                                            </button>
-                                        </div>
+                                    <input
+                                        id="pending-search"
+                                        type="search"
+                                        value={
+                                            pendingSearch
+                                        }
+                                        onChange={(event) =>
+                                            setPendingSearch(
+                                                event.target
+                                                    .value
+                                            )
+                                        }
+                                        placeholder="Folio, nómina, empleado, SKU o producto..."
+                                        autoComplete="off"
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    />
+                                </div>
 
 
-                                        <div className="mt-5 grid gap-5 rounded-xl bg-sky-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0 [&>div]:wrap-break-word">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                    Empleado
-                                                </p>
+                                {/* Unidad destino */}
 
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {
-                                                        request.employeeName
-                                                    }
-                                                </p>
+                                <div>
+                                    <label
+                                        htmlFor="pending-unit"
+                                        className="block text-sm font-medium text-slate-700"
+                                    >
+                                        Unidad destino
+                                    </label>
 
-                                                <p className="text-xs text-slate-500">
-                                                    Nómina{" "}
-                                                    {
-                                                        request.employeeNumber
-                                                    }
-                                                </p>
-                                            </div>
+                                    <select
+                                        id="pending-unit"
+                                        value={
+                                            destinationUnitFilter
+                                        }
+                                        onChange={(event) =>
+                                            setDestinationUnitFilter(
+                                                event.target
+                                                    .value
+                                            )
+                                        }
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    >
+                                        <option value="">
+                                            Todas las unidades
+                                        </option>
 
+                                        {hasRequestsWithoutUnit && (
+                                            <option value="__without_unit__">
+                                                Sin unidad
+                                            </option>
+                                        )}
 
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                    Unidad destino
-                                                </p>
-
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {request.requestedForOrganizationalUnitName ??
-                                                        "Sin unidad"}
-                                                </p>
-                                            </div>
-
-
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                    Almacén
-                                                </p>
-
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {
-                                                        request.warehouseName
-                                                    }
-                                                </p>
-                                            </div>
-
-
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                    Motivo
-                                                </p>
-
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {
-                                                        request.requestReason
-                                                    }
-                                                </p>
-                                            </div>
-                                        </div>
-
-
-                                        <div className="mt-5 border-t border-slate-100 pt-5">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                Artículos a entregar
-                                            </p>
-
-                                            <div className="mt-3 space-y-2">
-                                                {request.items.map(
-                                                    (
-                                                        item
-                                                    ) => (
-                                                        <div
-                                                            key={
-                                                                item.ppeProductId
-                                                            }
-                                                            className="flex flex-col gap-3 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between [&>div]:min-w-0 [&>div]:wrap-break-word"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-medium text-slate-800">
-                                                                    {
-                                                                        item.productName
-                                                                    }
-                                                                </p>
-
-                                                                <p className="text-xs text-slate-500">
-                                                                    {
-                                                                        item.sku
-                                                                    }
-                                                                </p>
-                                                            </div>
-
-                                                            <p className="text-sm font-semibold text-slate-700">
-                                                                Cantidad:{" "}
-                                                                {
-                                                                    item.quantity
-                                                                }
-                                                            </p>
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-
-
-                                        {deliveryFolio ===
-                                            request.folio && (
-                                                <form
-                                                    onSubmit={(
-                                                        event
-                                                    ) =>
-                                                        void handleDelivery(
-                                                            event,
-                                                            request.folio
-                                                        )
-                                                    }
-                                                    className="mt-5 border-t border-slate-200 pt-5"
+                                        {destinationUnits.map(
+                                            (unit) => (
+                                                <option
+                                                    key={unit}
+                                                    value={unit}
                                                 >
-                                                    <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-5 sm:p-6">
-                                                        <h4 className="text-sm font-semibold text-sky-900">
-                                                            Verificar empleado
-                                                        </h4>
-
-                                                        <p className="mt-1 text-sm text-sky-800">
-                                                            Captura o escanea el
-                                                            número de empleado que
-                                                            está recibiendo
-                                                            físicamente los artículos.
-                                                        </p>
+                                                    {unit}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                </div>
 
 
-                                                        <div className="mt-4 max-w-md">
-                                                            <label htmlFor={`delivery-employee-${request.id}`} className="block text-sm font-medium text-slate-700">
-                                                                Número de empleado
-                                                            </label>
+                                {/* Desde */}
 
-                                                            <input
-                                                                id={`delivery-employee-${request.id}`}
-                                                                type="text"
-                                                                value={
-                                                                    employeeNumber
-                                                                }
-                                                                onChange={(
-                                                                    event
-                                                                ) =>
-                                                                    setEmployeeNumber(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                }
-                                                                autoComplete="off"
-                                                                autoFocus
-                                                                disabled={
-                                                                    deliveringFolio ===
-                                                                    request.folio
-                                                                }
-                                                                placeholder="Escanea o captura la nómina"
-                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                                            />
-                                                        </div>
+                                <div>
+                                    <label
+                                        htmlFor="pending-from"
+                                        className="block text-sm font-medium text-slate-700"
+                                    >
+                                        Desde
+                                    </label>
 
-
-                                                        {deliverError && (
-                                                            <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm text-red-700">
-                                                                {
-                                                                    deliverError
-                                                                }
-                                                            </div>
-                                                        )}
+                                    <input
+                                        id="pending-from"
+                                        type="date"
+                                        value={
+                                            createdFrom
+                                        }
+                                        max={
+                                            createdTo ||
+                                            undefined
+                                        }
+                                        onChange={(event) =>
+                                            setCreatedFrom(
+                                                event.target
+                                                    .value
+                                            )
+                                        }
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    />
+                                </div>
 
 
-                                                        <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                                                            <button
-                                                                type="button"
-                                                                onClick={
-                                                                    closeDelivery
-                                                                }
-                                                                disabled={
-                                                                    deliveringFolio ===
-                                                                    request.folio
-                                                                }
-                                                                className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                            >
-                                                                Volver
-                                                            </button>
+                                {/* Hasta */}
 
-                                                            <button
-                                                                type="submit"
-                                                                disabled={
-                                                                    !employeeNumber.trim() ||
-                                                                    deliveringFolio ===
-                                                                    request.folio
-                                                                }
-                                                                className="min-h-11 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
-                                                            >
-                                                                {deliveringFolio ===
-                                                                    request.folio
-                                                                    ? "Entregando..."
-                                                                    : "Entregar artículos"}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </form>
-                                            )}
-                                    </article>
-                                )
+                                <div>
+                                    <label
+                                        htmlFor="pending-to"
+                                        className="block text-sm font-medium text-slate-700"
+                                    >
+                                        Hasta
+                                    </label>
+
+                                    <input
+                                        id="pending-to"
+                                        type="date"
+                                        value={
+                                            createdTo
+                                        }
+                                        min={
+                                            createdFrom ||
+                                            undefined
+                                        }
+                                        onChange={(event) =>
+                                            setCreatedTo(
+                                                event.target
+                                                    .value
+                                            )
+                                        }
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    />
+                                </div>
+                            </div>
+
+
+                            {/* Segunda fila */}
+
+                            <div className="mt-4 flex flex-col gap-4 border-t border-slate-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+                                <div className="w-full sm:max-w-xs">
+                                    <label
+                                        htmlFor="pending-sort"
+                                        className="block text-sm font-medium text-slate-700"
+                                    >
+                                        Ordenar
+                                    </label>
+
+                                    <select
+                                        id="pending-sort"
+                                        value={
+                                            pendingSort
+                                        }
+                                        onChange={(event) =>
+                                            setPendingSort(
+                                                event.target
+                                                    .value as PendingRequestsSort
+                                            )
+                                        }
+                                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    >
+                                        <option value="newest">
+                                            Más recientes
+                                        </option>
+
+                                        <option value="oldest">
+                                            Más antiguas
+                                        </option>
+
+                                        <option value="employee">
+                                            Empleado A-Z
+                                        </option>
+
+                                        <option value="unit">
+                                            Unidad A-Z
+                                        </option>
+                                    </select>
+                                </div>
+
+
+                                <div className="flex flex-col gap-3 sm:items-end">
+                                    <p className="text-sm text-slate-500">
+                                        Mostrando{" "}
+                                        <span className="font-semibold text-slate-800">
+                                            {
+                                                filteredPendingRequests.length
+                                            }
+                                        </span>
+                                        {" de "}
+                                        {
+                                            pendingRequests.length
+                                        }
+                                        {" solicitudes"}
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            resetPendingFilters
+                                        }
+                                        disabled={
+                                            !hasActivePendingFilters
+                                        }
+                                        className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                    >
+                                        Limpiar filtros
+                                    </button>
+                                </div>
+                            </div>
+
+
+                            {invalidDateRange && (
+                                <p
+                                    role="alert"
+                                    className="mt-4 text-sm font-medium text-red-600"
+                                >
+                                    La fecha inicial no puede ser posterior a la fecha final.
+                                </p>
                             )}
                         </div>
                     )}
-            </section>
+
+                    {hasRequested && pendingError && (
+                        <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {
+                                pendingError
+                            }
+                        </div>
+                    )}
+
+
+                    {hasRequested && loadingPending &&
+                        pendingRequests.length ===
+                        0 && (
+                            <div role="status" className="mt-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
+                                Cargando solicitudes
+                                pendientes...
+                            </div>
+                        )}
+
+
+                    {hasRequested && !loadingPending &&
+                        !pendingError &&
+                        pendingRequests.length ===
+                        0 && (
+                            <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                                <p className="text-sm font-medium text-slate-700">
+                                    No hay solicitudes
+                                    pendientes.
+                                </p>
+
+                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                    No hay artículos por entregar
+                                    con el filtro actual.
+                                </p>
+                            </div>
+                        )}
+
+                    {!loadingPending &&
+                        !pendingError &&
+                        pendingRequests.length > 0 &&
+                        filteredPendingRequests.length === 0 &&
+                        !invalidDateRange && (
+                            <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                                <p className="text-sm font-semibold text-slate-700">
+                                    No encontramos solicitudes
+                                </p>
+
+                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                    No hay solicitudes pendientes que coincidan con los filtros seleccionados.
+                                </p>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        resetPendingFilters
+                                    }
+                                    className="mt-5 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Limpiar filtros
+                                </button>
+                            </div>
+                        )}
+
+                    {filteredPendingRequests.length >
+                        0 && (
+                            <div className="mt-6 space-y-4">
+                                {filteredPendingRequests.map(
+                                    (
+                                        request
+                                    ) => (
+                                        <article
+                                            key={
+                                                request.id
+                                            }
+                                            className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm sm:p-6"
+                                        >
+                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                <div>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <h3 className="wrap-break-word font-mono text-sm font-semibold text-sky-800">
+                                                            {
+                                                                request.folio
+                                                            }
+                                                        </h3>
+
+                                                        <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                                                            Pendiente
+                                                        </span>
+                                                    </div>
+
+                                                    <p className="mt-2 text-sm text-slate-500">
+                                                        Creada{" "}
+                                                        {formatDateTime(
+                                                            request.createdAt
+                                                        )}
+                                                    </p>
+                                                </div>
+
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        openDelivery(
+                                                            request.folio
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        deliveringFolio ===
+                                                        request.folio
+                                                    }
+                                                    className="min-h-11 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                                                >
+                                                    Confirmar entrega
+                                                </button>
+                                            </div>
+
+
+                                            <div className="mt-5 grid gap-5 rounded-xl bg-sky-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0 [&>div]:wrap-break-word">
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                        Empleado
+                                                    </p>
+
+                                                    <p className="mt-1 text-sm font-medium text-slate-800">
+                                                        {
+                                                            request.employeeName
+                                                        }
+                                                    </p>
+
+                                                    <p className="text-xs text-slate-500">
+                                                        Nómina{" "}
+                                                        {
+                                                            request.employeeNumber
+                                                        }
+                                                    </p>
+                                                </div>
+
+
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                        Unidad destino
+                                                    </p>
+
+                                                    <p className="mt-1 text-sm font-medium text-slate-800">
+                                                        {request.requestedForOrganizationalUnitName ??
+                                                            "Sin unidad"}
+                                                    </p>
+                                                </div>
+
+
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                        Almacén
+                                                    </p>
+
+                                                    <p className="mt-1 text-sm font-medium text-slate-800">
+                                                        {
+                                                            request.warehouseName
+                                                        }
+                                                    </p>
+                                                </div>
+
+
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                        Motivo
+                                                    </p>
+
+                                                    <p className="mt-1 text-sm font-medium text-slate-800">
+                                                        {
+                                                            request.requestReason
+                                                        }
+                                                    </p>
+                                                </div>
+                                            </div>
+
+
+                                            <div className="mt-5 border-t border-slate-100 pt-5">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                    Artículos a entregar
+                                                </p>
+
+                                                <div className="mt-3 space-y-2">
+                                                    {request.items.map(
+                                                        (
+                                                            item
+                                                        ) => (
+                                                            <div
+                                                                key={
+                                                                    item.ppeProductId
+                                                                }
+                                                                className="flex flex-col gap-3 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between [&>div]:min-w-0 [&>div]:wrap-break-word"
+                                                            >
+                                                                <div>
+                                                                    <p className="text-sm font-medium text-slate-800">
+                                                                        {
+                                                                            item.productName
+                                                                        }
+                                                                    </p>
+
+                                                                    <p className="text-xs text-slate-500">
+                                                                        {
+                                                                            item.sku
+                                                                        }
+                                                                    </p>
+                                                                </div>
+
+                                                                <p className="text-sm font-semibold text-slate-700">
+                                                                    Cantidad:{" "}
+                                                                    {
+                                                                        item.quantity
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
+                                            </div>
+
+
+                                            {deliveryFolio ===
+                                                request.folio && (
+                                                    <form
+                                                        onSubmit={(
+                                                            event
+                                                        ) =>
+                                                            void handleDelivery(
+                                                                event,
+                                                                request.folio
+                                                            )
+                                                        }
+                                                        className="mt-5 border-t border-slate-200 pt-5"
+                                                    >
+                                                        <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-5 sm:p-6">
+                                                            <h4 className="text-sm font-semibold text-sky-900">
+                                                                Verificar empleado
+                                                            </h4>
+
+                                                            <p className="mt-1 text-sm text-sky-800">
+                                                                Captura o escanea el
+                                                                número de empleado que
+                                                                está recibiendo
+                                                                físicamente los artículos.
+                                                            </p>
+
+
+                                                            <div className="mt-4 max-w-md">
+                                                                <label htmlFor={`delivery-employee-${request.id}`} className="block text-sm font-medium text-slate-700">
+                                                                    Número de empleado
+                                                                </label>
+
+                                                                <input
+                                                                    id={`delivery-employee-${request.id}`}
+                                                                    type="text"
+                                                                    value={
+                                                                        employeeNumber
+                                                                    }
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setEmployeeNumber(
+                                                                            event
+                                                                                .target
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    autoComplete="off"
+                                                                    autoFocus
+                                                                    disabled={
+                                                                        deliveringFolio ===
+                                                                        request.folio
+                                                                    }
+                                                                    placeholder="Escanea o captura la nómina"
+                                                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                                />
+                                                            </div>
+
+
+                                                            {deliverError && (
+                                                                <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm text-red-700">
+                                                                    {
+                                                                        deliverError
+                                                                    }
+                                                                </div>
+                                                            )}
+
+
+                                                            <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={
+                                                                        closeDelivery
+                                                                    }
+                                                                    disabled={
+                                                                        deliveringFolio ===
+                                                                        request.folio
+                                                                    }
+                                                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                                                >
+                                                                    Volver
+                                                                </button>
+
+                                                                <button
+                                                                    type="submit"
+                                                                    disabled={
+                                                                        !employeeNumber.trim() ||
+                                                                        deliveringFolio ===
+                                                                        request.folio
+                                                                    }
+                                                                    className="min-h-11 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                                                                >
+                                                                    {deliveringFolio ===
+                                                                        request.folio
+                                                                        ? "Entregando..."
+                                                                        : "Entregar artículos"}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </form>
+                                                )}
+                                        </article>
+                                    )
+                                )}
+                            </div>
+                        )}
+                </section>
+            )}
         </div>
     );
 };
