@@ -28,7 +28,12 @@ interface UsePPERequestsOptions {
 
 export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions = {}) => {
     const pendingRequestId = useRef(0);
-    const deliveredDuringPendingLoad = useRef(new Set<string>());
+    const pendingLoad = useRef<{ warehouseId: number | null; promise: Promise<PPERequest[]> } | null>(null);
+    const pendingScope = useRef<number | null>(null);
+    const pendingLoaded = useRef(false);
+    const pendingMutations = useRef(new Map<string, PPERequest | null>());
+    const [pendingHasLoaded, setPendingHasLoaded] = useState(false);
+    const historyRequestId = useRef(0);
 
     const [
         request,
@@ -120,6 +125,8 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
     const clearHistory =
         useCallback(() => {
+            historyRequestId.current += 1;
+            setLoadingHistory(false);
             setHistory([]);
             setHistoryError(null);
         }, []);
@@ -127,60 +134,76 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
     const clearPending = useCallback(() => {
         pendingRequestId.current += 1;
-        deliveredDuringPendingLoad.current.clear();
+        pendingLoad.current = null;
+        pendingMutations.current.clear();
+        pendingLoaded.current = false;
+        setPendingHasLoaded(false);
         setPendingRequests([]);
         setPendingError(null);
         setLoadingPending(false);
     }, []);
 
-    const getPending =
-        useCallback(
-            async (
-                warehouseId?: number | null
-            ): Promise<PPERequest[]> => {
-                const currentRequestId = ++pendingRequestId.current;
-                deliveredDuringPendingLoad.current.clear();
-                setLoadingPending(true);
-                setPendingError(null);
+    const getPending = useCallback((warehouseId?: number | null): Promise<PPERequest[]> => {
+        const scope = warehouseId ?? null;
+        if (pendingLoad.current?.warehouseId === scope) return pendingLoad.current.promise;
+        if (scope !== pendingScope.current) {
+            pendingLoaded.current = false;
+            setPendingHasLoaded(false);
+            setPendingRequests([]);
+        }
+        pendingScope.current = scope;
+        const currentRequestId = ++pendingRequestId.current;
+        pendingMutations.current.clear();
+        setLoadingPending(true);
+        setPendingError(null);
 
-                try {
-                    const data =
-                        await ppeRequestsService
-                            .getPending(
-                                warehouseId
-                            );
+        const promise = (async () => {
+            try {
+                const data = await ppeRequestsService.getPending(warehouseId);
+                if (currentRequestId !== pendingRequestId.current) return [];
 
-                    if (currentRequestId !== pendingRequestId.current) return [];
-
-                    // A GET started before a delivery must not restore that delivered folio.
-                    const pending = data.filter(
-                        (request) => !deliveredDuringPendingLoad.current.has(request.folio)
-                    );
-                    setPendingRequests(pending);
-
-                    return pending;
-                } catch (error) {
-                    if (currentRequestId !== pendingRequestId.current) return [];
-                    setPendingRequests([]);
-
-                    setPendingError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible cargar las solicitudes pendientes."
-                        )
-                    );
-
-                    return [];
-                } finally {
-                    if (currentRequestId === pendingRequestId.current) {
-                        setLoadingPending(false);
-                        deliveredDuringPendingLoad.current.clear();
-                    }
+                // An older GET must not undo a successful create, cancel or delivery.
+                const merged = new Map(data.map((entry) => [entry.folio, entry]));
+                pendingMutations.current.forEach((entry, folio) => {
+                    if (entry) merged.set(folio, entry);
+                    else merged.delete(folio);
+                });
+                const pending = Array.from(merged.values());
+                setPendingRequests(pending);
+                pendingLoaded.current = true;
+                setPendingHasLoaded(true);
+                return pending;
+            } catch (error) {
+                if (currentRequestId !== pendingRequestId.current) return [];
+                setPendingError(getApiErrorMessage(error, "No fue posible cargar las solicitudes pendientes."));
+                return [];
+            } finally {
+                if (currentRequestId === pendingRequestId.current) {
+                    setLoadingPending(false);
+                    pendingLoad.current = null;
+                    pendingMutations.current.clear();
                 }
-            },
-            []
-        );
+            }
+        })();
+        pendingLoad.current = { warehouseId: scope, promise };
+        return promise;
+    }, []);
 
+    const removePending = useCallback((folio: string) => {
+        if (pendingLoad.current) pendingMutations.current.set(folio, null);
+        setPendingRequests((current) => current.filter((entry) => entry.folio !== folio));
+    }, []);
+
+    const upsertPending = useCallback((entry: PPERequest) => {
+        if (entry.status !== 1 || (pendingScope.current !== null && entry.warehouseId !== pendingScope.current)) return;
+        if (pendingLoad.current) pendingMutations.current.set(entry.folio, entry);
+        // A single mutation is not a complete pending list.
+        if (pendingLoaded.current) {
+            setPendingRequests((current) => current.some((item) => item.folio === entry.folio)
+                ? current.map((item) => item.folio === entry.folio ? entry : item)
+                : [...current, entry]);
+        }
+    }, []);
 
     const getByFolio =
         useCallback(
@@ -237,6 +260,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                             );
 
                     setCreateResult(data);
+                    upsertPending(data.request);
 
                     setRequest(
                         data.request
@@ -256,7 +280,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                     setLoading(false);
                 }
             },
-            []
+            [upsertPending]
         );
 
     const cancelRequest =
@@ -303,7 +327,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                                 }
                             );
 
-                    await getPending();
+                    removePending(data.folio);
 
                     return data;
                 } catch (error) {
@@ -321,7 +345,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                     );
                 }
             },
-            [getPending]
+            [removePending]
         );
 
 
@@ -380,10 +404,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                                 }
                             );
 
-                    deliveredDuringPendingLoad.current.add(data.folio);
-                    setPendingRequests(
-                        (current) => current.filter((request) => request.folio !== data.folio)
-                    );
+                    removePending(data.folio);
 
                     return data;
                 } catch (error) {
@@ -401,7 +422,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                     );
                 }
             },
-            []
+            [removePending]
         );
 
     const getHistory =
@@ -409,10 +430,12 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
             async (
                 employeeNumber: string
             ): Promise<PPERequest[]> => {
+                const currentRequestId = ++historyRequestId.current;
                 const normalizedEmployeeNumber =
                     employeeNumber.trim();
 
                 if (!normalizedEmployeeNumber) {
+                    setLoadingHistory(false);
                     setHistory([]);
 
                     setHistoryError(
@@ -432,10 +455,12 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                                 normalizedEmployeeNumber
                             );
 
+                    if (currentRequestId !== historyRequestId.current) return [];
                     setHistory(data);
 
                     return data;
                 } catch (error) {
+                    if (currentRequestId !== historyRequestId.current) return [];
                     setHistory([]);
 
                     setHistoryError(
@@ -447,7 +472,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
                     return [];
                 } finally {
-                    setLoadingHistory(false);
+                    if (currentRequestId === historyRequestId.current) setLoadingHistory(false);
                 }
             },
             []
@@ -457,6 +482,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
     return {
         request,
         pendingRequests,
+        pendingHasLoaded,
         createResult,
         loading,
         loadingPending,

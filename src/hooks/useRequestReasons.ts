@@ -16,7 +16,12 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
-export const useRequestReasons = () => {
+interface UseRequestReasonsOptions {
+    autoLoad?: boolean;
+}
+
+export const useRequestReasons = ({ autoLoad = true }: UseRequestReasonsOptions = {}) => {
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [
         requestReasons,
         setRequestReasons,
@@ -45,6 +50,7 @@ export const useRequestReasons = () => {
                         .getAll();
 
                 setRequestReasons(data);
+                setHasLoaded(true);
             } catch (error) {
                 setError(
                     getApiErrorMessage(
@@ -58,11 +64,12 @@ export const useRequestReasons = () => {
         }, []);
 
     useEffect(() => {
-        void getRequestReasons();
-    }, [getRequestReasons]);
+        if (autoLoad) void getRequestReasons();
+    }, [autoLoad, getRequestReasons]);
 
     return {
         requestReasons,
+        hasLoaded,
         loading,
         error,
 

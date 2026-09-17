@@ -2,6 +2,7 @@ import {
     useEffect,
     useState,
     useMemo,
+    useRef,
     type FormEvent,
 } from "react";
 
@@ -18,14 +19,11 @@ import {
 } from "../hooks/useSuppliers";
 
 import type {
-    ProductSupplier,
     PurchaseOrder,
     PurchaseOrderStatus,
 } from "../types/types";
 
-import {
-    productSuppliersService,
-} from "../api/services/ProductSuppliersService";
+import { useSupplierProducts } from "../hooks/useSupplierProducts";
 import { getApiErrorMessage } from "../utils/utils";
 
 import { PageHeader } from "../components/ui/PageHeader";
@@ -98,7 +96,9 @@ export const PurchaseOrdersPage = () => {
         loading,
         error,
         refresh,
-    } = usePurchaseOrders();
+        hasLoaded,
+        upsertPurchaseOrder,
+    } = usePurchaseOrders({ autoLoad: false });
 
     const clearOrderFilters = () => {
         setSearch("");
@@ -110,7 +110,14 @@ export const PurchaseOrdersPage = () => {
     const {
         suppliers,
         loading: loadingSuppliers,
-    } = useSuppliers();
+        hasLoaded: suppliersLoaded,
+        error: suppliersError,
+        refresh: loadSuppliers,
+    } = useSuppliers({ autoLoad: false });
+    const [showForm, setShowForm] = useState(false);
+    const formPanelRef = useRef<HTMLElement>(null);
+    const detailVersion = useRef(0);
+    const detailRequests = useRef(new Map<string, { promise: Promise<PurchaseOrder>; latest?: PurchaseOrder }>());
 
     const [
         supplierId,
@@ -168,20 +175,8 @@ export const PurchaseOrdersPage = () => {
         );
     };
 
-    const [
-        supplierProducts,
-        setSupplierProducts,
-    ] = useState<ProductSupplier[]>([]);
-
-    const [
-        loadingSupplierProducts,
-        setLoadingSupplierProducts,
-    ] = useState(false);
-
-    const [
-        supplierProductsError,
-        setSupplierProductsError,
-    ] = useState<string | null>(null);
+    const { supplierProducts, loadingSupplierProducts, supplierProductsError, loadSupplierProducts } =
+        useSupplierProducts(supplierId ? Number(supplierId) : null);
 
     const [
         editingOrder,
@@ -323,25 +318,43 @@ export const PurchaseOrdersPage = () => {
             dateTo,
         ]);
 
+    const getDetail = (folio: string) => {
+        const pending = detailRequests.current.get(folio);
+        if (pending) return pending.promise;
+        const entry: { promise: Promise<PurchaseOrder>; latest?: PurchaseOrder } = {
+            promise: Promise.resolve().then(() => purchaseOrdersService.getByFolio(folio))
+                .then((order) => entry.latest ?? order)
+                .finally(() => { detailRequests.current.delete(folio); }),
+        };
+        detailRequests.current.set(folio, entry);
+        return entry.promise;
+    };
+
+    const applyOrder = (order: PurchaseOrder) => {
+        upsertPurchaseOrder(order);
+        const pending = detailRequests.current.get(order.folio);
+        if (pending) pending.latest = order;
+        setDetailOrder((current) => current?.folio === order.folio ? order : current);
+    };
+
     const openDetails =
         async (
             order: PurchaseOrder
         ) => {
+            const currentVersion = ++detailVersion.current;
             setDetailOrder(null);
             setDetailError(null);
             setLoadingDetail(true);
 
             try {
-                const detail =
-                    await purchaseOrdersService
-                        .getByFolio(
-                            order.folio
-                        );
+                const detail = await getDetail(order.folio);
+                if (currentVersion !== detailVersion.current) return;
 
                 setDetailOrder(
                     detail
                 );
             } catch (error) {
+                if (currentVersion !== detailVersion.current) return;
                 setDetailError(
                     getApiErrorMessage(
                         error,
@@ -349,23 +362,23 @@ export const PurchaseOrdersPage = () => {
                     )
                 );
             } finally {
-                setLoadingDetail(false);
+                if (currentVersion === detailVersion.current) setLoadingDetail(false);
             }
         };
 
     const startEditing =
-        async (
+        (
             order: PurchaseOrder
         ) => {
+            if (isSubmitting || cancelling) return;
             setFormError(null);
             setSuccessMessage(null);
 
             try {
-                const detail =
-                    await purchaseOrdersService
-                        .getByFolio(
-                            order.folio
-                        );
+                const detail = order;
+                setShowForm(true);
+                if (!suppliersLoaded) void loadSuppliers();
+                void loadSupplierProducts(detail.supplierId);
 
                 setEditingOrder(
                     detail
@@ -421,11 +434,7 @@ export const PurchaseOrdersPage = () => {
                     )
                 );
 
-                window.scrollTo({
-                    top: 0,
-                    behavior:
-                        "smooth",
-                });
+
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -437,73 +446,11 @@ export const PurchaseOrdersPage = () => {
         };
 
     useEffect(() => {
-        const parsedSupplierId =
-            Number(supplierId);
-
-        if (
-            !supplierId ||
-            !Number.isInteger(
-                parsedSupplierId
-            ) ||
-            parsedSupplierId <= 0
-        ) {
-            setSupplierProducts([]);
-            setSupplierProductsError(null);
-            setLoadingSupplierProducts(false);
-
-            return;
+        if (showForm) {
+            formPanelRef.current?.focus({ preventScroll: true });
+            formPanelRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
         }
-
-        let cancelled = false;
-
-        const loadSupplierProducts =
-            async () => {
-                setLoadingSupplierProducts(
-                    true
-                );
-
-                setSupplierProductsError(
-                    null
-                );
-
-                setSupplierProducts([]);
-
-                try {
-                    const data =
-                        await productSuppliersService
-                            .getBySupplier(
-                                parsedSupplierId
-                            );
-
-                    if (!cancelled) {
-                        setSupplierProducts(
-                            data
-                        );
-                    }
-                } catch (error) {
-                    if (!cancelled) {
-                        setSupplierProductsError(
-                            getApiErrorMessage(
-                                error,
-                                "No fue posible cargar los productos del proveedor."
-                            )
-                        );
-                    }
-                } finally {
-                    if (!cancelled) {
-                        setLoadingSupplierProducts(
-                            false
-                        );
-                    }
-                }
-            };
-
-        void loadSupplierProducts();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [supplierId]);
+    }, [showForm, editingOrder]);
 
     const removeItem = (
         key: string
@@ -586,6 +533,8 @@ export const PurchaseOrdersPage = () => {
     };
 
     const resetForm = () => {
+        setEditingOrder(null);
+        setFormError(null);
         setSupplierId("");
         setPurchaseOrderNumber("");
         setConfirmedDeliveryDate("");
@@ -602,6 +551,7 @@ export const PurchaseOrdersPage = () => {
             event: FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (isSubmitting || loadingSuppliers || loadingSupplierProducts || !suppliersLoaded || suppliersError || supplierProductsError) return;
 
             setFormError(null);
             setSuccessMessage(null);
@@ -785,6 +735,7 @@ export const PurchaseOrdersPage = () => {
                                 request
                             );
 
+                    applyOrder(updated);
                     setSuccessMessage(
                         `Orden ${updated.folio} actualizada correctamente.`
                     );
@@ -795,23 +746,19 @@ export const PurchaseOrdersPage = () => {
                                 request
                             );
 
+                    applyOrder(created);
                     setSuccessMessage(
                         `Orden creada correctamente. Folio: ${created.folio}`
                     );
                 }
 
                 resetForm();
-
-                await refresh();
-
-                resetForm();
-
-                await refresh();
+                setShowForm(false);
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
                         error,
-                        "No fue posible crear la orden de compra."
+                        editingOrder ? "No fue posible actualizar la orden de compra." : "No fue posible crear la orden de compra."
                     )
                 );
             } finally {
@@ -823,6 +770,7 @@ export const PurchaseOrdersPage = () => {
     const confirmCancellation =
         async () => {
             if (
+                cancelling ||
                 !cancellingOrder ||
                 !cancellationReason.trim()
             ) {
@@ -854,7 +802,11 @@ export const PurchaseOrdersPage = () => {
                     ""
                 );
 
-                await refresh();
+                applyOrder(cancelled);
+                if (editingOrder?.folio === cancelled.folio) {
+                    resetForm();
+                    setShowForm(false);
+                }
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -875,7 +827,424 @@ export const PurchaseOrdersPage = () => {
                 description="Organiza los pedidos de artículos y materiales para la operación de MESA."
             />
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+            <div className="flex flex-wrap gap-3">
+                <button type="button" disabled={isSubmitting} aria-controls="purchase-order-form-panel" aria-expanded={showForm} onClick={() => {
+                    resetForm();
+                    setShowForm(true);
+                    if (!suppliersLoaded) void loadSuppliers();
+                }} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">Nueva orden</button>
+                {!showForm && editingOrder && <button type="button" onClick={() => setShowForm(true)} className="min-h-11 rounded-xl border border-sky-200 px-4 py-2 text-sm text-sky-800">Continuar edición</button>}
+            </div>
+                    {formError && (
+                        <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {formError}
+                        </div>
+                    )}
+
+                    {successMessage && (
+                        <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                            {successMessage}
+                        </div>
+                    )}
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                                Órdenes registradas
+                            </h2>
+
+                            {hasLoaded && !loading && !error && (
+                                <p className="mt-2 text-sm text-slate-500">
+                                    Mostrando{" "}
+                                    <span className="font-semibold text-slate-800">
+                                        {filteredPurchaseOrders.length}
+                                    </span>{" "}
+                                    de{" "}
+                                    <span className="font-semibold text-slate-800">
+                                        {purchaseOrders.length}
+                                    </span>{" "}
+                                    órdenes
+                                </p>
+                            )}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void refresh()
+                            }
+                            disabled={loading}
+                            className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
+                        >
+                            {hasLoaded ? "Actualizar" : "Consultar órdenes"}
+                        </button>
+                    </div>
+
+                    <div className="mt-6 grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0">
+                        <div className="sm:col-span-2">
+                            <label
+                                htmlFor="purchase-order-search"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Buscar
+                            </label>
+
+                            <input
+                                id="purchase-order-search"
+                                type="search"
+                                value={search}
+                                onChange={(event) =>
+                                    setSearch(
+                                        event.target.value
+                                    )
+                                }
+                                placeholder="Folio, número de OC o proveedor..."
+                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                            />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                            <label
+                                htmlFor="purchase-order-status"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Estado
+                            </label>
+
+                            <select
+                                id="purchase-order-status"
+                                value={statusFilter}
+                                onChange={(event) =>
+                                    setStatusFilter(
+                                        event.target
+                                            .value as
+                                        | "all"
+                                        | "confirmed"
+                                        | "received"
+                                        | "cancelled"
+                                    )
+                                }
+                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                            >
+                                <option value="all">
+                                    Todos
+                                </option>
+
+                                <option value="confirmed">
+                                    Confirmadas
+                                </option>
+
+                                <option value="received">
+                                    Recibidas
+                                </option>
+
+                                <option value="cancelled">
+                                    Canceladas
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="purchase-order-date-from"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Fecha de orden · Desde
+                            </label>
+
+                            <input
+                                id="purchase-order-date-from"
+                                type="date"
+                                value={dateFrom}
+                                onChange={(event) =>
+                                    setDateFrom(
+                                        event.target.value
+                                    )
+                                }
+                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="purchase-order-date-to"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Fecha de orden · Hasta
+                            </label>
+
+                            <input
+                                id="purchase-order-date-to"
+                                type="date"
+                                value={dateTo}
+                                min={dateFrom || undefined}
+                                onChange={(event) =>
+                                    setDateTo(
+                                        event.target.value
+                                    )
+                                }
+                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                            />
+                        </div>
+
+                        <div className="flex items-end sm:col-span-2 xl:justify-end">
+                            <button
+                                type="button"
+                                onClick={
+                                    clearOrderFilters
+                                }
+                                disabled={
+                                    !search &&
+                                    statusFilter ===
+                                    "all" &&
+                                    !dateFrom &&
+                                    !dateTo
+                                }
+                                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 lg:w-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
+                            >
+                                Limpiar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {loading && (
+                    <div
+                        role="status"
+                        className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800"
+                    >
+                        Cargando órdenes...
+                    </div>
+                )}
+
+                {!loading && error && (
+                    <div
+                        role="alert"
+                        className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
+                    >
+                        {error}
+                    </div>
+                )}
+
+                {!hasLoaded && !loading && !error && (
+                    <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                        <p className="text-sm font-semibold text-slate-900">Las órdenes todavía no se han consultado.</p>
+                        <p className="mt-2 text-sm text-slate-600">Selecciona los filtros y pulsa Consultar órdenes.</p>
+                    </div>
+                )}
+                {hasLoaded && !loading &&
+                    !error &&
+                    purchaseOrders.length === 0 && (
+                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                            <p className="text-sm font-semibold text-slate-900">
+                                No se encontraron órdenes de compra.
+                            </p>
+
+                            <p className="mt-2 text-sm text-slate-600">
+                                Puedes registrar un pedido con Nueva orden.
+                            </p>
+                        </div>
+                    )}
+
+                {!loading &&
+                    !error &&
+                    purchaseOrders.length > 0 &&
+                    filteredPurchaseOrders.length ===
+                    0 && (
+                        <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                            <p className="font-semibold text-slate-900">
+                                No encontramos órdenes
+                            </p>
+
+                            <p className="mt-2 text-sm text-slate-600">
+                                Modifica la búsqueda o los filtros para mostrar otros resultados.
+                            </p>
+                        </div>
+                    )}
+
+                {hasLoaded &&
+                    filteredPurchaseOrders.length >
+                    0 && (
+                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200" tabIndex={0} role="region" aria-label="Listado de órdenes de compra">
+                            <table className="w-full min-w-280 text-left text-sm">
+                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
+                                    <tr>
+                                        <th scope="col" className="px-5 py-3">
+                                            Folio
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            OC
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            Proveedor
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            Fecha
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            Entrega
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            Productos
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3">
+                                            Estado
+                                        </th>
+
+                                        <th scope="col" className="px-5 py-3 text-right">
+                                            Acciones
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredPurchaseOrders.map(
+                                        (order) => {
+                                            const status =
+                                                getPurchaseOrderStatus(
+                                                    order.status
+                                                );
+
+                                            const canModify =
+                                                order.status ===
+                                                1 ||
+                                                order.status ===
+                                                2;
+
+                                            return (
+                                                <tr
+                                                    key={
+                                                        order.id
+                                                    }
+                                                    className="transition-colors hover:bg-sky-50/40"
+                                                >
+                                                    <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-900">
+                                                        {
+                                                            order.folio
+                                                        }
+                                                    </td>
+
+                                                    <td className="px-5 py-4 font-medium text-slate-800">
+                                                        {
+                                                            order.purchaseOrderNumber
+                                                        }
+                                                    </td>
+
+                                                    <td className="px-5 py-4 text-slate-700">
+                                                        {
+                                                            order.supplierName
+                                                        }
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                                                        {formatDate(
+                                                            order.orderDate
+                                                        )}
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                                                        {formatDate(
+                                                            order.confirmedDeliveryDate
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                                            {
+                                                                order
+                                                                    .items
+                                                                    .length
+                                                            }{" "}
+                                                            {order
+                                                                .items
+                                                                .length ===
+                                                                1
+                                                                ? "producto"
+                                                                : "productos"}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <span
+                                                            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ring-current/15 ${status.className}`}
+                                                        >
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+
+                                                            {
+                                                                status.label
+                                                            }
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-100 sm:grid-cols-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    void openDetails(
+                                                                        order
+                                                                    )
+                                                                }
+                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2.5 text-sm font-semibold text-sky-800 shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                                                            >
+                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                                Ver detalles
+                                                            </button>
+
+                                                            {canModify && (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            void startEditing(
+                                                                                order
+                                                                            )
+                                                                        }
+                                                                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                                                                    >
+                                                                        <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
+                                                                        Editar
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setCancellingOrder(
+                                                                                order
+                                                                            );
+
+                                                                            setCancellationReason(
+                                                                                ""
+                                                                            );
+                                                                        }}
+                                                                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-200 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition-colors hover:border-red-300 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                                                                    >
+                                                                        <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></svg>
+                                                                        Cancelar
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+            </section>
+            {showForm && (
+            <section ref={formPanelRef} id="purchase-order-form-panel" tabIndex={-1} aria-label={editingOrder ? "Editar orden" : "Nueva orden"} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
                         <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" /></svg>
@@ -894,6 +1263,9 @@ export const PurchaseOrdersPage = () => {
                     </div>
                 </div>
 
+                <button type="button" disabled={isSubmitting} onClick={() => setShowForm(false)} className="mt-4 min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:opacity-50">Ocultar formulario</button>
+                {suppliersError && <div role="alert" className="mt-4 text-sm text-red-700">{suppliersError} <button type="button" disabled={loadingSuppliers} onClick={() => void loadSuppliers()} className="min-h-11 px-3 underline">Reintentar proveedores</button></div>}
+                {supplierProductsError && <button type="button" onClick={() => void loadSupplierProducts(Number(supplierId))} className="mt-4 min-h-11 rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700">Reintentar productos</button>}
                 <form
                     onSubmit={handleSubmit}
                     className="mt-7"
@@ -914,7 +1286,10 @@ export const PurchaseOrdersPage = () => {
                             <select
                                 id="purchase-order-supplier"
                                 aria-busy={loadingSuppliers}
+                                value={supplierId}
+                                disabled={loadingSuppliers || isSubmitting}
                                 onChange={(event) => {
+                                    if (event.target.value) void loadSupplierProducts(Number(event.target.value));
                                     setSupplierId(
                                         event.target.value
                                     );
@@ -932,6 +1307,9 @@ export const PurchaseOrdersPage = () => {
                                     Selecciona un proveedor
                                 </option>
 
+                                {editingOrder?.supplierId === Number(supplierId) && !suppliers.some((supplier) => supplier.id === Number(supplierId) && supplier.isActive) && (
+                                    <option value={supplierId} disabled>{editingOrder.supplierName}</option>
+                                )}
                                 {suppliers
                                     .filter(
                                         (supplier) =>
@@ -1149,6 +1527,9 @@ export const PurchaseOrdersPage = () => {
                                                                 : "Selecciona producto"}
                                                     </option>
 
+                                                    {editingOrder?.supplierId === Number(supplierId) && !supplierProducts.some((product) => product.ppeProductId === Number(item.ppeProductId)) && editingOrder.items.filter((entry) => entry.ppeProductId === Number(item.ppeProductId)).map((entry) => (
+                                                        <option key={entry.ppeProductId} value={entry.ppeProductId} disabled>{entry.sku} - {entry.productName}</option>
+                                                    ))}
                                                     {supplierProducts.map(
                                                         (relation) => (
                                                             <option
@@ -1364,18 +1745,6 @@ export const PurchaseOrdersPage = () => {
                         </div>
                     </div>
 
-                    {formError && (
-                        <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {formError}
-                        </div>
-                    )}
-
-                    {successMessage && (
-                        <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                            {successMessage}
-                        </div>
-                    )}
-
                     <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                         {editingOrder && (
                             <button
@@ -1390,7 +1759,7 @@ export const PurchaseOrdersPage = () => {
 
                         <button
                             type="submit"
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || loadingSuppliers || loadingSupplierProducts || !suppliersLoaded || Boolean(suppliersError) || Boolean(supplierProductsError)}
                             className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto min-h-11"
                         >
                             {isSubmitting
@@ -1404,397 +1773,8 @@ export const PurchaseOrdersPage = () => {
                 </form>
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                                Órdenes registradas
-                            </h2>
+            )}
 
-                            {!loading && !error && (
-                                <p className="mt-2 text-sm text-slate-500">
-                                    Mostrando{" "}
-                                    <span className="font-semibold text-slate-800">
-                                        {filteredPurchaseOrders.length}
-                                    </span>{" "}
-                                    de{" "}
-                                    <span className="font-semibold text-slate-800">
-                                        {purchaseOrders.length}
-                                    </span>{" "}
-                                    órdenes
-                                </p>
-                            )}
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                void refresh()
-                            }
-                            disabled={loading}
-                            className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
-                        >
-                            Actualizar
-                        </button>
-                    </div>
-
-                    <div className="mt-6 grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0">
-                        <div className="sm:col-span-2">
-                            <label
-                                htmlFor="purchase-order-search"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Buscar
-                            </label>
-
-                            <input
-                                id="purchase-order-search"
-                                type="search"
-                                value={search}
-                                onChange={(event) =>
-                                    setSearch(
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Folio, número de OC o proveedor..."
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div className="sm:col-span-2">
-                            <label
-                                htmlFor="purchase-order-status"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Estado
-                            </label>
-
-                            <select
-                                id="purchase-order-status"
-                                value={statusFilter}
-                                onChange={(event) =>
-                                    setStatusFilter(
-                                        event.target
-                                            .value as
-                                        | "all"
-                                        | "confirmed"
-                                        | "received"
-                                        | "cancelled"
-                                    )
-                                }
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="all">
-                                    Todos
-                                </option>
-
-                                <option value="confirmed">
-                                    Confirmadas
-                                </option>
-
-                                <option value="received">
-                                    Recibidas
-                                </option>
-
-                                <option value="cancelled">
-                                    Canceladas
-                                </option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label
-                                htmlFor="purchase-order-date-from"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Fecha de orden · Desde
-                            </label>
-
-                            <input
-                                id="purchase-order-date-from"
-                                type="date"
-                                value={dateFrom}
-                                onChange={(event) =>
-                                    setDateFrom(
-                                        event.target.value
-                                    )
-                                }
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div>
-                            <label
-                                htmlFor="purchase-order-date-to"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Fecha de orden · Hasta
-                            </label>
-
-                            <input
-                                id="purchase-order-date-to"
-                                type="date"
-                                value={dateTo}
-                                min={dateFrom || undefined}
-                                onChange={(event) =>
-                                    setDateTo(
-                                        event.target.value
-                                    )
-                                }
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div className="flex items-end sm:col-span-2 xl:justify-end">
-                            <button
-                                type="button"
-                                onClick={
-                                    clearOrderFilters
-                                }
-                                disabled={
-                                    !search &&
-                                    statusFilter ===
-                                    "all" &&
-                                    !dateFrom &&
-                                    !dateTo
-                                }
-                                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 lg:w-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
-                            >
-                                Limpiar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {loading && (
-                    <div
-                        role="status"
-                        className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800"
-                    >
-                        Cargando órdenes...
-                    </div>
-                )}
-
-                {!loading && error && (
-                    <div
-                        role="alert"
-                        className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
-                    >
-                        {error}
-                    </div>
-                )}
-
-                {!loading &&
-                    !error &&
-                    purchaseOrders.length === 0 && (
-                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
-                            <p className="text-sm font-semibold text-slate-900">
-                                Aún no hay órdenes de compra
-                            </p>
-
-                            <p className="mt-2 text-sm text-slate-600">
-                                Registra tu primer pedido utilizando el formulario superior.
-                            </p>
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    purchaseOrders.length > 0 &&
-                    filteredPurchaseOrders.length ===
-                    0 && (
-                        <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
-                            <p className="font-semibold text-slate-900">
-                                No encontramos órdenes
-                            </p>
-
-                            <p className="mt-2 text-sm text-slate-600">
-                                Modifica la búsqueda o los filtros para mostrar otros resultados.
-                            </p>
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    filteredPurchaseOrders.length >
-                    0 && (
-                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200" tabIndex={0} role="region" aria-label="Listado de órdenes de compra">
-                            <table className="w-full min-w-280 text-left text-sm">
-                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
-                                    <tr>
-                                        <th scope="col" className="px-5 py-3">
-                                            Folio
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            OC
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Proveedor
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Fecha
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Entrega
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Productos
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Estado
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3 text-right">
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredPurchaseOrders.map(
-                                        (order) => {
-                                            const status =
-                                                getPurchaseOrderStatus(
-                                                    order.status
-                                                );
-
-                                            const canModify =
-                                                order.status ===
-                                                1 ||
-                                                order.status ===
-                                                2;
-
-                                            return (
-                                                <tr
-                                                    key={
-                                                        order.id
-                                                    }
-                                                    className="transition-colors hover:bg-sky-50/40"
-                                                >
-                                                    <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-900">
-                                                        {
-                                                            order.folio
-                                                        }
-                                                    </td>
-
-                                                    <td className="px-5 py-4 font-medium text-slate-800">
-                                                        {
-                                                            order.purchaseOrderNumber
-                                                        }
-                                                    </td>
-
-                                                    <td className="px-5 py-4 text-slate-700">
-                                                        {
-                                                            order.supplierName
-                                                        }
-                                                    </td>
-
-                                                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                                                        {formatDate(
-                                                            order.orderDate
-                                                        )}
-                                                    </td>
-
-                                                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                                                        {formatDate(
-                                                            order.confirmedDeliveryDate
-                                                        )}
-                                                    </td>
-
-                                                    <td className="px-5 py-4">
-                                                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                                            {
-                                                                order
-                                                                    .items
-                                                                    .length
-                                                            }{" "}
-                                                            {order
-                                                                .items
-                                                                .length ===
-                                                                1
-                                                                ? "producto"
-                                                                : "productos"}
-                                                        </span>
-                                                    </td>
-
-                                                    <td className="px-5 py-4">
-                                                        <span
-                                                            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ring-current/15 ${status.className}`}
-                                                        >
-                                                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-
-                                                            {
-                                                                status.label
-                                                            }
-                                                        </span>
-                                                    </td>
-
-                                                    <td className="px-5 py-4">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-100 sm:grid-cols-3">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    void openDetails(
-                                                                        order
-                                                                    )
-                                                                }
-                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2.5 text-sm font-semibold text-sky-800 shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
-                                                            >
-                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
-                                                                Ver detalles
-                                                            </button>
-
-                                                            {canModify && (
-                                                                <>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() =>
-                                                                            void startEditing(
-                                                                                order
-                                                                            )
-                                                                        }
-                                                                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
-                                                                    >
-                                                                        <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
-                                                                        Editar
-                                                                    </button>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setCancellingOrder(
-                                                                                order
-                                                                            );
-
-                                                                            setCancellationReason(
-                                                                                ""
-                                                                            );
-                                                                        }}
-                                                                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-200 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition-colors hover:border-red-300 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
-                                                                    >
-                                                                        <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></svg>
-                                                                        Cancelar
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        }
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-            </section>
             {(
                 loadingDetail ||
                 detailError ||
@@ -1824,6 +1804,8 @@ export const PurchaseOrdersPage = () => {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        detailVersion.current += 1;
+                                        setLoadingDetail(false);
                                         setDetailOrder(
                                             null
                                         );

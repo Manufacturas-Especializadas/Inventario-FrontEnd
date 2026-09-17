@@ -18,8 +18,13 @@ import {
 } from "../utils/utils";
 
 
+interface UseOrganizationalUnitsOptions {
+    autoLoad?: boolean;
+}
+
 export const useOrganizationalUnits =
-    () => {
+    ({ autoLoad = true }: UseOrganizationalUnitsOptions = {}) => {
+        const [hasLoaded, setHasLoaded] = useState(false);
         const [
             organizationalUnits,
             setOrganizationalUnits,
@@ -62,6 +67,7 @@ export const useOrganizationalUnits =
                             data
                         );
 
+                        setHasLoaded(true);
                         return data;
                     } catch (error) {
                         setOrganizationalUnits(
@@ -123,12 +129,13 @@ export const useOrganizationalUnits =
 
 
         useEffect(() => {
-            void refresh();
-        }, [refresh]);
+            if (autoLoad) void refresh();
+        }, [autoLoad, refresh]);
 
 
         return {
             organizationalUnits,
+            hasLoaded,
 
             loading,
             creating,
