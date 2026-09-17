@@ -4,6 +4,8 @@ import type {
     CreateWarehouseProductRequest,
     SetWarehouseProductStatusRequest,
     WarehouseProduct,
+    BulkAssignWarehouseProductsRequest,
+    BulkAssignWarehouseProductsResult,
 } from "../../types/types";
 
 
@@ -26,6 +28,18 @@ export const warehouseProductsService = {
         const response =
             await apiClient.post<WarehouseProduct>(
                 "/warehouse-products",
+                request
+            );
+
+        return response.data;
+    },
+
+    async bulkAssign(
+        request: BulkAssignWarehouseProductsRequest
+    ): Promise<BulkAssignWarehouseProductsResult> {
+        const response =
+            await apiClient.post<BulkAssignWarehouseProductsResult>(
+                "/warehouse-products/bulk-assign",
                 request
             );
 

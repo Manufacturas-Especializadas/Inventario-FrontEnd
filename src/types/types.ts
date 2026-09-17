@@ -297,6 +297,18 @@ export interface WarehouseProduct {
     updatedAt: string | null;
 }
 
+export interface BulkAssignWarehouseProductsRequest {
+    warehouseIds: number[];
+    ppeProductIds: number[];
+}
+
+export interface BulkAssignWarehouseProductsResult {
+    createdCount: number;
+    reactivatedCount: number;
+    alreadyActiveCount: number;
+    totalProcessed: number;
+}
+
 export interface CreateWarehouseProductRequest {
     warehouseId: number;
     ppeProductId: number;

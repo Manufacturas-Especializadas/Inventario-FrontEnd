@@ -7,6 +7,7 @@ import type {
     CancelPurchaseOrderRequest,
     PurchaseOrder,
     UpdatePurchaseOrderRequest,
+    Warehouse,
 } from "../../types/types";
 
 export const purchaseOrdersService = {
@@ -69,6 +70,19 @@ export const purchaseOrdersService = {
                     folio
                 )}/cancel`,
                 request
+            );
+
+        return response.data;
+    },
+
+    async getReceivingWarehouses(
+        folio: string
+    ): Promise<Warehouse[]> {
+        const response =
+            await apiClient.get<Warehouse[]>(
+                `/purchase-orders/${encodeURIComponent(
+                    folio
+                )}/receiving-warehouses`
             );
 
         return response.data;

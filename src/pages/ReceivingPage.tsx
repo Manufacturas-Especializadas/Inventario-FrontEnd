@@ -1,5 +1,6 @@
 import {
     useMemo,
+    useRef,
     useState,
     type FormEvent,
 } from "react";
@@ -13,19 +14,20 @@ import {
 } from "../hooks/usePurchaseOrders";
 
 import {
-    useWarehouses,
-} from "../hooks/useWarehouses";
-
-import {
     getApiErrorMessage,
 } from "../utils/utils";
 
 import type {
     GoodsReceipt,
     PurchaseOrder,
+    Warehouse,
 } from "../types/types";
 
 import { PageHeader } from "../components/ui/PageHeader";
+
+import {
+    purchaseOrdersService,
+} from "../api/services/PurchaseOrdersService";
 
 export const ReceivingPage = () => {
     const {
@@ -35,10 +37,18 @@ export const ReceivingPage = () => {
         refresh: refreshOrders,
     } = usePurchaseOrders();
 
-    const {
-        warehouses,
-        loading: loadingWarehouses,
-    } = useWarehouses();
+    const [
+        receivingWarehouses,
+        setReceivingWarehouses,
+    ] = useState<Warehouse[]>([]);
+
+    const [
+        loadingReceivingWarehouses,
+        setLoadingReceivingWarehouses,
+    ] = useState(false);
+
+    const receivingWarehousesRequestId =
+        useRef(0);
 
     const [
         searchTerm,
@@ -116,14 +126,59 @@ export const ReceivingPage = () => {
             searchTerm,
         ]);
 
-    const handleSelectOrder = (
-        order: PurchaseOrder
-    ) => {
-        setSelectedOrder(order);
+    const handleSelectOrder =
+        async (order: PurchaseOrder) => {
+            const requestId =
+                ++receivingWarehousesRequestId.current;
 
-        setReceipt(null);
-        setFormError(null);
-    };
+            setSelectedOrder(order);
+            setWarehouseId("");
+            setReceivingWarehouses([]);
+            setReceipt(null);
+            setFormError(null);
+
+            setLoadingReceivingWarehouses(true);
+
+            try {
+                const data =
+                    await purchaseOrdersService
+                        .getReceivingWarehouses(
+                            order.folio
+                        );
+
+                if (
+                    requestId !==
+                    receivingWarehousesRequestId.current
+                ) {
+                    return;
+                }
+
+                setReceivingWarehouses(data);
+            } catch (error) {
+                if (
+                    requestId !==
+                    receivingWarehousesRequestId.current
+                ) {
+                    return;
+                }
+
+                setReceivingWarehouses([]);
+
+                setFormError(
+                    getApiErrorMessage(
+                        error,
+                        "No fue posible consultar los almacenes disponibles para esta orden."
+                    )
+                );
+            } finally {
+                if (
+                    requestId ===
+                    receivingWarehousesRequestId.current
+                ) {
+                    setLoadingReceivingWarehouses(false);
+                }
+            }
+        };
 
     const handleSubmit =
         async (
@@ -436,8 +491,10 @@ export const ReceivingPage = () => {
                                             event.target.value
                                         )
                                     }
+
                                     disabled={
-                                        loadingWarehouses ||
+                                        loadingReceivingWarehouses ||
+                                        receivingWarehouses.length === 0 ||
                                         isSubmitting
                                     }
                                     className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
@@ -446,31 +503,17 @@ export const ReceivingPage = () => {
                                         Selecciona almacén
                                     </option>
 
-                                    {warehouses
-                                        .filter(
-                                            (warehouse) =>
-                                                warehouse.isActive
+                                    {receivingWarehouses.map(
+                                        (warehouse) => (
+                                            <option
+                                                key={warehouse.id}
+                                                value={warehouse.id}
+                                            >
+                                                {warehouse.code} - {warehouse.name}
+                                            </option>
                                         )
-                                        .map(
-                                            (warehouse) => (
-                                                <option
-                                                    key={
-                                                        warehouse.id
-                                                    }
-                                                    value={
-                                                        warehouse.id
-                                                    }
-                                                >
-                                                    {
-                                                        warehouse.code
-                                                    }{" "}
-                                                    -{" "}
-                                                    {
-                                                        warehouse.name
-                                                    }
-                                                </option>
-                                            )
-                                        )}
+                                    )}
+
                                 </select>
                             </div>
 

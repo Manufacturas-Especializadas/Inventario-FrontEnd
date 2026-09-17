@@ -37,11 +37,21 @@ import {
 
 import type {
     PPEProduct,
+    BulkAssignWarehouseProductsResult
 } from "../types/types";
 
 import {
     getApiErrorMessage,
 } from "../utils/utils";
+
+import {
+    useWarehouses,
+} from "../hooks/useWarehouses";
+
+import {
+    ProductWarehouseAssignmentModal,
+} from "../components/products/ProductWarehouseAssignmentModal";
+
 
 import { PageHeader } from "../components/ui/PageHeader";
 import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
@@ -69,6 +79,13 @@ export const PPEProductsPage = () => {
         hasLoaded: categoriesLoaded,
         refresh: refreshCategories,
     } = usePPECategories({ autoLoad: false });
+
+    const [
+        selectedProductIds,
+        setSelectedProductIds,
+    ] = useState<Set<number>>(
+        () => new Set()
+    );
 
     const {
         activeSizes,
@@ -105,6 +122,16 @@ export const PPEProductsPage = () => {
         sizesError ||
         colorsError ||
         unitsError;
+
+    const {
+        warehouses,
+        loading: loadingWarehouses,
+        error: warehousesError,
+        hasLoaded: warehousesLoaded,
+        refresh: refreshWarehouses,
+    } = useWarehouses({
+        autoLoad: false,
+    });
 
     const {
         hasRole,
@@ -155,6 +182,25 @@ export const PPEProductsPage = () => {
         categoryId,
         setCategoryId,
     ] = useState("");
+
+    const [
+        warehouseAssignmentOpen,
+        setWarehouseAssignmentOpen,
+    ] = useState(false);
+
+    const [
+        assignmentProductIds,
+        setAssignmentProductIds,
+    ] = useState<Set<number>>(
+        () => new Set()
+    );
+
+    const [
+        assignmentMode,
+        setAssignmentMode,
+    ] = useState<"bulk" | "single">(
+        "bulk"
+    );
 
     const [
         name,
@@ -610,6 +656,29 @@ export const PPEProductsPage = () => {
 
                 upsertProduct(updatedProduct);
 
+                if (!updatedProduct.isActive) {
+                    setSelectedProductIds(
+                        (current) => {
+                            if (
+                                !current.has(
+                                    updatedProduct.id
+                                )
+                            ) {
+                                return current;
+                            }
+
+                            const next =
+                                new Set(current);
+
+                            next.delete(
+                                updatedProduct.id
+                            );
+
+                            return next;
+                        }
+                    );
+                }
+
                 if (
                     editingProductId ===
                     product.id &&
@@ -639,6 +708,143 @@ export const PPEProductsPage = () => {
                 );
             }
         }, [isAdministrator, changingStatusId, isSubmitting, upsertProduct, editingProductId, resetForm]);
+
+    const toggleProductSelection =
+        useCallback(
+            (
+                productId: number,
+                selected: boolean
+            ) => {
+                setSelectedProductIds(
+                    (current) => {
+                        const next =
+                            new Set(current);
+
+                        if (selected) {
+                            next.add(productId);
+                        } else {
+                            next.delete(productId);
+                        }
+
+                        return next;
+                    }
+                );
+            },
+            []
+        );
+
+    const setProductsSelection =
+        useCallback(
+            (
+                productIds: number[],
+                selected: boolean
+            ) => {
+                setSelectedProductIds(
+                    (current) => {
+                        const next =
+                            new Set(current);
+
+                        for (const productId of productIds) {
+                            if (selected) {
+                                next.add(productId);
+                            } else {
+                                next.delete(productId);
+                            }
+                        }
+
+                        return next;
+                    }
+                );
+            },
+            []
+        );
+
+
+    const clearProductSelection =
+        useCallback(() => {
+            setSelectedProductIds(
+                new Set()
+            );
+        }, []);
+
+    const openWarehouseAssignment =
+        useCallback(() => {
+            if (
+                !isAdministrator ||
+                selectedProductIds.size === 0
+            ) {
+                return;
+            }
+
+            setSuccessMessage(null);
+
+            setAssignmentProductIds(
+                new Set(selectedProductIds)
+            );
+
+            setAssignmentMode("bulk");
+
+            setWarehouseAssignmentOpen(true);
+        }, [
+            isAdministrator,
+            selectedProductIds,
+        ]);
+
+    const openSingleWarehouseAssignment =
+        useCallback(
+            (product: PPEProduct) => {
+                if (
+                    !isAdministrator ||
+                    !product.isActive
+                ) {
+                    return;
+                }
+
+                setSuccessMessage(null);
+
+                setAssignmentProductIds(
+                    new Set([product.id])
+                );
+
+                setAssignmentMode("single");
+
+                setWarehouseAssignmentOpen(true);
+            },
+            [isAdministrator]
+        );
+
+    const closeWarehouseAssignment =
+        useCallback(() => {
+            setWarehouseAssignmentOpen(false);
+            setAssignmentProductIds(
+                new Set()
+            );
+        }, []);
+
+    const handleWarehouseAssignmentSuccess =
+        useCallback(
+            (
+                result:
+                    BulkAssignWarehouseProductsResult
+            ) => {
+                setWarehouseAssignmentOpen(false);
+                setAssignmentProductIds(
+                    new Set()
+                );
+
+                if (assignmentMode === "bulk") {
+                    clearProductSelection();
+                }
+
+                setSuccessMessage(
+                    `Asignación completada: ${result.createdCount} nuevas, ${result.reactivatedCount} reactivadas y ${result.alreadyActiveCount} ya estaban activas.`
+                );
+            },
+            [
+                assignmentMode,
+                clearProductSelection,
+            ]
+        );
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
@@ -714,6 +920,12 @@ export const PPEProductsPage = () => {
                         handleStatusChange={handleStatusChange}
                         refresh={refresh}
                         loading={loading}
+                        selectedProductIds={selectedProductIds}
+                        toggleProductSelection={toggleProductSelection}
+                        setProductsSelection={setProductsSelection}
+                        clearProductSelection={clearProductSelection}
+                        onAssignSelected={openWarehouseAssignment}
+                        onAssignProduct={openSingleWarehouseAssignment}
                     />
                 )}
             </section>
@@ -1201,9 +1413,42 @@ export const PPEProductsPage = () => {
                             </fieldset>
                         </form>
                     </section>
-            )}
+                )}
 
             </div>
+
+            <ProductWarehouseAssignmentModal
+                open={
+                    warehouseAssignmentOpen
+                }
+                products={
+                    products
+                }
+                selectedProductIds={
+                    assignmentProductIds
+                }
+                warehouses={
+                    warehouses
+                }
+                loadingWarehouses={
+                    loadingWarehouses
+                }
+                warehousesError={
+                    warehousesError
+                }
+                warehousesLoaded={
+                    warehousesLoaded
+                }
+                loadWarehouses={
+                    refreshWarehouses
+                }
+                onClose={
+                    closeWarehouseAssignment
+                }
+                onAssigned={
+                    handleWarehouseAssignmentSuccess
+                }
+            />
 
         </div>
     );

@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useEffect, useRef } from "react";
 import type { PPEProduct } from "../../types/types";
 import { normalizeProductText } from "../../utils/productText";
 import { StatCard } from "../ui/StatCard";
@@ -25,6 +25,24 @@ interface ProductsCatalogPanelProps {
     handleStatusChange: (product: PPEProduct) => Promise<void>;
     refresh: () => Promise<void>;
     loading: boolean;
+    selectedProductIds: Set<number>;
+    onAssignSelected: () => void;
+
+    toggleProductSelection: (
+        productId: number,
+        selected: boolean
+    ) => void;
+
+    setProductsSelection: (
+        productIds: number[],
+        selected: boolean
+    ) => void;
+
+    onAssignProduct: (
+        product: PPEProduct
+    ) => void;
+
+    clearProductSelection: () => void;
 }
 
 // Stable props let the loaded table skip renders caused by typing in the form.
@@ -32,7 +50,8 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
     products, search, setSearch, statusFilter, setStatusFilter,
     categoryFilter, setCategoryFilter, setSuccessMessage, hasFilters, clearFilters,
     isAdministrator, isSubmitting, changingStatusId, actionError,
-    startEditing, handleStatusChange, refresh, loading,
+    startEditing, handleStatusChange, refresh, loading, selectedProductIds, toggleProductSelection,
+    setProductsSelection, clearProductSelection, onAssignSelected, onAssignProduct,
 }: ProductsCatalogPanelProps) {
     const filterCategories = useMemo(() => Array.from(
         new Map(products.map((product) => [product.categoryId, product.categoryName]))
@@ -64,6 +83,55 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                 first.sku.localeCompare(second.sku, "es", { numeric: true })
             );
     }, [products, search, statusFilter, categoryFilter]);
+
+    const visibleActiveProductIds =
+        useMemo(
+            () =>
+                filteredProducts
+                    .filter(
+                        (product) =>
+                            product.isActive
+                    )
+                    .map(
+                        (product) =>
+                            product.id
+                    ),
+            [filteredProducts]
+        );
+
+    const selectedVisibleCount =
+        useMemo(
+            () =>
+                visibleActiveProductIds
+                    .filter(
+                        (id) =>
+                            selectedProductIds.has(id)
+                    )
+                    .length,
+            [
+                visibleActiveProductIds,
+                selectedProductIds,
+            ]
+        );
+
+    const allVisibleSelected =
+        visibleActiveProductIds.length > 0 &&
+        selectedVisibleCount ===
+        visibleActiveProductIds.length;
+
+    const someVisibleSelected =
+        selectedVisibleCount > 0 &&
+        !allVisibleSelected;
+
+    const selectAllRef =
+        useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (selectAllRef.current) {
+            selectAllRef.current.indeterminate =
+                someVisibleSelected;
+        }
+    }, [someVisibleSelected]);
 
     return (
         <div className="space-y-6">
@@ -169,177 +237,288 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                     )}
 
                 {products.length > 0 && filteredProducts.length === 0 && (
-                        <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
-                            <p className="text-sm font-semibold text-slate-900">No encontramos coincidencias.</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-600">Prueba con otro término o elimina los filtros.</p>
+                    <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
+                        <p className="text-sm font-semibold text-slate-900">No encontramos coincidencias.</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">Prueba con otro término o elimina los filtros.</p>
+                    </div>
+                )}
+
+                {isAdministrator &&
+                    selectedProductIds.size > 0 && (
+                        <div className="mx-6 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+                            <p className="text-sm font-semibold text-sky-900">
+                                {selectedProductIds.size}{" "}
+                                {selectedProductIds.size === 1
+                                    ? "producto seleccionado"
+                                    : "productos seleccionados"}
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={
+                                        clearProductSelection
+                                    }
+                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Limpiar selección
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        onAssignSelected
+                                    }
+                                    className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200"
+                                >
+                                    Asignar a almacenes
+                                </button>
+                            </div>
                         </div>
                     )}
 
                 {filteredProducts.length > 0 && (
-                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Productos registrados">
-                            <table className="w-full min-w-240 text-left text-sm">
-                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
-                                    <tr>
-                                        <th scope="col" className="px-5 py-3">
-                                            SKU
-                                        </th>
+                    <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Productos registrados">
+                        <table className="w-full min-w-240 text-left text-sm">
+                            <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
 
-                                        <th scope="col" className="px-5 py-3">
-                                            Producto
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Categoría
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Variante
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3 text-right">
-                                            Mínimo
-                                        </th>
-
-                                        <th scope="col" className="px-5 py-3">
-                                            Estado
-                                        </th>
-
-                                        {isAdministrator && (
-                                            <th scope="col" className="px-5 py-3 text-right">
-                                                Acciones
-                                            </th>
-                                        )}
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredProducts.map(
-                                        (
-                                            product
-                                        ) => (
-                                            <tr
-                                                className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
-                                                key={
-                                                    product.id
+                                <tr>
+                                    {isAdministrator && (
+                                        <th
+                                            scope="col"
+                                            className="w-14 px-5 py-3"
+                                        >
+                                            <input
+                                                ref={selectAllRef}
+                                                type="checkbox"
+                                                checked={
+                                                    allVisibleSelected
                                                 }
-                                            >
-                                                <td className="px-5 py-4 font-mono text-xs font-medium text-slate-700">
-                                                    {
-                                                        product.sku
-                                                    }
-                                                </td>
+                                                disabled={
+                                                    visibleActiveProductIds.length ===
+                                                    0
+                                                }
+                                                onChange={() =>
+                                                    setProductsSelection(
+                                                        visibleActiveProductIds,
+                                                        !allVisibleSelected
+                                                    )
+                                                }
+                                                aria-label="Seleccionar productos activos visibles"
+                                                className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-500"
+                                            />
+                                        </th>
+                                    )}
 
+                                    <th scope="col" className="px-5 py-3">
+                                        SKU
+                                    </th>
+
+                                    <th scope="col" className="px-5 py-3">
+                                        Producto
+                                    </th>
+
+                                    <th scope="col" className="px-5 py-3">
+                                        Categoría
+                                    </th>
+
+                                    <th scope="col" className="px-5 py-3">
+                                        Variante
+                                    </th>
+
+                                    <th scope="col" className="px-5 py-3 text-right">
+                                        Mínimo
+                                    </th>
+
+                                    <th scope="col" className="px-5 py-3">
+                                        Estado
+                                    </th>
+
+                                    {isAdministrator && (
+                                        <th scope="col" className="px-5 py-3 text-right">
+                                            Acciones
+                                        </th>
+                                    )}
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredProducts.map(
+                                    (
+                                        product
+                                    ) => (
+                                        <tr
+                                            className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
+                                            key={
+                                                product.id
+                                            }
+                                        >
+                                            {isAdministrator && (
                                                 <td className="px-5 py-4">
-                                                    <p className="font-medium text-slate-900">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={
+                                                            selectedProductIds.has(
+                                                                product.id
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            !product.isActive
+                                                        }
+                                                        onChange={(event) =>
+                                                            toggleProductSelection(
+                                                                product.id,
+                                                                event.target.checked
+                                                            )
+                                                        }
+                                                        aria-label={`Seleccionar ${product.sku} ${product.name}`}
+                                                        className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    />
+                                                </td>
+                                            )}
+                                            <td className="px-5 py-4 font-mono text-xs font-medium text-slate-700">
+                                                {
+                                                    product.sku
+                                                }
+                                            </td>
+
+                                            <td className="px-5 py-4">
+                                                <p className="font-medium text-slate-900">
+                                                    {
+                                                        product.name
+                                                    }
+                                                </p>
+
+                                                {product.description && (
+                                                    <p className="mt-1 max-w-xs wrap-break-word text-xs leading-5 text-slate-500">
                                                         {
-                                                            product.name
+                                                            product.description
                                                         }
                                                     </p>
-
-                                                    {product.description && (
-                                                        <p className="mt-1 max-w-xs wrap-break-word text-xs leading-5 text-slate-500">
-                                                            {
-                                                                product.description
-                                                            }
-                                                        </p>
-                                                    )}
-                                                </td>
-
-                                                <td className="px-5 py-4 text-slate-600">
-                                                    {
-                                                        product.categoryName
-                                                    }
-                                                </td>
-
-                                                <td className="px-5 py-4 text-slate-600">
-                                                    {[
-                                                        product.size,
-                                                        product.color,
-                                                        product.model,
-                                                    ]
-                                                        .filter(
-                                                            Boolean
-                                                        )
-                                                        .join(
-                                                            " · "
-                                                        ) ||
-                                                        "—"}
-                                                </td>
-
-                                                <td className="px-5 py-4 text-right text-slate-700">
-                                                    {
-                                                        product.minimumStock
-                                                    }
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    <ActiveStatusBadge isActive={product.isActive} />
-                                                </td>
-
-                                                {isAdministrator && (
-                                                    <td className="px-5 py-4">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    startEditing(
-                                                                        product
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    isSubmitting ||
-                                                                    changingStatusId !== null
-                                                                }
-                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                            >
-                                                                <svg
-                                                                    aria-hidden="true"
-                                                                    className="h-4 w-4 shrink-0"
-                                                                    viewBox="0 0 24 24"
-                                                                    fill="none"
-                                                                    stroke="currentColor"
-                                                                    strokeWidth="1.5"
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                >
-                                                                    <path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" />
-                                                                </svg>
-                                                                Editar
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    void handleStatusChange(
-                                                                        product
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    changingStatusId !== null ||
-                                                                    isSubmitting
-                                                                }
-                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${product.isActive
-                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
-                                                                    }`}
-                                                            >
-                                                                {changingStatusId ===
-                                                                    product.id
-                                                                    ? "Guardando..."
-                                                                    : product.isActive
-                                                                        ? "Desactivar"
-                                                                        : "Activar"}
-                                                            </button>
-                                                        </div>
-                                                    </td>
                                                 )}
-                                            </tr>
-                                        )
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                            </td>
+
+                                            <td className="px-5 py-4 text-slate-600">
+                                                {
+                                                    product.categoryName
+                                                }
+                                            </td>
+
+                                            <td className="px-5 py-4 text-slate-600">
+                                                {[
+                                                    product.size,
+                                                    product.color,
+                                                    product.model,
+                                                ]
+                                                    .filter(
+                                                        Boolean
+                                                    )
+                                                    .join(
+                                                        " · "
+                                                    ) ||
+                                                    "—"}
+                                            </td>
+
+                                            <td className="px-5 py-4 text-right text-slate-700">
+                                                {
+                                                    product.minimumStock
+                                                }
+                                            </td>
+
+                                            <td className="px-5 py-4">
+                                                <ActiveStatusBadge isActive={product.isActive} />
+                                            </td>
+
+                                            {isAdministrator && (
+                                                <td className="px-5 py-4">
+                                                    <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-[28rem] sm:grid-cols-3">                                                        <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            startEditing(
+                                                                product
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isSubmitting ||
+                                                            changingStatusId !== null
+                                                        }
+                                                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                                    >
+                                                        <svg
+                                                            aria-hidden="true"
+                                                            className="h-4 w-4 shrink-0"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.5"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" />
+                                                        </svg>
+                                                        Editar
+                                                    </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                onAssignProduct(product)
+                                                            }
+                                                            disabled={
+                                                                !product.isActive ||
+                                                                isSubmitting ||
+                                                                changingStatusId !== null
+                                                            }
+                                                            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm font-semibold text-sky-800 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            <svg
+                                                                aria-hidden="true"
+                                                                className="h-4 w-4 shrink-0"
+                                                                viewBox="0 0 24 24"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.5"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                            >
+                                                                <path d="M12 5v14M5 12h14" />
+                                                            </svg>
+
+                                                            Asignar
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                void handleStatusChange(
+                                                                    product
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                changingStatusId !== null ||
+                                                                isSubmitting
+                                                            }
+                                                            className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${product.isActive
+                                                                ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
+                                                                : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
+                                                                }`}
+                                                        >
+                                                            {changingStatusId ===
+                                                                product.id
+                                                                ? "Guardando..."
+                                                                : product.isActive
+                                                                    ? "Desactivar"
+                                                                    : "Activar"}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    )
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </section>
         </div>
     );
