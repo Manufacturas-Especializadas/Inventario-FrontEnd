@@ -17,6 +17,14 @@ import {
 
 import { PageHeader } from "../components/ui/PageHeader";
 
+import type {
+    Warehouse,
+} from "../types/types";
+
+import {
+    WarehouseProductsModal,
+} from "../components/warehouses/WarehouseProductsModal";
+
 export const WarehousesPage = () => {
     const {
         warehouses,
@@ -49,6 +57,11 @@ export const WarehousesPage = () => {
         isSubmitting,
         setIsSubmitting,
     ] = useState(false);
+
+    const [
+        selectedWarehouse,
+        setSelectedWarehouse,
+    ] = useState<Warehouse | null>(null);
 
     const resetForm = () => {
         setCode("");
@@ -307,6 +320,12 @@ export const WarehousesPage = () => {
                                         <th scope="col" className="px-5 py-3">
                                             Creado
                                         </th>
+
+                                        <th
+                                            scope="col"
+                                            className="px-5 py-3 text-right">
+                                            Acciones
+                                        </th>
                                     </tr>
                                 </thead>
 
@@ -357,6 +376,34 @@ export const WarehousesPage = () => {
                                                         "es-MX"
                                                     )}
                                                 </td>
+
+                                                <td className="whitespace-nowrap px-5 py-4 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setSelectedWarehouse(
+                                                                warehouse
+                                                            )
+                                                        }
+                                                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                                    >
+                                                        <svg
+                                                            aria-hidden="true"
+                                                            className="h-4 w-4"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.5"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <path d="M20 7 12 3 4 7l8 4 8-4Z" />
+                                                            <path d="m4 12 8 4 8-4M4 17l8 4 8-4" />
+                                                        </svg>
+
+                                                        Productos
+                                                    </button>
+                                                </td>
                                             </tr>
                                         )
                                     )}
@@ -365,6 +412,12 @@ export const WarehousesPage = () => {
                         </div>
                     )}
             </section>
+            <WarehouseProductsModal
+                warehouse={selectedWarehouse}
+                onClose={() =>
+                    setSelectedWarehouse(null)
+                }
+            />
         </div>
     );
 };

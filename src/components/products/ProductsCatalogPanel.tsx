@@ -1,6 +1,8 @@
 import { memo, useMemo } from "react";
 import type { PPEProduct } from "../../types/types";
 import { normalizeProductText } from "../../utils/productText";
+import { StatCard } from "../ui/StatCard";
+import { ActiveStatusBadge } from "../ui/ActiveStatusBadge";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -22,6 +24,7 @@ interface ProductsCatalogPanelProps {
     startEditing: (product: PPEProduct) => void;
     handleStatusChange: (product: PPEProduct) => Promise<void>;
     refresh: () => Promise<void>;
+    loading: boolean;
 }
 
 // Stable props let the loaded table skip renders caused by typing in the form.
@@ -29,7 +32,7 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
     products, search, setSearch, statusFilter, setStatusFilter,
     categoryFilter, setCategoryFilter, setSuccessMessage, hasFilters, clearFilters,
     isAdministrator, isSubmitting, changingStatusId, actionError,
-    startEditing, handleStatusChange, refresh,
+    startEditing, handleStatusChange, refresh, loading,
 }: ProductsCatalogPanelProps) {
     const filterCategories = useMemo(() => Array.from(
         new Map(products.map((product) => [product.categoryId, product.categoryName]))
@@ -70,10 +73,7 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                     { label: "Productos activos", value: summary.active },
                     { label: "Productos inactivos", value: summary.inactive },
                 ].map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                        <dt className="text-sm font-medium text-slate-600">{item.label}</dt>
-                        <dd className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">{item.value}</dd>
-                    </div>
+                    <StatCard key={item.label} label={item.label} value={item.value} />
                 ))}
             </dl>
 
@@ -86,9 +86,10 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                         <button
                             type="button"
                             onClick={() => void refresh()}
-                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                            disabled={loading}
+                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                         >
-                            Actualizar
+                            {loading ? "Actualizando..." : "Actualizar"}
                         </button>
                         {(
                             <p role="status" aria-atomic="true" className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold tabular-nums text-sky-800 ring-1 ring-inset ring-sky-200">
@@ -272,17 +273,7 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                                                 </td>
 
                                                 <td className="px-5 py-4">
-                                                    <span
-                                                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${product.isActive
-                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
-                                                            }`}
-                                                    >
-                                                        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
-                                                        {product.isActive
-                                                            ? "Activo"
-                                                            : "Inactivo"}
-                                                    </span>
+                                                    <ActiveStatusBadge isActive={product.isActive} />
                                                 </td>
 
                                                 {isAdministrator && (

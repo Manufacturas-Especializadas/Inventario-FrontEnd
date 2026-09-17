@@ -95,4 +95,14 @@ export const inventoryCountsService = {
 
         return response.data;
     },
+
+    async getDrafts(): Promise<InventoryCount[]> {
+        const response =
+            await apiClient.get<InventoryCount[]>(
+                "/inventory-counts/drafts"
+            );
+
+        return response.data;
+    },
+
 };

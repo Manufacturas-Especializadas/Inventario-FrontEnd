@@ -24,6 +24,7 @@ interface UseSuppliersOptions {
 export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
     const [hasLoaded, setHasLoaded] = useState(false);
     const pendingRequest = useRef<Promise<void> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, Supplier>());
     const [
         suppliers,
         setSuppliers,
@@ -32,7 +33,7 @@ export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
     const [
         loading,
         setLoading,
-    ] = useState(false);
+    ] = useState(autoLoad);
 
     const [
         error,
@@ -46,6 +47,7 @@ export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
             if (pendingRequest.current) return pendingRequest.current;
             setLoading(true);
             setError(null);
+            updatesDuringLoad.current.clear();
 
             const request = (async () => {
                 try {
@@ -53,7 +55,12 @@ export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
                         await suppliersService
                             .getAll();
 
-                    setSuppliers(data);
+                    // Preserve successful mutations that finished while this GET was pending.
+                    const merged = new Map(data.map((supplier) => [supplier.id, supplier]));
+                    updatesDuringLoad.current.forEach((supplier) => {
+                        merged.set(supplier.id, supplier);
+                    });
+                    setSuppliers(Array.from(merged.values()));
                     setHasLoaded(true);
                 } catch (error) {
                     setError(
@@ -65,11 +72,22 @@ export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
                 } finally {
                     setLoading(false);
                     pendingRequest.current = null;
+                    updatesDuringLoad.current.clear();
                 }
             })();
             pendingRequest.current = request;
             return request;
         }, []);
+
+    const upsertSupplier = useCallback((supplier: Supplier) => {
+        if (pendingRequest.current) {
+            updatesDuringLoad.current.set(supplier.id, supplier);
+        }
+
+        setSuppliers((current) => current.some((entry) => entry.id === supplier.id)
+            ? current.map((entry) => entry.id === supplier.id ? supplier : entry)
+            : [...current, supplier]);
+    }, []);
 
     useEffect(() => {
         if (autoLoad) void getSuppliers();
@@ -81,5 +99,6 @@ export const useSuppliers = ({ autoLoad = true }: UseSuppliersOptions = {}) => {
         loading,
         error,
         refresh: getSuppliers,
+        upsertSupplier,
     };
 };

@@ -55,6 +55,21 @@ export const useInventoryCounts = () => {
     ] = useState<InventoryCount[]>([]);
 
     const [
+        draftCounts,
+        setDraftCounts,
+    ] = useState<InventoryCount[]>([]);
+
+    const [
+        loadingDrafts,
+        setLoadingDrafts,
+    ] = useState(false);
+
+    const [
+        draftsError,
+        setDraftsError,
+    ] = useState<string | null>(null);
+
+    const [
         loadingPendingReview,
         setLoadingPendingReview,
     ] = useState(false);
@@ -252,6 +267,17 @@ export const useInventoryCounts = () => {
                         data
                     );
 
+                    setDraftCounts(
+                        (current) => [
+                            data,
+                            ...current.filter(
+                                (count) =>
+                                    count.folio !==
+                                    data.folio
+                            ),
+                        ]
+                    );
+
                     return data;
                 } catch (error) {
                     setError(
@@ -330,6 +356,27 @@ export const useInventoryCounts = () => {
                         }
                     );
 
+                    setDraftCounts(
+                        (current) =>
+                            current.map(
+                                (count) =>
+                                    count.folio !== folio
+                                        ? count
+                                        : {
+                                            ...count,
+
+                                            items:
+                                                count.items.map(
+                                                    (item) =>
+                                                        item.ppeProductId ===
+                                                            data.ppeProductId
+                                                            ? data
+                                                            : item
+                                                ),
+                                        }
+                            )
+                    );
+
                     return data;
                 } catch (error) {
                     setError(
@@ -369,6 +416,15 @@ export const useInventoryCounts = () => {
                         data
                     );
 
+                    setDraftCounts(
+                        (current) =>
+                            current.filter(
+                                (count) =>
+                                    count.folio !==
+                                    data.folio
+                            )
+                    );
+
                     return data;
                 } catch (error) {
                     setError(
@@ -402,6 +458,45 @@ export const useInventoryCounts = () => {
             );
         }, []);
 
+    const getDrafts =
+        useCallback(
+            async (): Promise<InventoryCount[]> => {
+                setLoadingDrafts(true);
+                setDraftsError(null);
+
+                try {
+                    const data =
+                        await inventoryCountsService
+                            .getDrafts();
+
+                    setDraftCounts(data);
+
+                    return data;
+                } catch (error) {
+                    setDraftsError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible consultar los conteos en curso."
+                        )
+                    );
+
+                    return [];
+                } finally {
+                    setLoadingDrafts(false);
+                }
+            },
+            []
+        );
+
+    const openCount =
+        useCallback(
+            (count: InventoryCount) => {
+                setInventoryCount(count);
+                setError(null);
+            },
+            []
+        );
+
 
     return {
         inventoryCount,
@@ -426,5 +521,12 @@ export const useInventoryCounts = () => {
 
         getPendingReview,
         postCount,
+
+        draftCounts,
+        loadingDrafts,
+        draftsError,
+
+        getDrafts,
+        openCount,
     };
 };

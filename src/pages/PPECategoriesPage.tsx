@@ -23,6 +23,14 @@ import type {
     PPECategory,
 } from "../types/types";
 
+import { StatCard } from "../components/ui/StatCard";
+import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
+import { PageHeader } from "../components/ui/PageHeader";
+import { CatalogStatusFilters } from "../components/catalogs/CatalogStatusFilters";
+import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
+import { CatalogFormModal } from "../components/catalogs/CatalogFormModal";
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
+
 type StatusFilter = "all" | "active" | "inactive";
 
 const normalizeCategoryText = (value: string) =>
@@ -42,29 +50,13 @@ export const PPECategoriesPage = () => {
         actionError,
 
         refresh,
+        upsertCategory,
         updateCategory,
         setCategoryStatus,
         clearError,
-    } = usePPECategories();
+    } = usePPECategories({ autoLoad: true });
 
-    const [
-        showCategories,
-        setShowCategories,
-    ] = useState(false);
-
-    const toggleCategories =
-        async () => {
-            if (showCategories) {
-                setShowCategories(false);
-                return;
-            }
-
-            setShowCategories(true);
-
-            if (!hasLoaded) {
-                await refresh();
-            }
-        };
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
 
     const {
@@ -203,7 +195,23 @@ export const PPECategoriesPage = () => {
         ]);
 
     const hasFilters = search.length > 0 || statusFilter !== "all";
-    const missingName = Boolean(formError && !name.trim());
+    const isEditing = editingCategoryId !== null;
+    const isSaving = isSubmitting || updatingId !== null;
+    const currentName = isEditing ? editName : name;
+    const currentDescription = isEditing ? editDescription : description;
+    const currentDuplicate = isEditing ? editDuplicateCategory : duplicateCategory;
+    const currentFormError = isEditing ? editError || actionError : formError;
+    const missingName = Boolean(currentFormError && !currentName.trim());
+
+    const resetForm = () => {
+        setName("");
+        setDescription("");
+        setFormError(null);
+        setEditingCategoryId(null);
+        setEditName("");
+        setEditDescription("");
+        setEditError(null);
+    };
 
     const clearFilters = () => {
         setSearch("");
@@ -230,18 +238,17 @@ export const PPECategoriesPage = () => {
         setEditDescription(
             category.description ?? ""
         );
+        setSuccessMessage(null);
+        setIsFormOpen(true);
     };
 
 
     const cancelEditing = () => {
+        if (isSaving) return;
         clearError();
-
-        setEditingCategoryId(null);
-
-        setEditName("");
-        setEditDescription("");
-
-        setEditError(null);
+        resetForm();
+        setSuccessMessage(null);
+        setIsFormOpen(false);
     };
 
 
@@ -249,6 +256,7 @@ export const PPECategoriesPage = () => {
         async (
             categoryId: number
         ) => {
+            if (!isAdministrator || isSaving) return;
             clearError();
 
             setCatalogMessage(null);
@@ -293,12 +301,8 @@ export const PPECategoriesPage = () => {
                 return;
             }
 
-            setEditingCategoryId(
-                null
-            );
-
-            setEditName("");
-            setEditDescription("");
+            resetForm();
+            setIsFormOpen(false);
 
             setCatalogMessage(
                 `Categoría "${updated.name}" actualizada correctamente.`
@@ -350,6 +354,11 @@ export const PPECategoriesPage = () => {
         ) => {
             event.preventDefault();
 
+            if (editingCategoryId !== null) {
+                await saveCategoryEdit(editingCategoryId);
+                return;
+            }
+
             if (!isAdministrator || isSubmitting || loading) {
                 return;
             }
@@ -385,14 +394,10 @@ export const PPECategoriesPage = () => {
                             null,
                     });
 
-                setName("");
-
-                setDescription("");
+                upsertCategory(createdCategory);
+                resetForm();
                 clearFilters();
-
-                if (hasLoaded) {
-                    await refresh();
-                }
+                setIsFormOpen(false);
 
                 setSuccessMessage(`Categoría "${createdCategory.name}" creada correctamente.`);
             } catch (error) {
@@ -409,683 +414,321 @@ export const PPECategoriesPage = () => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
-            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
-                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
-                <div className="max-w-2xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                        MESA · Catálogos
-                    </p>
-
-                    <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                        Categorías de inventario
-                    </h1>
-
-                    <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                        Organiza tus artículos por categoría y mantén una clasificación clara de los recursos de MESA.
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="MESA · Catálogos"
+                title="Categorías de inventario"
+                description="Organiza tus artículos por categoría y mantén una clasificación clara de los recursos de MESA."
+            />
 
             {isAdministrator && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><path d="M17.5 14v7M14 17.5h7" /></svg>
-                        </span>
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            resetForm();
+                            setCatalogMessage(null);
+                            clearError();
+                            setSuccessMessage(null);
+                            setIsFormOpen(true);
+                        }}
+                        aria-haspopup="dialog"
+                        aria-controls="category-form-modal"
+                        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none sm:w-auto"
+                    >
+                        Nueva categoría
+                    </button>
+                </div>
+            )}
+
+            {successMessage && !formError && (
+                <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    {successMessage}
+                </div>
+            )}
+
+            {catalogMessage && !actionError && (
+                <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    {catalogMessage}
+                </div>
+            )}
+
+            <dl aria-label="Resumen de categorías" className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
+                <StatCard label="Total" value={loading ? "…" : error || !hasLoaded ? "—" : summary.total} />
+                <StatCard label="Activos" value={loading ? "…" : error || !hasLoaded ? "—" : summary.active} />
+                <StatCard label="Inactivos" value={loading ? "…" : error || !hasLoaded ? "—" : summary.inactive} />
+            </dl>
+
+            <section id="categories-list" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="border-b border-slate-200 p-6 sm:p-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                                Nueva categoría
-                            </h2>
-                            <p className="mt-1 text-sm leading-6 text-slate-500">Define un nombre y una descripción para agrupar tus artículos.</p>
+                            <h2 className="text-lg font-semibold text-slate-900">Categorías registradas</h2>
+                            {!loading && hasLoaded && !error && (
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {filteredCategories.length} {filteredCategories.length === 1 ? "resultado" : "resultados"}
+                                </p>
+                            )}
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            disabled={loading}
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                        >
+                            Actualizar
+                        </button>
                     </div>
 
-                    {successMessage && !formError && (
-                        <div role="status" className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-800">
-                            <svg aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" />
-                            </svg>
-                            <span className="min-w-0 wrap-anywhere">{successMessage}</span>
-                        </div>
-                    )}
+                    <CatalogStatusFilters
+                        searchId="category-search"
+                        statusId="category-status"
+                        search={search}
+                        searchPlaceholder="Buscar por nombre o descripción"
+                        status={statusFilter}
+                        onSearchChange={(event) => {
+                            setSearch(event.target.value);
+                            setSuccessMessage(null);
+                        }}
+                        onStatusChange={(event) => {
+                            setStatusFilter(event.target.value as StatusFilter);
+                            setSuccessMessage(null);
+                        }}
+                        showClear={hasFilters}
+                        onClear={clearFilters}
+                    />
+                </div>
 
+                {actionError && !isFormOpen && (
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700">
+                        {actionError}
+                    </div>
+                )}
+
+                {loading && <CatalogLoadingSkeleton label="Cargando categorías" />}
+                {!loading && error && (
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm leading-6 text-red-700 sm:mx-8">
+                        <p className="font-semibold">No fue posible cargar las categorías.</p>
+                        <p className="mt-1">{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                        >
+                            Reintentar
+                        </button>
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && categories.length === 0 && (
+                    <div className="p-8 text-center text-sm text-slate-500">
+                        Aún no hay categorías registradas
+                        <p className="mt-2">Las categorías aparecerán aquí cuando se agreguen al catálogo.</p>
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && categories.length > 0 && filteredCategories.length === 0 && (
+                    <div className="p-8 text-center text-sm text-slate-500">
+                        No encontramos coincidencias.
+                        <p className="mt-2">Prueba con otro término o elimina los filtros.</p>
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && filteredCategories.length > 0 && (
+                    <div
+                        className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Categorías registradas"
+                    >
+                        <p className="sticky left-0 w-fit px-6 py-3 text-xs leading-5 text-slate-500 lg:hidden">Desliza horizontalmente para ver todas las columnas.</p>
+                        <table className="w-full min-w-200 text-left text-sm">
+                            <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
+                                <tr>
+                                    <th scope="col" className="px-6 py-4">
+                                        Nombre
+                                    </th>
+
+                                    <th scope="col" className="px-6 py-4">Descripción</th>
+
+                                    <th scope="col" className="px-6 py-4">
+                                        Estado
+                                    </th>
+
+                                    {isAdministrator && (
+                                        <th scope="col" className="px-6 py-4 text-right">
+                                            Acciones
+                                        </th>
+                                    )}
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredCategories.map(
+                                    (
+                                        category
+                                    ) => (
+                                        <tr
+                                            key={
+                                                category.id
+                                            }
+                                            className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
+                                        >
+                                            <td className="min-w-52 max-w-xs wrap-anywhere px-6 py-5 font-semibold text-slate-900">
+                                                {
+                                                    category.name
+                                                }
+                                            </td>
+
+                                            <td className="min-w-64 max-w-md wrap-anywhere px-6 py-5 leading-6 text-slate-600">
+                                                {category.description ?? "—"}
+                                            </td>
+
+                                            <td className="px-6 py-5">
+                                                <ActiveStatusBadge isActive={category.isActive} />
+                                            </td>
+
+                                            {isAdministrator && (
+                                                <td className="px-6 py-5">
+                                                    <CatalogRowActions
+                                                        isActive={category.isActive}
+                                                        isChanging={changingStatusId === category.id}
+                                                        changingLabel="Procesando..."
+                                                        disabled={isSaving || changingStatusId === category.id}
+                                                        onEdit={() => startEditing(category)}
+                                                        onToggleStatus={() => void changeCategoryStatus(category)}
+                                                    />
+                                                </td>
+                                            )}
+                                        </tr>
+                                    )
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            {isAdministrator && isFormOpen && (
+                <CatalogFormModal
+                    id="category-form-modal"
+                    title={editingCategoryId !== null ? "Editar categoría" : "Nueva categoría"}
+                    description={editingCategoryId !== null
+                        ? "Modifica el nombre y la descripción de la categoría seleccionada."
+                        : "Define un nombre y una descripción para agrupar tus artículos."}
+                    isSubmitting={isSaving}
+                    onClose={cancelEditing}
+                >
                     <form
                         onSubmit={
                             handleSubmit
                         }
-                        className="mt-7 grid gap-6 lg:grid-cols-2 [&>div]:min-w-0"
+                        className="mt-6 space-y-6"
                     >
                         <div>
                             <label
-                                htmlFor="category-name"
+                                htmlFor={isEditing ? "category-edit-name" : "category-name"}
                                 className="flex items-center justify-between gap-3 text-sm font-medium text-slate-700"
                             >
                                 Nombre
-                                <span aria-hidden="true" className="shrink-0 text-xs font-normal tabular-nums text-slate-500">{name.length}/100</span>
+                                <span aria-hidden="true" className="shrink-0 text-xs font-normal tabular-nums text-slate-500">{currentName.length}/100</span>
                             </label>
 
                             <input
-                                id="category-name"
+                                id={isEditing ? "category-edit-name" : "category-name"}
                                 maxLength={100}
-                                value={name}
+                                value={currentName}
                                 onChange={(event) => {
-                                    setName(event.target.value);
+                                    if (isEditing) setEditName(event.target.value);
+                                    else setName(event.target.value);
+                                    setEditError(null);
+                                    if (isEditing) clearError();
                                     setFormError(null);
                                     setSuccessMessage(null);
                                 }}
                                 autoComplete="off"
                                 aria-required="true"
-                                aria-invalid={Boolean(duplicateCategory) || missingName}
-                                aria-describedby={duplicateCategory
+                                aria-invalid={Boolean(currentDuplicate) || missingName}
+                                aria-describedby={currentDuplicate
                                     ? "category-duplicate-warning"
                                     : missingName ? "category-form-error" : undefined}
                                 disabled={
-                                    isSubmitting
+                                    isSaving
                                 }
                                 placeholder="Ej. Herramientas, consumibles o refacciones"
                                 className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 aria-invalid:border-amber-500 aria-invalid:bg-amber-50/50 aria-invalid:focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
-                            {duplicateCategory && (
+                            {currentDuplicate && (
                                 <p id="category-duplicate-warning" role="status" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm leading-6 text-amber-800">
                                     <svg aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m12 3 10 18H2L12 3ZM12 9v4m0 4h.01" />
                                     </svg>
-                                    <span className="min-w-0 wrap-break-word">Ya existe una categoría llamada "{duplicateCategory.name}".</span>
+                                    <span className="min-w-0 wrap-break-word">Ya existe una categoría llamada "{currentDuplicate.name}".</span>
                                 </p>
                             )}
                         </div>
 
                         <div>
                             <label
-                                htmlFor="category-description"
+                                htmlFor={isEditing ? "category-edit-description" : "category-description"}
                                 className="flex items-center justify-between gap-3 text-sm font-medium text-slate-700"
                             >
                                 <span>Descripción <span className="ml-1 text-xs font-normal text-slate-500">(opcional)</span></span>
-                                <span aria-hidden="true" className="shrink-0 text-xs font-normal tabular-nums text-slate-500">{description.length}/250</span>
+                                <span aria-hidden="true" className="shrink-0 text-xs font-normal tabular-nums text-slate-500">{currentDescription.length}/250</span>
                             </label>
 
                             <input
-                                id="category-description"
+                                id={isEditing ? "category-edit-description" : "category-description"}
                                 maxLength={250}
                                 value={
-                                    description
+                                    currentDescription
                                 }
                                 onChange={(event) => {
-                                    setDescription(event.target.value);
+                                    if (isEditing) setEditDescription(event.target.value);
+                                    else setDescription(event.target.value);
+                                    setEditError(null);
+                                    if (isEditing) clearError();
                                     setFormError(null);
                                     setSuccessMessage(null);
                                 }}
                                 autoComplete="off"
                                 disabled={
-                                    isSubmitting
+                                    isSaving
                                 }
                                 placeholder="Describe qué artículos incluye esta categoría"
                                 className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                             />
                         </div>
 
-                        {formError && (
-                            <div id="category-form-error" role="alert" className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm leading-6 text-red-700 lg:col-span-2">
-                                {formError}
+                        {currentFormError && (
+                            <div id="category-form-error" role="alert" className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm leading-6 text-red-700">
+                                {currentFormError}
                             </div>
                         )}
 
-                        <div className="flex justify-end border-t border-slate-100 pt-5 lg:col-span-2">
+                        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
+                            <button
+                                type="button"
+                                onClick={cancelEditing}
+                                disabled={isSaving}
+                                className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
+                            >
+                                Cancelar
+                            </button>
                             <button
                                 type="submit"
                                 disabled={
-                                    isSubmitting || loading || Boolean(duplicateCategory)
+                                    isSaving || (!isEditing && loading) || (isEditing && !editName.trim()) || Boolean(currentDuplicate)
                                 }
                                 className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                             >
-                                {isSubmitting
+                                {isSaving
                                     ? "Guardando..."
-                                    : "Crear categoría"}
+                                    : isEditing ? "Guardar" : "Crear categoría"}
                             </button>
                         </div>
                     </form>
-                </section>
+                </CatalogFormModal>
             )}
-
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                <button
-                    type="button"
-                    onClick={() =>
-                        void toggleCategories()
-                    }
-                    className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-slate-50 sm:px-8"
-                >
-                    <div>
-                        <h2 className="font-semibold text-slate-900">
-                            Listado de categorías
-                        </h2>
-
-                        <p className="mt-1 text-sm text-slate-500">
-                            Consulta, busca y administra las categorías registradas.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-sky-700">
-                            {showCategories
-                                ? "Ocultar listado"
-                                : "Ver listado"}
-                        </span>
-
-                        <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            className={`h-5 w-5 text-sky-700 transition-transform duration-300 ${showCategories
-                                ? "rotate-180"
-                                : ""
-                                }`}
-                        >
-                            <path
-                                d="m6 9 6 6 6-6"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
-                    </div>
-                </button>
-
-                {showCategories &&
-                    !loading &&
-                    error && (
-                        <div className="border-t border-slate-200">
-                            <div
-                                role="alert"
-                                className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm leading-6 text-red-700 sm:mx-8"
-                            >
-                                <p className="font-semibold">
-                                    No fue posible cargar las categorías.
-                                </p>
-
-                                <p className="mt-1">
-                                    {error}
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void refresh()
-                                    }
-                                    className="mt-4 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
-                                >
-                                    Reintentar
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                {showCategories && loading && (
-                    <div className="border-t border-slate-200">
-                        <div
-                            className="space-y-3 p-6 sm:p-8"
-                            role="status"
-                            aria-label="Cargando categorías"
-                        >
-                            {[1, 2, 3, 4].map(
-                                (item) => (
-                                    <div
-                                        key={item}
-                                        className="animate-pulse rounded-xl border border-slate-100 p-4"
-                                    >
-                                        <div className="flex items-center justify-between gap-6">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="h-4 w-48 rounded bg-slate-200" />
-
-                                                <div className="mt-3 h-3 w-72 max-w-full rounded bg-slate-100" />
-                                            </div>
-
-                                            <div className="h-7 w-20 rounded-full bg-slate-200" />
-                                        </div>
-                                    </div>
-                                )
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {showCategories && (
-                    <div className="border-t border-slate-200">
-                        {!loading &&
-                            hasLoaded &&
-                            !error && (
-                                <>
-                                    <dl
-                                        aria-label="Resumen de categorías"
-                                        className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800"
-                                    >
-                                        {[
-                                            {
-                                                label:
-                                                    "Total de categorías",
-                                                value:
-                                                    summary.total,
-                                            },
-                                            {
-                                                label:
-                                                    "Categorías activas",
-                                                value:
-                                                    summary.active,
-                                            },
-                                            {
-                                                label:
-                                                    "Categorías inactivas",
-                                                value:
-                                                    summary.inactive,
-                                            },
-                                        ].map(
-                                            (item) => (
-                                                <div
-                                                    key={
-                                                        item.label
-                                                    }
-                                                    className="min-w-0 rounded-2xl border border-slate-200 bg-linear-to-br from-white to-slate-50/70 px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]"
-                                                >
-                                                    <dt className="text-sm font-medium text-slate-600">
-                                                        {
-                                                            item.label
-                                                        }
-                                                    </dt>
-
-                                                    <dd className="mt-3 text-3xl font-semibold tracking-tight tabular-nums text-slate-900">
-                                                        {
-                                                            item.value
-                                                        }
-                                                    </dd>
-                                                </div>
-                                            )
-                                        )}
-                                    </dl>
-
-                                    {/* AQUÍ SIGUE TU SECTION DE "Categorías registradas" */}
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                                        <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
-                                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                                                    Categorías registradas
-                                                </h2>
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <p
-                                                        role="status"
-                                                        aria-atomic="true"
-                                                        className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold tabular-nums text-sky-800 ring-1 ring-inset ring-sky-200"
-                                                    >
-                                                        {filteredCategories.length}{" "}
-                                                        {filteredCategories.length === 1
-                                                            ? "resultado"
-                                                            : "resultados"}
-                                                    </p>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            void refresh()
-                                                        }
-                                                        disabled={loading}
-                                                        className="min-h-9 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                                    >
-                                                        Actualizar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <p className="mt-1 text-sm leading-6 text-slate-500">Consulta la clasificación y el estado de cada categoría.</p>
-
-                                            <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-end sm:p-5">
-                                                <div className="min-w-0 flex-1">
-                                                    <label htmlFor="category-search" className="block text-sm font-medium text-slate-700">Buscar categorías</label>
-                                                    <input
-                                                        id="category-search"
-                                                        type="search"
-                                                        value={search}
-                                                        onChange={(event) => {
-                                                            setSearch(event.target.value);
-                                                            setSuccessMessage(null);
-                                                        }}
-                                                        placeholder="Buscar por nombre o descripción"
-                                                        autoComplete="off"
-                                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
-                                                    />
-                                                </div>
-                                                <div className="min-w-0 sm:w-44">
-                                                    <label htmlFor="category-status" className="block text-sm font-medium text-slate-700">Estado</label>
-                                                    <select
-                                                        id="category-status"
-                                                        value={statusFilter}
-                                                        onChange={(event) => {
-                                                            setStatusFilter(event.target.value as StatusFilter);
-                                                            setSuccessMessage(null);
-                                                        }}
-                                                        className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 outline-none transition-colors hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
-                                                    >
-                                                        <option value="all">Todas</option>
-                                                        <option value="active">Activas</option>
-                                                        <option value="inactive">Inactivas</option>
-                                                    </select>
-                                                </div>
-                                                {hasFilters && (
-                                                    <button type="button" onClick={clearFilters} className="min-h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none">
-                                                        Limpiar
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-
-                                        {!loading &&
-                                            !error &&
-                                            categories.length === 0 && (
-                                                <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
-                                                    <svg aria-hidden="true" className="mx-auto mb-4 h-9 w-9 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /><path d="M3 10h18" /></svg>
-                                                    <p className="text-sm font-semibold text-slate-900">Aún no hay categorías registradas</p>
-                                                    <p className="mt-2 text-sm leading-6 text-slate-600">Las categorías aparecerán aquí cuando se agreguen al catálogo.</p>
-                                                </div>
-                                            )}
-
-                                        {catalogMessage &&
-                                            !actionError && (
-                                                <div
-                                                    role="status"
-                                                    className="m-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-800 sm:mx-8"
-                                                >
-                                                    <svg aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                                        <circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" />
-                                                    </svg>
-                                                    <span className="min-w-0 wrap-anywhere">{catalogMessage}</span>
-                                                </div>
-                                            )}
-
-                                        {actionError && (
-                                            <div
-                                                role="alert"
-                                                className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm leading-6 text-red-700 sm:mx-8"
-                                            >
-                                                {actionError}
-                                            </div>
-                                        )}
-
-                                        {!loading &&
-                                            !error &&
-                                            categories.length > 0 &&
-                                            filteredCategories.length === 0 && (
-                                                <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
-                                                    <svg aria-hidden="true" className="mx-auto mb-4 h-9 w-9 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                                        <circle cx="10.5" cy="10.5" r="6.5" />
-                                                        <path d="m16 16 4 4" />
-                                                    </svg>
-                                                    <p className="text-sm font-semibold text-slate-900">No encontramos coincidencias.</p>
-                                                    <p className="mt-2 text-sm leading-6 text-slate-600">Prueba con otro término o elimina los filtros.</p>
-                                                </div>
-                                            )}
-
-                                        {!loading &&
-                                            !error &&
-                                            filteredCategories.length > 0 && (
-                                                <div className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200" tabIndex={0} role="region" aria-label="Categorías registradas">
-                                                    <p className="sticky left-0 w-fit px-6 py-3 text-xs leading-5 text-slate-500 lg:hidden">Desliza horizontalmente para ver todas las columnas.</p>
-                                                    <table className="w-full min-w-200 text-left text-sm">
-                                                        <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
-                                                            <tr>
-                                                                <th scope="col" className="px-6 py-4 sm:px-8">
-                                                                    Nombre
-                                                                </th>
-
-                                                                <th scope="col" className="px-6 py-4 sm:px-8">
-                                                                    Descripción
-                                                                </th>
-
-                                                                <th scope="col" className="px-6 py-4 sm:px-8">
-                                                                    Estado
-                                                                </th>
-                                                                {isAdministrator && (
-                                                                    <th
-                                                                        scope="col"
-                                                                        className="px-6 py-4 text-right sm:px-8"
-                                                                    >
-                                                                        Acciones
-                                                                    </th>
-                                                                )}
-                                                            </tr>
-                                                        </thead>
-
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {filteredCategories.map(
-                                                                (
-                                                                    category
-                                                                ) => (
-                                                                    <tr
-                                                                        className={`transition-colors duration-150 motion-reduce:transition-none ${editingCategoryId === category.id ? "bg-sky-50/80 shadow-[inset_3px_0_0_0_#0284c7] [&>td]:align-top" : "hover:bg-sky-50/50 focus-within:bg-sky-50/50"}`}
-                                                                        key={category.id}
-                                                                    >
-                                                                        <td className="min-w-52 max-w-xs wrap-anywhere px-6 py-5 sm:px-8">
-                                                                            {editingCategoryId ===
-                                                                                category.id ? (
-                                                                                <div>
-                                                                                    <div className="mb-3 flex items-center justify-between gap-3">
-                                                                                        <label htmlFor="category-edit-name" className="text-xs font-semibold text-slate-700">Nombre</label>
-                                                                                        <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Editando</span>
-                                                                                    </div>
-                                                                                    <input
-                                                                                        id="category-edit-name"
-                                                                                        aria-label="Nombre de la categoría en edición"
-                                                                                        aria-describedby="category-edit-feedback"
-                                                                                        aria-invalid={Boolean(editDuplicateCategory)}
-                                                                                        value={editName}
-                                                                                        onChange={(
-                                                                                            event
-                                                                                        ) => {
-                                                                                            setEditName(
-                                                                                                event.target
-                                                                                                    .value
-                                                                                            );
-
-                                                                                            setEditError(
-                                                                                                null
-                                                                                            );
-
-                                                                                            clearError();
-                                                                                        }}
-                                                                                        maxLength={100}
-                                                                                        disabled={
-                                                                                            updatingId ===
-                                                                                            category.id
-                                                                                        }
-                                                                                        className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition-colors focus:border-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-100 aria-invalid:border-amber-400 aria-invalid:focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                                                                    />
-
-                                                                                    <div id="category-edit-feedback">
-                                                                                        {editDuplicateCategory && (
-                                                                                            <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                                                                                                Ya existe una categoría llamada "
-                                                                                                {
-                                                                                                    editDuplicateCategory.name
-                                                                                                }
-                                                                                                ".
-                                                                                            </p>
-                                                                                        )}
-
-                                                                                        {editError && (
-                                                                                            <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
-                                                                                                {editError}
-                                                                                            </p>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <span className="font-semibold text-slate-900">
-                                                                                    {category.name}
-                                                                                </span>
-                                                                            )}
-                                                                        </td>
-
-
-                                                                        <td className="min-w-64 max-w-md wrap-anywhere px-6 py-5 leading-6 text-slate-600 sm:px-8">
-                                                                            {editingCategoryId ===
-                                                                                category.id ? (
-                                                                                <div>
-                                                                                    <label htmlFor="category-edit-description" className="mb-3 block py-1 text-xs font-semibold leading-4 text-slate-700">Descripción <span className="font-normal text-slate-500">(opcional)</span></label>
-                                                                                    <input
-                                                                                        id="category-edit-description"
-                                                                                        value={
-                                                                                            editDescription
-                                                                                        }
-                                                                                        onChange={(
-                                                                                            event
-                                                                                        ) => {
-                                                                                            setEditDescription(
-                                                                                                event.target
-                                                                                                    .value
-                                                                                            );
-
-                                                                                            setEditError(
-                                                                                                null
-                                                                                            );
-
-                                                                                            clearError();
-                                                                                        }}
-                                                                                        maxLength={250}
-                                                                                        disabled={
-                                                                                            updatingId ===
-                                                                                            category.id
-                                                                                        }
-                                                                                        className="min-h-11 w-full rounded-xl border border-sky-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition-colors focus:border-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-100 aria-invalid:border-amber-400 aria-invalid:focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                                                                    />
-                                                                                </div>
-                                                                            ) : (
-                                                                                category.description ??
-                                                                                "—"
-                                                                            )}
-                                                                        </td>
-
-
-                                                                        <td className="px-6 py-5 sm:px-8">
-                                                                            <span
-                                                                                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${category.isActive
-                                                                                    ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                                                    : "bg-slate-100 text-slate-600 ring-slate-200"
-                                                                                    }`}
-                                                                            >
-                                                                                <span
-                                                                                    aria-hidden="true"
-                                                                                    className="h-1.5 w-1.5 rounded-full bg-current"
-                                                                                />
-
-                                                                                {category.isActive
-                                                                                    ? "Activo"
-                                                                                    : "Inactivo"}
-                                                                            </span>
-                                                                        </td>
-
-
-                                                                        {isAdministrator && (
-                                                                            <td className="px-6 py-5 sm:px-8">
-                                                                                {editingCategoryId ===
-                                                                                    category.id ? (
-                                                                                    <div className="ml-auto grid w-40 grid-cols-1 gap-2 pt-9 sm:w-72 sm:grid-cols-2">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() =>
-                                                                                                void saveCategoryEdit(
-                                                                                                    category.id
-                                                                                                )
-                                                                                            }
-                                                                                            disabled={
-                                                                                                updatingId ===
-                                                                                                category.id ||
-                                                                                                !editName.trim() ||
-                                                                                                Boolean(
-                                                                                                    editDuplicateCategory
-                                                                                                )
-                                                                                            }
-                                                                                            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-sky-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                                                        >
-                                                                                            <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
-                                                                                            {updatingId ===
-                                                                                                category.id
-                                                                                                ? "Guardando..."
-                                                                                                : "Guardar"}
-                                                                                        </button>
-
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={
-                                                                                                cancelEditing
-                                                                                            }
-                                                                                            disabled={
-                                                                                                updatingId ===
-                                                                                                category.id
-                                                                                            }
-                                                                                            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                                                        >
-                                                                                            <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m6 6 12 12M6 18 18 6" /></svg>
-                                                                                            Cancelar
-                                                                                        </button>
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() =>
-                                                                                                startEditing(
-                                                                                                    category
-                                                                                                )
-                                                                                            }
-                                                                                            disabled={
-                                                                                                changingStatusId ===
-                                                                                                category.id
-                                                                                            }
-                                                                                            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                                                        >
-                                                                                            <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
-                                                                                            Editar
-                                                                                        </button>
-
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() =>
-                                                                                                void changeCategoryStatus(
-                                                                                                    category
-                                                                                                )
-                                                                                            }
-                                                                                            disabled={
-                                                                                                changingStatusId ===
-                                                                                                category.id
-                                                                                            }
-                                                                                            className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${category.isActive ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"}`}
-                                                                                        >
-                                                                                            {changingStatusId ===
-                                                                                                category.id
-                                                                                                ? "Procesando..."
-                                                                                                : category.isActive
-                                                                                                    ? "Desactivar"
-                                                                                                    : "Activar"}
-                                                                                        </button>
-                                                                                    </div>
-                                                                                )}
-                                                                            </td>
-                                                                        )}
-                                                                    </tr>
-                                                                )
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                    </section>
-                                </>
-                            )}
-                    </div>
-                )}
-            </section>
-
-
-
-
         </div>
     );
 };

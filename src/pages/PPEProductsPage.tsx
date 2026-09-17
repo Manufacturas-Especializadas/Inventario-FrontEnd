@@ -1,5 +1,6 @@
 import {
     useMemo,
+    useEffect,
     useCallback,
     useRef,
     useState,
@@ -67,7 +68,7 @@ export const PPEProductsPage = () => {
         error: categoriesError,
         hasLoaded: categoriesLoaded,
         refresh: refreshCategories,
-    } = usePPECategories();
+    } = usePPECategories({ autoLoad: false });
 
     const {
         activeSizes,
@@ -115,7 +116,7 @@ export const PPEProductsPage = () => {
         );
 
     const [showForm, setShowForm] = useState(false);
-    const [showProducts, setShowProducts] = useState(false);
+    const formPanelRef = useRef<HTMLDivElement>(null);
     const formLoadRequest = useRef<Promise<unknown[]> | null>(null);
     const formDataReady = hasLoaded && categoriesLoaded && sizesLoaded && colorsLoaded && unitsLoaded;
     const formDataError = catalogError || (!hasLoaded ? error : null);
@@ -148,12 +149,6 @@ export const PPEProductsPage = () => {
         const nextOpen = !showForm;
         setShowForm(nextOpen);
         if (nextOpen) void loadFormData();
-    };
-
-    const toggleProducts = () => {
-        const nextOpen = !showProducts;
-        setShowProducts(nextOpen);
-        if (nextOpen && !hasLoaded) void refresh();
     };
 
     const [
@@ -233,6 +228,16 @@ export const PPEProductsPage = () => {
         editingProductId,
         setEditingProductId,
     ] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (showForm) {
+            formPanelRef.current?.focus({ preventScroll: true });
+            formPanelRef.current?.scrollIntoView({
+                block: "start",
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+            });
+        }
+    }, [showForm, editingProductId, formDataReady]);
 
     const [
         changingStatusId,
@@ -364,11 +369,6 @@ export const PPEProductsPage = () => {
         setInvalidField(null);
         setActionError(null);
         setSuccessMessage(null);
-
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-        });
     }, [loadFormData]);
 
     const cancelEditing = () => {
@@ -663,13 +663,12 @@ export const PPEProductsPage = () => {
                 )}
                 <button
                     type="button"
-                    onClick={toggleProducts}
-                    aria-expanded={showProducts}
+                    onClick={() => void refresh()}
+                    disabled={loading}
                     aria-controls="products-list-panel"
-                    className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-800 shadow-sm transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                    className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-800 shadow-sm transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                 >
-                    {showProducts ? "Ocultar listado" : "Ver listado de productos"}
-                    <svg aria-hidden="true" className={`h-5 w-5 transition-transform duration-300 motion-reduce:transition-none ${showProducts ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    {loading ? "Cargando productos..." : hasLoaded ? "Actualizar productos" : "Cargar productos"}
                 </button>
             </div>
 
@@ -679,7 +678,47 @@ export const PPEProductsPage = () => {
                 </div>
             )}
 
-            <div id="products-form-panel" hidden={!isAdministrator || !showForm}>
+            <section id="products-list-panel" aria-labelledby="products-catalog-title" aria-busy={loading} className="space-y-6">
+                <h2 id="products-catalog-title" className="text-lg font-semibold text-slate-900">Catálogo de productos</h2>
+                {error && (
+                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        <p>{error}</p>
+                        {hasLoaded && <p className="mt-2">Se conservan los productos de la última carga.</p>}
+                        <button type="button" disabled={loading} onClick={() => void refresh()} className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 font-semibold transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none">Reintentar</button>
+                    </div>
+                )}
+                {!hasLoaded && (loading ? <CatalogLoadingSkeleton label="Cargando productos" /> : !error && (
+                    <div className="rounded-2xl border border-dashed border-sky-200 bg-white px-6 py-12 text-center">
+                        <p className="text-sm font-semibold text-slate-900">Los productos todavía no se han cargado.</p>
+                        <p className="mt-2 text-sm text-slate-600">Carga el catálogo para consultar y filtrar los productos.</p>
+                        <button type="button" onClick={() => void refresh()} className="mt-5 min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none">Cargar productos</button>
+                    </div>
+                ))}
+                {hasLoaded && (
+                    <ProductsCatalogPanel
+                        products={products}
+                        search={search}
+                        setSearch={setSearch}
+                        statusFilter={statusFilter}
+                        setStatusFilter={setStatusFilter}
+                        categoryFilter={categoryFilter}
+                        setCategoryFilter={setCategoryFilter}
+                        setSuccessMessage={setSuccessMessage}
+                        hasFilters={hasFilters}
+                        clearFilters={clearFilters}
+                        isAdministrator={isAdministrator}
+                        isSubmitting={isSubmitting}
+                        changingStatusId={changingStatusId}
+                        actionError={actionError}
+                        startEditing={startEditing}
+                        handleStatusChange={handleStatusChange}
+                        refresh={refresh}
+                        loading={loading}
+                    />
+                )}
+            </section>
+
+            <div ref={formPanelRef} id="products-form-panel" role="region" aria-label={editingProductId !== null ? "Editar producto" : "Nuevo producto"} tabIndex={-1} className="scroll-mt-6 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100" hidden={!isAdministrator || !showForm}>
                 {isAdministrator && showForm && (!formDataReady || loadingCatalogs || formDataError) && (
                     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                         {formDataError && !loadingCatalogs && !loading ? (
@@ -1166,37 +1205,6 @@ export const PPEProductsPage = () => {
 
             </div>
 
-            <div id="products-list-panel" hidden={!showProducts}>
-                {showProducts && (
-                    loading ? <CatalogLoadingSkeleton label="Cargando productos" />
-                        : error ? (
-                            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                                <p>{error}</p>
-                                <button type="button" onClick={() => void refresh()} className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 font-semibold transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none">Reintentar</button>
-                            </div>
-                        ) : hasLoaded && (
-                            <ProductsCatalogPanel
-                                products={products}
-                                search={search}
-                                setSearch={setSearch}
-                                statusFilter={statusFilter}
-                                setStatusFilter={setStatusFilter}
-                                categoryFilter={categoryFilter}
-                                setCategoryFilter={setCategoryFilter}
-                                setSuccessMessage={setSuccessMessage}
-                                hasFilters={hasFilters}
-                                clearFilters={clearFilters}
-                                isAdministrator={isAdministrator}
-                                isSubmitting={isSubmitting}
-                                changingStatusId={changingStatusId}
-                                actionError={actionError}
-                                startEditing={startEditing}
-                                handleStatusChange={handleStatusChange}
-                                refresh={refresh}
-                            />
-                        )
-                )}
-            </div>
         </div>
     );
 };

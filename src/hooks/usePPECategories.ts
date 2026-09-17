@@ -1,5 +1,7 @@
 import {
     useCallback,
+    useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -18,7 +20,13 @@ import {
 } from "../utils/utils";
 
 
-export const usePPECategories = () => {
+interface UsePPECategoriesOptions {
+    autoLoad?: boolean;
+}
+
+export const usePPECategories = ({ autoLoad = false }: UsePPECategoriesOptions = {}) => {
+    const pendingRequest = useRef<Promise<PPECategory[]> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, PPECategory>());
     const [
         categories,
         setCategories,
@@ -32,7 +40,7 @@ export const usePPECategories = () => {
     const [
         loading,
         setLoading,
-    ] = useState(false);
+    ] = useState(autoLoad);
 
 
     const [
@@ -66,46 +74,62 @@ export const usePPECategories = () => {
     );
 
 
-    const replaceCategory = (
-        current: PPECategory[],
-        updatedCategory: PPECategory
-    ) => {
-        return current.map(
-            (category) =>
-                category.id ===
-                    updatedCategory.id
-                    ? updatedCategory
-                    : category
-        );
-    };
+    const upsertCategory = useCallback((category: PPECategory) => {
+        if (pendingRequest.current) {
+            updatesDuringLoad.current.set(category.id, category);
+        }
+
+        setCategories((current) => current.some((entry) => entry.id === category.id)
+            ? current.map((entry) => entry.id === category.id ? category : entry)
+            : [...current, category]);
+    }, []);
 
 
     const getCategories =
-        useCallback(async () => {
+        useCallback(() => {
+            if (pendingRequest.current) return pendingRequest.current;
+
             setLoading(true);
             setError(null);
+            updatesDuringLoad.current.clear();
 
-            try {
-                const data =
-                    await ppeCategoriesService
-                        .getAll();
+            const request = (async () => {
+                try {
+                    const data =
+                        await ppeCategoriesService
+                            .getAll();
 
-                setCategories(data);
-                setHasLoaded(true);
-                return data;
-            } catch (error) {
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cargar las categorías."
-                    )
-                );
+                    // Preserve successful mutations that finished while this GET was pending.
+                    const merged = new Map(data.map((category) => [category.id, category]));
+                    updatesDuringLoad.current.forEach((category) => {
+                        merged.set(category.id, category);
+                    });
+                    setCategories(Array.from(merged.values()));
+                    setHasLoaded(true);
+                    return data;
+                } catch (error) {
+                    setError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cargar las categorías."
+                        )
+                    );
 
-                return [];
-            } finally {
-                setLoading(false);
-            }
+                    return [];
+                } finally {
+                    setLoading(false);
+                    pendingRequest.current = null;
+                    updatesDuringLoad.current.clear();
+                }
+            })();
+
+            pendingRequest.current = request;
+            return request;
         }, []);
+
+    useEffect(() => {
+        if (autoLoad) void getCategories();
+    }, [autoLoad, getCategories]);
 
 
     const updateCategory =
@@ -126,13 +150,7 @@ export const usePPECategories = () => {
                                 request
                             );
 
-                    setCategories(
-                        (current) =>
-                            replaceCategory(
-                                current,
-                                updatedCategory
-                            )
-                    );
+                    upsertCategory(updatedCategory);
 
                     return updatedCategory;
                 } catch (error) {
@@ -150,7 +168,7 @@ export const usePPECategories = () => {
                     );
                 }
             },
-            []
+            [upsertCategory]
         );
 
 
@@ -175,13 +193,7 @@ export const usePPECategories = () => {
                                 request
                             );
 
-                    setCategories(
-                        (current) =>
-                            replaceCategory(
-                                current,
-                                updatedCategory
-                            )
-                    );
+                    upsertCategory(updatedCategory);
 
                     return updatedCategory;
                 } catch (error) {
@@ -201,7 +213,7 @@ export const usePPECategories = () => {
                     );
                 }
             },
-            []
+            [upsertCategory]
         );
 
 
@@ -223,6 +235,7 @@ export const usePPECategories = () => {
         error,
 
         refresh: getCategories,
+        upsertCategory,
 
         updateCategory,
         setCategoryStatus,

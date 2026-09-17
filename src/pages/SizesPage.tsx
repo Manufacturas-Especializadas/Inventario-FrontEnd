@@ -29,7 +29,8 @@ import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
 import { CatalogStatusFilters } from "../components/catalogs/CatalogStatusFilters";
 import { CatalogNameForm } from "../components/catalogs/CatalogNameForm";
 import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
-import { CatalogDisclosure } from "../components/catalogs/CatalogDisclosure";
+import { CatalogFormModal } from "../components/catalogs/CatalogFormModal";
+import { PageHeader } from "../components/ui/PageHeader";
 import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 
 type StatusFilter =
@@ -52,18 +53,9 @@ export const SizesPage = () => {
         refresh,
         hasLoaded,
         upsertSize,
-    } = useSizes({ autoLoad: false });
+    } = useSizes();
 
-    const [showCatalog, setShowCatalog] = useState(false);
-
-    const toggleCatalog = () => {
-        const nextOpen = !showCatalog;
-        setShowCatalog(nextOpen);
-
-        if (nextOpen && !hasLoaded) {
-            void refresh();
-        }
-    };
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
     const {
         hasRole,
@@ -246,15 +238,14 @@ export const SizesPage = () => {
         setActionError(null);
         setSuccessMessage(null);
 
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-        });
+        setIsFormOpen(true);
     };
 
     const cancelEditing = () => {
+        if (isSubmitting) return;
         resetForm();
         setSuccessMessage(null);
+        setIsFormOpen(false);
     };
 
     const clearFilters = () => {
@@ -343,6 +334,7 @@ export const SizesPage = () => {
                         `Talla "${createdSize.name}" creada correctamente.`
                     );
                 }
+                setIsFormOpen(false);
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -414,44 +406,203 @@ export const SizesPage = () => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
-            <div className="rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                    MESA · Catálogos
-                </p>
-
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Tallas de producto
-                </h1>
-
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                    Administra las tallas disponibles
-                    para los productos de inventario.
-                </p>
-            </div>
+            <PageHeader
+                eyebrow="MESA · Catálogos"
+                title="Tallas de producto"
+                description="Administra las tallas disponibles para los productos de inventario."
+            />
 
             {isAdministrator && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <h2 className="text-lg font-semibold text-slate-900">
-                        {editingSizeId !== null
-                            ? "Editar talla"
-                            : "Nueva talla"}
-                    </h2>
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            resetForm();
+                            setActionError(null);
+                            setSuccessMessage(null);
+                            setIsFormOpen(true);
+                        }}
+                        aria-haspopup="dialog"
+                        aria-controls="size-form-modal"
+                        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none sm:w-auto"
+                    >
+                        Nueva talla
+                    </button>
+                </div>
+            )}
 
-                    <p className="mt-1 text-sm text-slate-500">
-                        {editingSizeId !== null
-                            ? "Modifica el nombre de la talla seleccionada."
-                            : "Registra una talla que podrá utilizarse en los productos."}
-                    </p>
+            {successMessage && (
+                <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    {successMessage}
+                </div>
+            )}
 
-                    {successMessage && (
-                        <div
-                            role="status"
-                            className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800"
-                        >
-                            {successMessage}
+            <dl className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
+                <StatCard label="Total" value={loading ? "…" : error || !hasLoaded ? "—" : summary.total} />
+                <StatCard label="Activos" value={loading ? "…" : error || !hasLoaded ? "—" : summary.active} />
+                <StatCard label="Inactivos" value={loading ? "…" : error || !hasLoaded ? "—" : summary.inactive} />
+            </dl>
+
+            <section id="sizes-list" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="border-b border-slate-200 p-6 sm:p-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold text-slate-900">Tallas registradas</h2>
+                            {!loading && hasLoaded && !error && (
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {filteredSizes.length} {filteredSizes.length === 1 ? "resultado" : "resultados"}
+                                </p>
+                            )}
                         </div>
-                    )}
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            disabled={loading}
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                        >
+                            Actualizar
+                        </button>
+                    </div>
 
+                    <CatalogStatusFilters
+                        searchId="size-search"
+                        statusId="size-status"
+                        search={search}
+                        searchPlaceholder="Nombre de la talla"
+                        status={statusFilter}
+                        onSearchChange={(
+                            event
+                        ) =>
+                            setSearch(
+                                event
+                                    .target
+                                    .value
+                            )
+                        }
+                        onStatusChange={(
+                            event
+                        ) =>
+                            setStatusFilter(
+                                event
+                                    .target
+                                    .value as StatusFilter
+                            )
+                        }
+                        showClear={hasFilters}
+                        onClear={clearFilters}
+                    />
+                </div>
+
+                {actionError && (
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700">
+                        {actionError}
+                    </div>
+                )}
+
+                {loading && <CatalogLoadingSkeleton label="Cargando tallas" />}
+                {!loading && error && (
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm leading-6 text-red-700 sm:mx-8">
+                        <p className="font-semibold">No fue posible cargar el listado.</p>
+                        <p className="mt-1">{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                        >
+                            Reintentar
+                        </button>
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && sizes.length === 0 && (
+                    <div className="p-8 text-center text-sm text-slate-500">
+                        No hay tallas registradas.
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && sizes.length > 0 && filteredSizes.length === 0 && (
+                    <div className="p-8 text-center text-sm text-slate-500">
+                        No hay tallas que coincidan con los filtros.
+                    </div>
+                )}
+
+                {!loading && hasLoaded && !error && filteredSizes.length > 0 && (
+                    <div
+                        className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Tallas registradas"
+                    >
+                        <table className="w-full min-w-150 text-left text-sm">
+                            <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
+                                <tr>
+                                    <th className="px-6 py-4">
+                                        Nombre
+                                    </th>
+
+                                    <th className="px-6 py-4">
+                                        Estado
+                                    </th>
+
+                                    {isAdministrator && (
+                                        <th className="px-6 py-4 text-right">
+                                            Acciones
+                                        </th>
+                                    )}
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredSizes.map(
+                                    (
+                                        size
+                                    ) => (
+                                        <tr
+                                            key={
+                                                size.id
+                                            }
+                                            className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
+                                        >
+                                            <td className="px-6 py-5 font-semibold text-slate-900">
+                                                {
+                                                    size.name
+                                                }
+                                            </td>
+
+                                            <td className="px-6 py-5">
+                                                <ActiveStatusBadge isActive={size.isActive} />
+                                            </td>
+
+                                            {isAdministrator && (
+                                                <td className="px-6 py-5">
+                                                    <CatalogRowActions
+                                                        isActive={size.isActive}
+                                                        isChanging={changingStatusId === size.id}
+                                                        disabled={isSubmitting || changingStatusId !== null}
+                                                        onEdit={() => startEditing(size)}
+                                                        onToggleStatus={() => void handleStatusChange(size)}
+                                                    />
+                                                </td>
+                                            )}
+                                        </tr>
+                                    )
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            {isAdministrator && isFormOpen && (
+                <CatalogFormModal
+                    id="size-form-modal"
+                    title={editingSizeId !== null ? "Editar talla" : "Nueva talla"}
+                    description={editingSizeId !== null
+                        ? "Modifica el nombre de la talla seleccionada."
+                        : "Registra una talla que podrá utilizarse en los productos."}
+                    isSubmitting={isSubmitting}
+                    onClose={cancelEditing}
+                >
                     <CatalogNameForm
                         inputId="size-name"
                         name={name}
@@ -467,7 +618,7 @@ export const SizesPage = () => {
                             ? `Ya existe la talla "${duplicateSize.name}".`
                             : null}
                         errorMessage={formError}
-                        showCancel={editingSizeId !== null}
+                        showCancel={true}
                         onCancel={cancelEditing}
                         submitDisabled={isSubmitting || Boolean(duplicateSize)}
                         submitLabel={isSubmitting
@@ -476,221 +627,8 @@ export const SizesPage = () => {
                                 ? "Guardar cambios"
                                 : "Crear talla"}
                     />
-                </section>
+                </CatalogFormModal>
             )}
-
-            <CatalogDisclosure
-                id="sizes-list"
-                title="Listado de tallas"
-                description="Consulta, busca y administra las tallas registradas."
-                isOpen={showCatalog}
-                onToggle={toggleCatalog}
-            >
-                {showCatalog && (
-                    <>
-                        {loading && <CatalogLoadingSkeleton label="Cargando tallas" />}
-                        {!loading && error && (
-                            <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm leading-6 text-red-700 sm:mx-8">
-                                <p className="font-semibold">No fue posible cargar el listado.</p>
-                                <p className="mt-1">{error}</p>
-                                <button
-                                    type="button"
-                                    onClick={() => void refresh()}
-                                    className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
-                                >
-                                    Reintentar
-                                </button>
-                            </div>
-                        )}
-                        {!loading && hasLoaded && !error && (
-                            <>
-                                <dl className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800">
-                                    <StatCard
-                                        label="Total"
-                                        value={loading
-                                            ? "…"
-                                            : summary.total}
-                                    />
-
-                                    <StatCard
-                                        label="Activas"
-                                        value={loading
-                                            ? "…"
-                                            : summary.active}
-                                    />
-
-                                    <StatCard
-                                        label="Inactivas"
-                                        value={loading
-                                            ? "…"
-                                            : summary.inactive}
-                                    />
-                                </dl>
-
-                                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                                    <div className="border-b border-slate-200 p-6">
-                                        <div className="flex flex-wrap items-center justify-between gap-3">
-                                            <div>
-                                                <h2 className="text-lg font-semibold text-slate-900">
-                                                    Tallas registradas
-                                                </h2>
-
-                                                {!loading &&
-                                                    !error && (
-                                                        <p className="mt-1 text-sm text-slate-500">
-                                                            {
-                                                                filteredSizes.length
-                                                            }{" "}
-                                                            {filteredSizes.length ===
-                                                                1
-                                                                ? "resultado"
-                                                                : "resultados"}
-                                                        </p>
-                                                    )}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => void refresh()}
-                                                disabled={loading}
-                                                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                            >
-                                                Actualizar
-                                            </button>
-                                        </div>
-
-                                        <CatalogStatusFilters
-                                            searchId="size-search"
-                                            statusId="size-status"
-                                            search={search}
-                                            searchPlaceholder="Nombre de la talla"
-                                            status={statusFilter}
-                                            onSearchChange={(
-                                                event
-                                            ) =>
-                                                setSearch(
-                                                    event
-                                                        .target
-                                                        .value
-                                                )
-                                            }
-                                            onStatusChange={(
-                                                event
-                                            ) =>
-                                                setStatusFilter(
-                                                    event
-                                                        .target
-                                                        .value as StatusFilter
-                                                )
-                                            }
-                                            showClear={hasFilters}
-                                            onClear={clearFilters}
-                                        />
-                                    </div>
-
-                                    {actionError && (
-                                        <div
-                                            role="alert"
-                                            className="m-6 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
-                                        >
-                                            {actionError}
-                                        </div>
-                                    )}
-
-                                    {!loading &&
-                                        !error &&
-                                        sizes.length === 0 && (
-                                            <div className="p-8 text-center text-sm text-slate-500">
-                                                No hay tallas
-                                                registradas.
-                                            </div>
-                                        )}
-
-                                    {!loading &&
-                                        !error &&
-                                        sizes.length > 0 &&
-                                        filteredSizes.length ===
-                                        0 && (
-                                            <div className="p-8 text-center text-sm text-slate-500">
-                                                No hay tallas que
-                                                coincidan con los
-                                                filtros.
-                                            </div>
-                                        )}
-
-                                    {!loading &&
-                                        !error &&
-                                        filteredSizes.length >
-                                        0 && (
-                                            <div
-                                                className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
-                                                tabIndex={0}
-                                                role="region"
-                                                aria-label="Tallas registradas"
-                                            >
-                                                <table className="w-full min-w-150 text-left text-sm">
-                                                    <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
-                                                        <tr>
-                                                            <th className="px-6 py-4">
-                                                                Nombre
-                                                            </th>
-
-                                                            <th className="px-6 py-4">
-                                                                Estado
-                                                            </th>
-
-                                                            {isAdministrator && (
-                                                                <th className="px-6 py-4 text-right">
-                                                                    Acciones
-                                                                </th>
-                                                            )}
-                                                        </tr>
-                                                    </thead>
-
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {filteredSizes.map(
-                                                            (
-                                                                size
-                                                            ) => (
-                                                                <tr
-                                                                    key={
-                                                                        size.id
-                                                                    }
-                                                                    className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
-                                                                >
-                                                                    <td className="px-6 py-5 font-semibold text-slate-900">
-                                                                        {
-                                                                            size.name
-                                                                        }
-                                                                    </td>
-
-                                                                    <td className="px-6 py-5">
-                                                                        <ActiveStatusBadge isActive={size.isActive} />
-                                                                    </td>
-
-                                                                    {isAdministrator && (
-                                                                        <td className="px-6 py-5">
-                                                                            <CatalogRowActions
-                                                                                isActive={size.isActive}
-                                                                                isChanging={changingStatusId === size.id}
-                                                                                disabled={isSubmitting || changingStatusId !== null}
-                                                                                onEdit={() => startEditing(size)}
-                                                                                onToggleStatus={() => void handleStatusChange(size)}
-                                                                            />
-                                                                        </td>
-                                                                    )}
-                                                                </tr>
-                                                            )
-                                                        )}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                </section>
-                            </>
-                        )}
-                    </>
-                )}
-            </CatalogDisclosure>
         </div>
     );
 };

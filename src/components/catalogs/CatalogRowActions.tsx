@@ -1,6 +1,7 @@
 interface CatalogRowActionsProps {
     isActive: boolean;
     isChanging: boolean;
+    changingLabel?: string;
     disabled: boolean;
     onEdit: () => void;
     onToggleStatus: () => void;
@@ -9,6 +10,7 @@ interface CatalogRowActionsProps {
 export const CatalogRowActions = ({
     isActive,
     isChanging,
+    changingLabel = "Guardando...",
     disabled,
     onEdit,
     onToggleStatus,
@@ -35,7 +37,7 @@ export const CatalogRowActions = ({
                     }`}
             >
                 {isChanging
-                    ? "Guardando..."
+                    ? changingLabel
                     : isActive
                         ? "Desactivar"
                         : "Activar"}

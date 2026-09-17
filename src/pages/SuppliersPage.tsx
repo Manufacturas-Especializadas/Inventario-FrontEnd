@@ -30,6 +30,11 @@ import {
 } from "../utils/supplierValidation";
 
 import { PageHeader } from "../components/ui/PageHeader";
+import { StatCard } from "../components/ui/StatCard";
+import { ActiveStatusBadge } from "../components/ui/ActiveStatusBadge";
+import { CatalogRowActions } from "../components/catalogs/CatalogRowActions";
+import { CatalogFormModal } from "../components/catalogs/CatalogFormModal";
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 
 type StatusFilter =
     | "all"
@@ -46,10 +51,14 @@ const normalizeText = (
 export const SuppliersPage = () => {
     const {
         suppliers,
+        hasLoaded,
+        upsertSupplier,
         loading,
         error,
         refresh,
     } = useSuppliers();
+
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
     const {
         hasRole,
@@ -277,21 +286,22 @@ export const SuppliersPage = () => {
         setActionError(null);
         setSuccessMessage(null);
 
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-        });
+        setIsFormOpen(true);
     };
 
     const cancelEditing = () => {
+        if (isSubmitting) return;
         resetForm();
         setSuccessMessage(null);
+        setIsFormOpen(false);
     };
 
     const clearFilters = () => {
         setSearch("");
         setStatusFilter("all");
     };
+
+    const hasSupplierData = hasLoaded || suppliers.length > 0;
 
     const hasFilters =
         search.length > 0 ||
@@ -374,7 +384,7 @@ export const SuppliersPage = () => {
                                 request
                             );
 
-                    await refresh();
+                    upsertSupplier(updatedSupplier);
 
                     resetForm();
 
@@ -388,7 +398,7 @@ export const SuppliersPage = () => {
                                 request
                             );
 
-                    await refresh();
+                    upsertSupplier(createdSupplier);
 
                     resetForm();
 
@@ -396,6 +406,7 @@ export const SuppliersPage = () => {
                         `Proveedor "${createdSupplier.name}" creado correctamente.`
                     );
                 }
+                setIsFormOpen(false);
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -442,7 +453,7 @@ export const SuppliersPage = () => {
                             }
                         );
 
-                await refresh();
+                upsertSupplier(updatedSupplier);
 
                 if (
                     editingSupplierId ===
@@ -450,6 +461,7 @@ export const SuppliersPage = () => {
                     !updatedSupplier.isActive
                 ) {
                     resetForm();
+                    setIsFormOpen(false);
                 }
 
                 setSuccessMessage(
@@ -483,50 +495,325 @@ export const SuppliersPage = () => {
                 descriptionWidth="wide"
             />
 
-            {isAdministrator && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                            <svg
-                                aria-hidden="true"
-                                className="h-5 w-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+            <div className="flex flex-wrap justify-end gap-3">
+                {isAdministrator && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            resetForm();
+                            setActionError(null);
+                            setSuccessMessage(null);
+                            setIsFormOpen(true);
+                        }}
+                        aria-haspopup="dialog"
+                        aria-controls="supplier-form-modal"
+                        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none sm:w-auto"
+                    >
+                        Nuevo proveedor
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    disabled={loading}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:w-auto"
+                >
+                    {loading && hasSupplierData ? "Actualizando..." : "Actualizar"}
+                </button>
+            </div>
+
+            {successMessage && (
+                <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    {successMessage}
+                </div>
+            )}
+
+            <dl
+                aria-label="Resumen de proveedores"
+                className="grid gap-4 sm:grid-cols-3 [&>div:first-child]:border-sky-200 [&>div:first-child]:to-sky-50/70 [&>div:first-child_dd]:text-sky-800 [&>div:nth-child(2)]:border-emerald-200 [&>div:nth-child(2)]:to-emerald-50/60 [&>div:nth-child(2)_dd]:text-emerald-800"
+            >
+                <StatCard label="Total de proveedores" value={hasSupplierData ? summary.total : loading ? "…" : "—"} />
+                <StatCard label="Proveedores activos" value={hasSupplierData ? summary.active : loading ? "…" : "—"} />
+                <StatCard label="Proveedores inactivos" value={hasSupplierData ? summary.inactive : loading ? "…" : "—"} />
+            </dl>
+
+            <section aria-busy={loading} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="border-b border-slate-200 p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                            Proveedores registrados
+                        </h2>
+
+                        {hasSupplierData && (
+                            <p
+                                role="status"
+                                className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold tabular-nums text-sky-800 ring-1 ring-inset ring-sky-200"
                             >
-                                <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 21v-4h6v4M9 7h1m4 0h1M9 11h1m4 0h1" />
-                            </svg>
-                        </span>
-
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-900">
-                                {editingSupplierId !==
-                                    null
-                                    ? "Editar proveedor"
-                                    : "Nuevo proveedor"}
-                            </h2>
-
-                            <p className="mt-1 text-sm leading-6 text-slate-500">
-                                {editingSupplierId !==
-                                    null
-                                    ? "Modifica los datos del proveedor seleccionado."
-                                    : "Registra un proveedor para asociarlo posteriormente con sus productos."}
+                                {
+                                    filteredSuppliers.length
+                                }{" "}
+                                {filteredSuppliers.length ===
+                                    1
+                                    ? "resultado"
+                                    : "resultados"}
                             </p>
-                        </div>
+                        )}
                     </div>
 
-                    {successMessage && (
+                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row sm:items-end">
+                        <div className="min-w-0 flex-1">
+                            <label
+                                htmlFor="supplier-search"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Buscar proveedores
+                            </label>
+
+                            <input
+                                id="supplier-search"
+                                type="search"
+                                value={search}
+                                onChange={(
+                                    event
+                                ) =>
+                                    setSearch(
+                                        event
+                                            .target
+                                            .value
+                                    )
+                                }
+                                autoComplete="off"
+                                placeholder="Nombre, contacto, correo o teléfono"
+                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base sm:text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                            />
+                        </div>
+
+                        <div className="sm:w-48 sm:shrink-0">
+                            <label
+                                htmlFor="supplier-status"
+                                className="block text-sm font-medium text-slate-700"
+                            >
+                                Estado
+                            </label>
+
+                            <select
+                                id="supplier-status"
+                                value={
+                                    statusFilter
+                                }
+                                onChange={(
+                                    event
+                                ) =>
+                                    setStatusFilter(
+                                        event
+                                            .target
+                                            .value as StatusFilter
+                                    )
+                                }
+                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base sm:text-sm text-slate-900 outline-none transition-colors hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                            >
+                                <option value="all">
+                                    Todos
+                                </option>
+
+                                <option value="active">
+                                    Activos
+                                </option>
+
+                                <option value="inactive">
+                                    Inactivos
+                                </option>
+                            </select>
+                        </div>
+
+                        {hasFilters && (
+                            <button
+                                type="button"
+                                onClick={
+                                    clearFilters
+                                }
+                                className="h-12 w-full shrink-0 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
+                            >
+                                Limpiar
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {actionError && (
+                    <div
+                        role="alert"
+                        className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
+                    >
+                        {actionError}
+                    </div>
+                )}
+
+                {loading && !hasSupplierData && <CatalogLoadingSkeleton label="Cargando proveedores..." />}
+
+                {!loading &&
+                    error && (
                         <div
-                            role="status"
-                            className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800"
+                            role="alert"
+                            className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
                         >
-                            {successMessage}
+                            {error}
                         </div>
                     )}
 
+                {hasSupplierData &&
+                    suppliers.length ===
+                    0 && (
+                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
+                            <p className="text-sm font-semibold text-slate-900">
+                                Aún no hay proveedores registrados
+                            </p>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                                Los proveedores aparecerán aquí cuando se agreguen al catálogo.
+                            </p>
+                        </div>
+                    )}
+
+                {hasSupplierData &&
+                    suppliers.length > 0 &&
+                    filteredSuppliers.length ===
+                    0 && (
+                        <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
+                            <p className="text-sm font-semibold text-slate-900">
+                                No encontramos coincidencias.
+                            </p>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                                Prueba con otro término o elimina los filtros.
+                            </p>
+                        </div>
+                    )}
+
+                {hasSupplierData &&
+                    filteredSuppliers.length >
+                    0 && (
+                        <div
+                            className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
+                            tabIndex={0}
+                            role="region"
+                            aria-label="Proveedores registrados"
+                        >
+                            <table className="w-full min-w-240 text-left text-sm">
+                                <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
+                                    <tr>
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4"
+                                        >
+                                            Proveedor
+                                        </th>
+
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4"
+                                        >
+                                            Contacto
+                                        </th>
+
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4"
+                                        >
+                                            Correo
+                                        </th>
+
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4"
+                                        >
+                                            Teléfono
+                                        </th>
+
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4"
+                                        >
+                                            Estado
+                                        </th>
+
+                                        {isAdministrator && (
+                                            <th
+                                                scope="col"
+                                                className="px-6 py-4 text-right"
+                                            >
+                                                Acciones
+                                            </th>
+                                        )}
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredSuppliers.map(
+                                        (
+                                            supplier
+                                        ) => (
+                                            <tr
+                                                key={
+                                                    supplier.id
+                                                }
+                                                className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
+                                            >
+                                                <td className="px-6 py-5 font-semibold text-slate-900">
+                                                    {
+                                                        supplier.name
+                                                    }
+                                                </td>
+
+                                                <td className="px-6 py-5 text-slate-600">
+                                                    {supplier.contactName ||
+                                                        "—"}
+                                                </td>
+
+                                                <td className="px-6 py-5 text-slate-600">
+                                                    {supplier.email ||
+                                                        "—"}
+                                                </td>
+
+                                                <td className="px-6 py-5 text-slate-600">
+                                                    {supplier.phone ||
+                                                        "—"}
+                                                </td>
+
+                                                <td className="px-6 py-5">
+                                                    <ActiveStatusBadge isActive={supplier.isActive} />
+                                                </td>
+
+                                                {isAdministrator && (
+                                                    <td className="px-6 py-5">
+                                                        <CatalogRowActions
+                                                            isActive={supplier.isActive}
+                                                            isChanging={changingStatusId === supplier.id}
+                                                            disabled={isSubmitting || changingStatusId !== null}
+                                                            onEdit={() => startEditing(supplier)}
+                                                            onToggleStatus={() => void handleStatusChange(supplier)}
+                                                        />
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        )
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+            </section>
+
+            {isAdministrator && isFormOpen && (
+                <CatalogFormModal
+                    id="supplier-form-modal"
+                    title={editingSupplierId !== null ? "Editar proveedor" : "Nuevo proveedor"}
+                    description={editingSupplierId !== null
+                        ? "Modifica los datos del proveedor seleccionado."
+                        : "Registra un proveedor para asociarlo posteriormente con sus productos."}
+                    isSubmitting={isSubmitting}
+                    onClose={cancelEditing}
+                >
                     <form
                         noValidate
                         onSubmit={
@@ -538,7 +825,7 @@ export const SuppliersPage = () => {
                             disabled={
                                 isSubmitting
                             }
-                            className="grid min-w-0 gap-6 md:grid-cols-2 [&>div]:min-w-0"
+                            className="grid min-w-0 gap-6 [&>div]:min-w-0"
                         >
                             <div>
                                 <label
@@ -697,25 +984,22 @@ export const SuppliersPage = () => {
                             {formError && (
                                 <div
                                     role="alert"
-                                    className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 md:col-span-2"
+                                    className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
                                 >
                                     {formError}
                                 </div>
                             )}
 
-                            <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5 md:col-span-2">
-                                {editingSupplierId !==
-                                    null && (
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                cancelEditing
-                                            }
-                                            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
-                                        >
-                                            Cancelar
-                                        </button>
-                                    )}
+                            <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
+                                <button
+                                    type="button"
+                                    onClick={
+                                        cancelEditing
+                                    }
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
+                                >
+                                    Cancelar
+                                </button>
 
                                 <button
                                     type="submit"
@@ -737,402 +1021,8 @@ export const SuppliersPage = () => {
                             </div>
                         </fieldset>
                     </form>
-                </section>
+                </CatalogFormModal>
             )}
-
-            <dl
-                aria-label="Resumen de proveedores"
-                className="grid gap-4 sm:grid-cols-3"
-            >
-                {[
-                    {
-                        label:
-                            "Total de proveedores",
-                        value:
-                            summary.total,
-                        surface: "border-sky-200 from-white to-sky-50/70",
-                        accent: "text-sky-800",
-                    },
-                    {
-                        label:
-                            "Proveedores activos",
-                        value:
-                            summary.active,
-                        surface: "border-emerald-200 from-white to-emerald-50/60",
-                        accent: "text-emerald-800",
-                    },
-                    {
-                        label:
-                            "Proveedores inactivos",
-                        value:
-                            summary.inactive,
-                        surface: "border-slate-200 from-white to-slate-50/70",
-                        accent: "text-slate-600",
-                    },
-                ].map((item) => (
-                    <div
-                        key={
-                            item.label
-                        }
-                        className={`min-w-0 rounded-2xl border bg-linear-to-br px-6 py-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] ${item.surface}`}
-                    >
-                        <dt className="text-sm font-medium text-slate-600">
-                            {
-                                item.label
-                            }
-                        </dt>
-
-                        <dd className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${item.accent}`}>
-                            {loading
-                                ? "…"
-                                : error
-                                    ? "—"
-                                    : item.value}
-                        </dd>
-                    </div>
-                ))}
-            </dl>
-
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
-                <div className="border-b border-slate-200 p-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                            Proveedores registrados
-                        </h2>
-
-                        {!loading &&
-                            !error && (
-                                <p
-                                    role="status"
-                                    className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold tabular-nums text-sky-800 ring-1 ring-inset ring-sky-200"
-                                >
-                                    {
-                                        filteredSuppliers.length
-                                    }{" "}
-                                    {filteredSuppliers.length ===
-                                        1
-                                        ? "resultado"
-                                        : "resultados"}
-                                </p>
-                            )}
-                    </div>
-
-                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 sm:flex-row sm:items-end">
-                        <div className="min-w-0 flex-1">
-                            <label
-                                htmlFor="supplier-search"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Buscar proveedores
-                            </label>
-
-                            <input
-                                id="supplier-search"
-                                type="search"
-                                value={search}
-                                onChange={(
-                                    event
-                                ) =>
-                                    setSearch(
-                                        event
-                                            .target
-                                            .value
-                                    )
-                                }
-                                autoComplete="off"
-                                placeholder="Nombre, contacto, correo o teléfono"
-                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base sm:text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div className="sm:w-48 sm:shrink-0">
-                            <label
-                                htmlFor="supplier-status"
-                                className="block text-sm font-medium text-slate-700"
-                            >
-                                Estado
-                            </label>
-
-                            <select
-                                id="supplier-status"
-                                value={
-                                    statusFilter
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setStatusFilter(
-                                        event
-                                            .target
-                                            .value as StatusFilter
-                                    )
-                                }
-                                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-4 text-base sm:text-sm text-slate-900 outline-none transition-colors hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
-                            >
-                                <option value="all">
-                                    Todos
-                                </option>
-
-                                <option value="active">
-                                    Activos
-                                </option>
-
-                                <option value="inactive">
-                                    Inactivos
-                                </option>
-                            </select>
-                        </div>
-
-                        {hasFilters && (
-                            <button
-                                type="button"
-                                onClick={
-                                    clearFilters
-                                }
-                                className="h-12 w-full shrink-0 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none sm:w-auto"
-                            >
-                                Limpiar
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {successMessage &&
-                    !isAdministrator && (
-                        <div
-                            role="status"
-                            className="m-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800"
-                        >
-                            {
-                                successMessage
-                            }
-                        </div>
-                    )}
-
-                {actionError && (
-                    <div
-                        role="alert"
-                        className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
-                    >
-                        {actionError}
-                    </div>
-                )}
-
-                {loading && (
-                    <div
-                        role="status"
-                        className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800"
-                    >
-                        Cargando proveedores...
-                    </div>
-                )}
-
-                {!loading &&
-                    error && (
-                        <div
-                            role="alert"
-                            className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
-                        >
-                            {error}
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    suppliers.length ===
-                    0 && (
-                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
-                            <p className="text-sm font-semibold text-slate-900">
-                                Aún no hay proveedores registrados
-                            </p>
-
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                                Los proveedores aparecerán aquí cuando se agreguen al catálogo.
-                            </p>
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    suppliers.length > 0 &&
-                    filteredSuppliers.length ===
-                    0 && (
-                        <div className="m-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
-                            <p className="text-sm font-semibold text-slate-900">
-                                No encontramos coincidencias.
-                            </p>
-
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                                Prueba con otro término o elimina los filtros.
-                            </p>
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    filteredSuppliers.length >
-                    0 && (
-                        <div
-                            className="overflow-x-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200"
-                            tabIndex={0}
-                            role="region"
-                            aria-label="Proveedores registrados"
-                        >
-                            <table className="w-full min-w-240 text-left text-sm">
-                                <thead className="bg-sky-50/80 text-xs uppercase text-sky-800">
-                                    <tr>
-                                        <th
-                                            scope="col"
-                                            className="px-6 py-4"
-                                        >
-                                            Proveedor
-                                        </th>
-
-                                        <th
-                                            scope="col"
-                                            className="px-6 py-4"
-                                        >
-                                            Contacto
-                                        </th>
-
-                                        <th
-                                            scope="col"
-                                            className="px-6 py-4"
-                                        >
-                                            Correo
-                                        </th>
-
-                                        <th
-                                            scope="col"
-                                            className="px-6 py-4"
-                                        >
-                                            Teléfono
-                                        </th>
-
-                                        <th
-                                            scope="col"
-                                            className="px-6 py-4"
-                                        >
-                                            Estado
-                                        </th>
-
-                                        {isAdministrator && (
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-4 text-right"
-                                            >
-                                                Acciones
-                                            </th>
-                                        )}
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredSuppliers.map(
-                                        (
-                                            supplier
-                                        ) => (
-                                            <tr
-                                                key={
-                                                    supplier.id
-                                                }
-                                                className="transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50 motion-reduce:transition-none"
-                                            >
-                                                <td className="px-6 py-5 font-semibold text-slate-900">
-                                                    {
-                                                        supplier.name
-                                                    }
-                                                </td>
-
-                                                <td className="px-6 py-5 text-slate-600">
-                                                    {supplier.contactName ||
-                                                        "—"}
-                                                </td>
-
-                                                <td className="px-6 py-5 text-slate-600">
-                                                    {supplier.email ||
-                                                        "—"}
-                                                </td>
-
-                                                <td className="px-6 py-5 text-slate-600">
-                                                    {supplier.phone ||
-                                                        "—"}
-                                                </td>
-
-                                                <td className="px-6 py-5">
-                                                    <span
-                                                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${supplier.isActive
-                                                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                                                            : "bg-slate-100 text-slate-600 ring-slate-200"
-                                                            }`}
-                                                    >
-                                                        <span
-                                                            aria-hidden="true"
-                                                            className="h-1.5 w-1.5 rounded-full bg-current"
-                                                        />
-
-                                                        {supplier.isActive
-                                                            ? "Activo"
-                                                            : "Inactivo"}
-                                                    </span>
-                                                </td>
-
-                                                {isAdministrator && (
-                                                    <td className="px-6 py-5">
-                                                        <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-72 sm:grid-cols-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    startEditing(
-                                                                        supplier
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    isSubmitting ||
-                                                                    changingStatusId !==
-                                                                    null
-                                                                }
-                                                                className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                                            >
-                                                                <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" /></svg>
-                                                                Editar
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    void handleStatusChange(
-                                                                        supplier
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    changingStatusId !==
-                                                                    null ||
-                                                                    isSubmitting
-                                                                }
-                                                                className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${supplier.isActive
-                                                                    ? "border-amber-200 bg-amber-50/70 text-amber-800 enabled:hover:border-amber-300 enabled:hover:bg-amber-100 focus-visible:ring-amber-100"
-                                                                    : "border-emerald-200 bg-emerald-50 text-emerald-800 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 focus-visible:ring-emerald-100"
-                                                                    }`}
-                                                            >
-                                                                {changingStatusId ===
-                                                                    supplier.id
-                                                                    ? "Guardando..."
-                                                                    : supplier.isActive
-                                                                        ? "Desactivar"
-                                                                        : "Activar"}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        )
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-            </section>
         </div>
     );
 };

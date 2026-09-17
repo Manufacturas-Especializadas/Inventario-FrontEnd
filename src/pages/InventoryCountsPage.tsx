@@ -95,6 +95,12 @@ export const InventoryCountsPage = () => {
         postCount,
 
         clearCount,
+        draftCounts,
+        loadingDrafts,
+        draftsError,
+
+        getDrafts,
+        openCount,
     } = useInventoryCounts();
 
     const {
@@ -105,6 +111,12 @@ export const InventoryCountsPage = () => {
         hasRole(
             "Administrator"
         );
+
+    useEffect(() => {
+        void getDrafts();
+    }, [
+        getDrafts,
+    ]);
 
     const [
         reviewSuccessMessage,
@@ -253,6 +265,19 @@ export const InventoryCountsPage = () => {
             loadValues(
                 result.items
             );
+        };
+
+    const handleContinueCount =
+        (
+            count: typeof draftCounts[number]
+        ) => {
+            openCount(count);
+
+            loadValues(
+                count.items
+            );
+
+            setSuccessMessage(null);
         };
 
 
@@ -443,6 +468,178 @@ export const InventoryCountsPage = () => {
                 </div>
             )}
 
+            {!inventoryCount && (
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-5 sm:px-8">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                                Trabajo pendiente
+                            </p>
+
+                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                Conteos en curso
+                            </h2>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                                Continúa un conteo que todavía se encuentra en captura.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void getDrafts()
+                            }
+                            disabled={loadingDrafts}
+                            className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {loadingDrafts
+                                ? "Actualizando..."
+                                : "Actualizar"}
+                        </button>
+                    </div>
+
+
+                    {loadingDrafts &&
+                        draftCounts.length === 0 && (
+                            <div
+                                role="status"
+                                className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-5 py-8 text-center text-sm text-sky-800"
+                            >
+                                Cargando conteos en curso...
+                            </div>
+                        )}
+
+
+                    {!loadingDrafts &&
+                        draftsError && (
+                            <div
+                                role="alert"
+                                className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
+                            >
+                                {draftsError}
+                            </div>
+                        )}
+
+
+                    {!loadingDrafts &&
+                        !draftsError &&
+                        draftCounts.length === 0 && (
+                            <div className="m-6 rounded-2xl border border-dashed border-slate-300 px-6 py-8 text-center">
+                                <p className="text-sm font-semibold text-slate-900">
+                                    No hay conteos en curso.
+                                </p>
+
+                                <p className="mt-2 text-sm text-slate-500">
+                                    Cuando inicies un conteo aparecerá aquí hasta que lo envíes a revisión.
+                                </p>
+                            </div>
+                        )}
+
+
+                    {draftCounts.length > 0 && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-190 text-left text-sm">
+                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
+                                    <tr>
+                                        <th className="px-5 py-3">
+                                            Folio
+                                        </th>
+
+                                        <th className="px-5 py-3">
+                                            Almacén
+                                        </th>
+
+                                        <th className="px-5 py-3">
+                                            Progreso
+                                        </th>
+
+                                        <th className="px-5 py-3">
+                                            Iniciado
+                                        </th>
+
+                                        <th className="px-5 py-3 text-right">
+                                            Acción
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-100">
+                                    {draftCounts.map(
+                                        (count) => {
+                                            const captured =
+                                                count.items.filter(
+                                                    (item) =>
+                                                        item.countedQuantity !==
+                                                        null
+                                                ).length;
+
+                                            const total =
+                                                count.items.length;
+
+                                            return (
+                                                <tr
+                                                    key={
+                                                        count.folio
+                                                    }
+                                                    className="hover:bg-sky-50/40"
+                                                >
+                                                    <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-semibold text-slate-900">
+                                                        {
+                                                            count.folio
+                                                        }
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <p className="font-medium text-slate-900">
+                                                            {
+                                                                count.warehouseName
+                                                            }
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {
+                                                                count.warehouseCode
+                                                            }
+                                                        </p>
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <span className="inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800">
+                                                            {captured} /{" "}
+                                                            {total}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                                                        {formatDateTime(
+                                                            count.createdAt
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-5 py-4 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleContinueCount(
+                                                                    count
+                                                                )
+                                                            }
+                                                            className="min-h-10 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800"
+                                                        >
+                                                            Continuar
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            )}
 
             {!inventoryCount && (
                 <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">

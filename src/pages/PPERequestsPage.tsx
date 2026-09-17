@@ -28,7 +28,9 @@ import { PageHeader } from "../components/ui/PageHeader";
 
 import { inventoryService } from "../api/services/InventoryService";
 
-import type { InventoryBalance } from "../types/types";
+import {
+    warehouseProductsService,
+} from "../api/services/WarehouseProductsService";
 
 
 interface PPERequestFormItem {
@@ -37,6 +39,17 @@ interface PPERequestFormItem {
     ppeProductId: string;
 
     quantity: string;
+}
+
+interface WarehouseRequestProduct {
+    ppeProductId: number;
+
+    sku: string;
+    productName: string;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
 }
 
 
@@ -151,7 +164,9 @@ export const PPERequestsPage = () => {
     const [
         warehouseProducts,
         setWarehouseProducts,
-    ] = useState<InventoryBalance[]>([]);
+    ] = useState<
+        WarehouseRequestProduct[]
+    >([]);
 
     const [
         loadingWarehouseProducts,
@@ -652,6 +667,45 @@ export const PPERequestsPage = () => {
                 return;
             }
 
+            const productsById =
+                new Map(
+                    warehouseProducts.map(
+                        (product) => [
+                            product.ppeProductId,
+                            product,
+                        ]
+                    )
+                );
+
+
+            for (const item of parsedItems) {
+                const product =
+                    productsById.get(
+                        item.ppeProductId
+                    );
+
+                if (!product) {
+                    setFormError(
+                        "Uno de los productos seleccionados ya no pertenece al almacén. Vuelve a obtener los productos."
+                    );
+
+                    return;
+                }
+
+                if (
+                    item.quantity >
+                    product.availableQuantity
+                ) {
+                    setFormError(
+                        `No hay suficiente existencia de ${product.sku} - ${product.productName}. ` +
+                        `Disponible: ${product.availableQuantity}. ` +
+                        `Solicitado: ${item.quantity}.`
+                    );
+
+                    return;
+                }
+            }
+
 
             const result =
                 await createRequest({
@@ -774,14 +828,87 @@ export const PPERequestsPage = () => {
             setWarehouseProducts([]);
 
             try {
-                const balances =
-                    await inventoryService
-                        .getBalances(
-                            parsedWarehouseId
+                const [
+                    relations,
+                    balances,
+                ] =
+                    await Promise.all([
+                        warehouseProductsService
+                            .getByWarehouse(
+                                parsedWarehouseId
+                            ),
+
+                        inventoryService
+                            .getBalances(
+                                parsedWarehouseId
+                            ),
+                    ]);
+
+
+                const balancesByProductId =
+                    new Map(
+                        balances.map(
+                            (balance) => [
+                                balance.ppeProductId,
+                                balance,
+                            ]
+                        )
+                    );
+
+
+                const configuredProducts:
+                    WarehouseRequestProduct[] =
+                    relations
+                        .filter(
+                            (relation) =>
+                                relation.isActive
+                        )
+                        .map(
+                            (relation) => {
+                                const balance =
+                                    balancesByProductId.get(
+                                        relation.ppeProductId
+                                    );
+
+                                return {
+                                    ppeProductId:
+                                        relation.ppeProductId,
+
+                                    sku:
+                                        relation.sku,
+
+                                    productName:
+                                        relation.productName,
+
+                                    onHandQuantity:
+                                        balance
+                                            ?.onHandQuantity ??
+                                        0,
+
+                                    reservedQuantity:
+                                        balance
+                                            ?.reservedQuantity ??
+                                        0,
+
+                                    availableQuantity:
+                                        balance
+                                            ?.availableQuantity ??
+                                        0,
+                                };
+                            }
+                        )
+                        .sort(
+                            (a, b) =>
+                                a.productName
+                                    .localeCompare(
+                                        b.productName,
+                                        "es"
+                                    )
                         );
 
+
                 setWarehouseProducts(
-                    balances
+                    configuredProducts
                 );
 
                 setLoadedWarehouseId(
@@ -792,7 +919,11 @@ export const PPERequestsPage = () => {
                     "No fue posible obtener los productos del almacén."
                 );
 
-                setLoadedWarehouseId(null);
+                setWarehouseProducts([]);
+
+                setLoadedWarehouseId(
+                    null
+                );
             } finally {
                 setLoadingWarehouseProducts(
                     false
@@ -1333,15 +1464,21 @@ export const PPERequestsPage = () => {
                                                 event.target.value
                                             );
 
-                                            setWarehouseProducts([]);
-                                            setWarehouseProductsError(null);
-                                            setLoadedWarehouseId(null);
+                                            setWarehouseProducts(
+                                                []
+                                            );
+
+                                            setLoadedWarehouseId(
+                                                null
+                                            );
+
+                                            setWarehouseProductsError(
+                                                null
+                                            );
 
                                             setItems([
                                                 createEmptyItem(),
                                             ]);
-
-                                            setFormError(null);
                                         }}
                                         disabled={
                                             loadingWarehouses ||
@@ -1515,31 +1652,31 @@ export const PPERequestsPage = () => {
                                                                                     : "Selecciona un producto"}
                                                                 </option>
 
-                                                                {warehouseProducts
-                                                                    .filter(
-                                                                        (balance) =>
-                                                                            balance.availableQuantity > 0
+                                                                {warehouseProducts.map(
+                                                                    (product) => (
+                                                                        <option
+                                                                            key={
+                                                                                product.ppeProductId
+                                                                            }
+                                                                            value={
+                                                                                product.ppeProductId
+                                                                            }
+                                                                            disabled={
+                                                                                product.availableQuantity <=
+                                                                                0
+                                                                            }
+                                                                        >
+                                                                            {product.sku}
+                                                                            {" - "}
+                                                                            {product.productName}
+                                                                            {" · "}
+
+                                                                            {product.availableQuantity > 0
+                                                                                ? `Disponibles: ${product.availableQuantity}`
+                                                                                : "Sin existencia"}
+                                                                        </option>
                                                                     )
-                                                                    .map(
-                                                                        (balance) => (
-                                                                            <option
-                                                                                key={
-                                                                                    balance.ppeProductId
-                                                                                }
-                                                                                value={
-                                                                                    balance.ppeProductId
-                                                                                }
-                                                                            >
-                                                                                {balance.sku}
-                                                                                {" - "}
-                                                                                {balance.productName}
-                                                                                {" · Disponibles: "}
-                                                                                {
-                                                                                    balance.availableQuantity
-                                                                                }
-                                                                            </option>
-                                                                        )
-                                                                    )}
+                                                                )}
                                                             </select>
                                                         </div>
 

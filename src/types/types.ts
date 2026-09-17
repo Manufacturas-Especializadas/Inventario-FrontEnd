@@ -278,6 +278,34 @@ export interface CreateWarehouseRequest {
     description?: string | null;
 }
 
+// PRODUCTOS POR ALMACÉN
+
+export interface WarehouseProduct {
+    warehouseId: number;
+
+    warehouseCode: string;
+    warehouseName: string;
+
+    ppeProductId: number;
+
+    sku: string;
+    productName: string;
+
+    isActive: boolean;
+
+    createdAt: string;
+    updatedAt: string | null;
+}
+
+export interface CreateWarehouseProductRequest {
+    warehouseId: number;
+    ppeProductId: number;
+}
+
+export interface SetWarehouseProductStatusRequest {
+    isActive: boolean;
+}
+
 //Compras admin a proveedor
 export type PurchaseOrderStatus = 1 | 2 | 3 | 4;
 
