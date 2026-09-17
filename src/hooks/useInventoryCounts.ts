@@ -1,532 +1,277 @@
-import {
-    useCallback,
-    useState,
-} from "react";
+import { useCallback, useRef, useState } from "react";
+import { inventoryCountsService } from "../api/services/InventoryCountsService";
+import type { InventoryCount, InventoryCountItem, StartInventoryCountRequest } from "../types/types";
+import { getApiErrorMessage } from "../utils/utils";
 
-import {
-    inventoryCountsService,
-} from "../api/services/InventoryCountsService";
+type ListChange = (counts: InventoryCount[]) => InventoryCount[];
+type CountChange = (count: InventoryCount) => InventoryCount;
 
-import type {
-    InventoryCount,
-    InventoryCountItem,
-    StartInventoryCountRequest,
-} from "../types/types";
-
-import {
-    getApiErrorMessage,
-} from "../utils/utils";
-
+const upsertCount = (counts: InventoryCount[], count: InventoryCount) =>
+    [count, ...counts.filter((entry) => entry.folio !== count.folio)];
 
 export const useInventoryCounts = () => {
-    const [
-        inventoryCount,
-        setInventoryCount,
-    ] = useState<InventoryCount | null>(
-        null
-    );
-
-    const [
-        loading,
-        setLoading,
-    ] = useState(false);
-
-    const [
-        error,
-        setError,
-    ] = useState<string | null>(
-        null
-    );
-
-    const [
-        savingProductId,
-        setSavingProductId,
-    ] = useState<number | null>(
-        null
-    );
-
-    const [
-        submitting,
-        setSubmitting,
-    ] = useState(false);
-    const [
-        pendingReviewCounts,
-        setPendingReviewCounts,
-    ] = useState<InventoryCount[]>([]);
-
-    const [
-        draftCounts,
-        setDraftCounts,
-    ] = useState<InventoryCount[]>([]);
-
-    const [
-        loadingDrafts,
-        setLoadingDrafts,
-    ] = useState(false);
-
-    const [
-        draftsError,
-        setDraftsError,
-    ] = useState<string | null>(null);
-
-    const [
-        loadingPendingReview,
-        setLoadingPendingReview,
-    ] = useState(false);
-
-    const [
-        postingFolio,
-        setPostingFolio,
-    ] = useState<string | null>(
-        null
-    );
-
-    const [
-        reviewError,
-        setReviewError,
-    ] = useState<string | null>(
-        null
-    );
-
-    const getPendingReview =
-        useCallback(
-            async (): Promise<
-                InventoryCount[]
-            > => {
-                setLoadingPendingReview(
-                    true
-                );
-
-                setReviewError(
-                    null
-                );
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .getPendingReview();
-
-                    setPendingReviewCounts(
-                        data
-                    );
-
-                    return data;
-                } catch (error) {
-                    setPendingReviewCounts(
-                        []
-                    );
-
-                    setReviewError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible consultar los conteos pendientes de revisión."
-                        )
-                    );
-
-                    return [];
-                } finally {
-                    setLoadingPendingReview(
-                        false
-                    );
-                }
-            },
-            []
-        );
-
-    const postCount =
-        useCallback(
-            async (
-                folio: string
-            ): Promise<
-                InventoryCount | null
-            > => {
-                setPostingFolio(
-                    folio
-                );
-
-                setReviewError(
-                    null
-                );
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .post(
-                                folio
-                            );
-
-                    setPendingReviewCounts(
-                        (current) =>
-                            current.filter(
-                                (count) =>
-                                    count.folio !==
-                                    data.folio
-                            )
-                    );
-
-                    if (
-                        inventoryCount?.folio ===
-                        data.folio
-                    ) {
-                        setInventoryCount(
-                            data
-                        );
-                    }
-
-                    return data;
-                } catch (error) {
-                    setReviewError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible publicar el conteo físico."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setPostingFolio(
-                        null
-                    );
-                }
-            },
-            [
-                inventoryCount?.folio,
-            ]
-        );
-
-
-    const getByFolio =
-        useCallback(
-            async (
-                folio: string
-            ): Promise<InventoryCount | null> => {
-                const normalizedFolio =
-                    folio.trim();
-
-                if (!normalizedFolio) {
-                    setError(
-                        "Ingresa un folio de conteo."
-                    );
-
-                    return null;
-                }
-
-                setLoading(true);
-                setError(null);
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .getByFolio(
-                                normalizedFolio
-                            );
-
-                    setInventoryCount(
-                        data
-                    );
-
-                    return data;
-                } catch (error) {
-                    setInventoryCount(
-                        null
-                    );
-
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible consultar el conteo físico."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setLoading(false);
-                }
-            },
-            []
-        );
-
-
-    const startCount =
-        useCallback(
-            async (
-                request:
-                    StartInventoryCountRequest
-            ): Promise<InventoryCount | null> => {
-                setLoading(true);
-                setError(null);
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .start(
-                                request
-                            );
-
-                    setInventoryCount(
-                        data
-                    );
-
-                    setDraftCounts(
-                        (current) => [
-                            data,
-                            ...current.filter(
-                                (count) =>
-                                    count.folio !==
-                                    data.folio
-                            ),
-                        ]
-                    );
-
-                    return data;
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible iniciar el conteo físico."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setLoading(false);
-                }
-            },
-            []
-        );
-
-
-    const captureItem =
-        useCallback(
-            async (
-                folio: string,
-                ppeProductId: number,
-                countedQuantity: number
-            ): Promise<InventoryCountItem | null> => {
-                if (
-                    !Number.isInteger(
-                        countedQuantity
-                    ) ||
-                    countedQuantity < 0
-                ) {
-                    setError(
-                        "La cantidad contada debe ser un número entero igual o mayor a cero."
-                    );
-
-                    return null;
-                }
-
-                setSavingProductId(
-                    ppeProductId
-                );
-
-                setError(null);
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .captureItem(
-                                folio,
-                                ppeProductId,
-                                {
-                                    countedQuantity,
-                                }
-                            );
-
-                    setInventoryCount(
-                        (current) => {
-                            if (!current) {
-                                return current;
-                            }
-
-                            return {
-                                ...current,
-
-                                items:
-                                    current.items.map(
-                                        (
-                                            item
-                                        ) =>
-                                            item.ppeProductId ===
-                                                data.ppeProductId
-                                                ? data
-                                                : item
-                                    ),
-                            };
-                        }
-                    );
-
-                    setDraftCounts(
-                        (current) =>
-                            current.map(
-                                (count) =>
-                                    count.folio !== folio
-                                        ? count
-                                        : {
-                                            ...count,
-
-                                            items:
-                                                count.items.map(
-                                                    (item) =>
-                                                        item.ppeProductId ===
-                                                            data.ppeProductId
-                                                            ? data
-                                                            : item
-                                                ),
-                                        }
-                            )
-                    );
-
-                    return data;
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible guardar la cantidad contada."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setSavingProductId(
-                        null
-                    );
-                }
-            },
-            []
-        );
-
-
-    const submitCount =
-        useCallback(
-            async (
-                folio: string
-            ): Promise<InventoryCount | null> => {
-                setSubmitting(true);
-                setError(null);
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .submit(
-                                folio
-                            );
-
-                    setInventoryCount(
-                        data
-                    );
-
-                    setDraftCounts(
-                        (current) =>
-                            current.filter(
-                                (count) =>
-                                    count.folio !==
-                                    data.folio
-                            )
-                    );
-
-                    return data;
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible enviar el conteo a revisión."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setSubmitting(false);
-                }
-            },
-            []
-        );
-
-
-    const clearCount =
-        useCallback(() => {
-            setInventoryCount(
-                null
-            );
-
-            setError(
-                null
-            );
-
-            setSavingProductId(
-                null
-            );
-        }, []);
-
-    const getDrafts =
-        useCallback(
-            async (): Promise<InventoryCount[]> => {
-                setLoadingDrafts(true);
-                setDraftsError(null);
-
-                try {
-                    const data =
-                        await inventoryCountsService
-                            .getDrafts();
-
-                    setDraftCounts(data);
-
-                    return data;
-                } catch (error) {
-                    setDraftsError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible consultar los conteos en curso."
-                        )
-                    );
-
-                    return [];
-                } finally {
-                    setLoadingDrafts(false);
-                }
-            },
-            []
-        );
-
-    const openCount =
-        useCallback(
-            (count: InventoryCount) => {
-                setInventoryCount(count);
-                setError(null);
-            },
-            []
-        );
-
+    const [inventoryCount, setInventoryCount] = useState<InventoryCount | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [savingProductIds, setSavingProductIds] = useState<Set<number>>(() => new Set());
+    const [submitting, setSubmitting] = useState(false);
+    const [postingFolio, setPostingFolio] = useState<string | null>(null);
+    const [postError, setPostError] = useState<string | null>(null);
+    const [draftCounts, setDraftCounts] = useState<InventoryCount[]>([]);
+    const [hasLoadedDrafts, setHasLoadedDrafts] = useState(false);
+    const [loadingDrafts, setLoadingDrafts] = useState(false);
+    const [draftsError, setDraftsError] = useState<string | null>(null);
+    const [pendingReviewCounts, setPendingReviewCounts] = useState<InventoryCount[]>([]);
+    const [hasLoadedPendingReview, setHasLoadedPendingReview] = useState(false);
+    const [loadingPendingReview, setLoadingPendingReview] = useState(false);
+    const [reviewError, setReviewError] = useState<string | null>(null);
+
+    const viewVersion = useRef(0);
+    const draftsRequest = useRef<Promise<InventoryCount[]> | null>(null);
+    const reviewRequest = useRef<Promise<InventoryCount[]> | null>(null);
+    const detailRequests = useRef(new Map<string, Promise<InventoryCount>>());
+    const startRequest = useRef<Promise<InventoryCount | null> | null>(null);
+    const submitRequest = useRef<Promise<InventoryCount | null> | null>(null);
+    const postRequest = useRef<{ folio: string; promise: Promise<InventoryCount | null> } | null>(null);
+    const captureRequests = useRef(new Map<string, Promise<InventoryCountItem | null>>());
+    const reviewLoaded = useRef(false);
+    // Replay mutations completed during a GET so its older snapshot cannot undo them.
+    const draftChanges = useRef<ListChange[]>([]);
+    const reviewChanges = useRef<ListChange[]>([]);
+    const detailChanges = useRef(new Map<string, CountChange[]>());
+
+    const updateDrafts = useCallback((change: ListChange) => {
+        if (draftsRequest.current) draftChanges.current.push(change);
+        setDraftCounts(change);
+    }, []);
+
+    const updateReview = useCallback((change: ListChange) => {
+        if (reviewRequest.current) reviewChanges.current.push(change);
+        if (reviewLoaded.current) setPendingReviewCounts(change);
+    }, []);
+
+    const updateCount = useCallback((folio: string, change: CountChange) => {
+        detailChanges.current.get(folio)?.push(change);
+        setInventoryCount((current) => current?.folio === folio ? change(current) : current);
+    }, []);
+
+    const getDrafts = useCallback(() => {
+        if (draftsRequest.current) return draftsRequest.current;
+        setLoadingDrafts(true);
+        setDraftsError(null);
+        draftChanges.current = [];
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.getDrafts();
+                const merged = draftChanges.current.reduce((counts, change) => change(counts), data);
+                setDraftCounts(merged);
+                setHasLoadedDrafts(true);
+                return merged;
+            } catch (error) {
+                setDraftsError(getApiErrorMessage(error, "No fue posible consultar los conteos en curso."));
+                return [];
+            } finally {
+                setLoadingDrafts(false);
+                draftsRequest.current = null;
+                draftChanges.current = [];
+            }
+        })();
+        draftsRequest.current = request;
+        return request;
+    }, []);
+
+    const getPendingReview = useCallback(() => {
+        if (reviewRequest.current) return reviewRequest.current;
+        setLoadingPendingReview(true);
+        setReviewError(null);
+        reviewChanges.current = [];
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.getPendingReview();
+                const merged = reviewChanges.current.reduce((counts, change) => change(counts), data);
+                setPendingReviewCounts(merged);
+                reviewLoaded.current = true;
+                setHasLoadedPendingReview(true);
+                return merged;
+            } catch (error) {
+                setReviewError(getApiErrorMessage(error, "No fue posible consultar los conteos pendientes de revisión."));
+                return [];
+            } finally {
+                setLoadingPendingReview(false);
+                reviewRequest.current = null;
+                reviewChanges.current = [];
+            }
+        })();
+        reviewRequest.current = request;
+        return request;
+    }, []);
+
+    const getByFolio = useCallback(async (folio: string): Promise<InventoryCount | null> => {
+        const key = folio.trim();
+        const version = ++viewVersion.current;
+        if (!key) {
+            setLoading(false);
+            setError("Ingresa un folio de conteo.");
+            return null;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            let request = detailRequests.current.get(key);
+            if (!request) {
+                detailChanges.current.set(key, []);
+                request = inventoryCountsService.getByFolio(key).then((data) =>
+                    (detailChanges.current.get(key) ?? []).reduce((count, change) => change(count), data)
+                ).finally(() => {
+                    detailRequests.current.delete(key);
+                    detailChanges.current.delete(key);
+                });
+                detailRequests.current.set(key, request);
+            }
+            const data = await request;
+            if (version !== viewVersion.current) return null;
+            setInventoryCount(data);
+            return data;
+        } catch (error) {
+            if (version === viewVersion.current) {
+                setInventoryCount(null);
+                setError(getApiErrorMessage(error, "No fue posible consultar el conteo físico."));
+            }
+            return null;
+        } finally {
+            if (version === viewVersion.current) setLoading(false);
+        }
+    }, []);
+
+    const startCount = useCallback((payload: StartInventoryCountRequest) => {
+        if (startRequest.current) return startRequest.current;
+        const version = ++viewVersion.current;
+        setLoading(true);
+        setError(null);
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.start(payload);
+                updateDrafts((counts) => upsertCount(counts, data));
+                if (version !== viewVersion.current) return null;
+                setInventoryCount(data);
+                return data;
+            } catch (error) {
+                if (version === viewVersion.current) setError(getApiErrorMessage(error, "No fue posible iniciar el conteo físico."));
+                return null;
+            } finally {
+                startRequest.current = null;
+                if (version === viewVersion.current) setLoading(false);
+            }
+        })();
+        startRequest.current = request;
+        return request;
+    }, [updateDrafts]);
+
+    const captureItem = useCallback((folio: string, ppeProductId: number, countedQuantity: number) => {
+        const key = JSON.stringify([folio, ppeProductId]);
+        const pending = captureRequests.current.get(key);
+        if (pending) return pending;
+        if (submitRequest.current || postRequest.current?.folio === folio) return Promise.resolve(null);
+        if (!Number.isInteger(countedQuantity) || countedQuantity < 0) {
+            setError("La cantidad contada debe ser un número entero igual o mayor a cero.");
+            return Promise.resolve(null);
+        }
+        const version = viewVersion.current;
+        setSavingProductIds((current) => new Set(current).add(ppeProductId));
+        setError(null);
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.captureItem(folio, ppeProductId, { countedQuantity });
+                const change: CountChange = (count) => ({
+                    ...count,
+                    items: count.items.map((item) => item.ppeProductId === data.ppeProductId ? data : item),
+                });
+                updateCount(folio, change);
+                updateDrafts((counts) => counts.map((count) => count.folio === folio ? change(count) : count));
+                return version === viewVersion.current ? data : null;
+            } catch (error) {
+                if (version === viewVersion.current) setError(getApiErrorMessage(error, "No fue posible guardar la cantidad contada."));
+                return null;
+            } finally {
+                captureRequests.current.delete(key);
+                setSavingProductIds((current) => {
+                    const next = new Set(current);
+                    next.delete(ppeProductId);
+                    return next;
+                });
+            }
+        })();
+        captureRequests.current.set(key, request);
+        return request;
+    }, [updateCount, updateDrafts]);
+
+    const submitCount = useCallback((folio: string) => {
+        if (submitRequest.current) return submitRequest.current;
+        if (captureRequests.current.size > 0) return Promise.resolve(null);
+        const version = viewVersion.current;
+        setSubmitting(true);
+        setError(null);
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.submit(folio);
+                updateCount(data.folio, () => data);
+                updateDrafts((counts) => counts.filter((count) => count.folio !== data.folio));
+                if (data.status === 2) updateReview((counts) => upsertCount(counts, data));
+                return version === viewVersion.current ? data : null;
+            } catch (error) {
+                if (version === viewVersion.current) setError(getApiErrorMessage(error, "No fue posible enviar el conteo a revisión."));
+                return null;
+            } finally {
+                submitRequest.current = null;
+                setSubmitting(false);
+            }
+        })();
+        submitRequest.current = request;
+        return request;
+    }, [updateCount, updateDrafts, updateReview]);
+
+    const postCount = useCallback((folio: string) => {
+        if (postRequest.current) {
+            return postRequest.current.folio === folio ? postRequest.current.promise : Promise.resolve(null);
+        }
+        setPostingFolio(folio);
+        setPostError(null);
+        const request = (async () => {
+            try {
+                const data = await inventoryCountsService.post(folio);
+                updateReview((counts) => counts.filter((count) => count.folio !== data.folio));
+                updateCount(data.folio, () => data);
+                return data;
+            } catch (error) {
+                setPostError(getApiErrorMessage(error, "No fue posible publicar el conteo físico."));
+                return null;
+            } finally {
+                postRequest.current = null;
+                setPostingFolio(null);
+            }
+        })();
+        postRequest.current = { folio, promise: request };
+        return request;
+    }, [updateCount, updateReview]);
+
+    const clearCount = useCallback(() => {
+        viewVersion.current += 1;
+        setInventoryCount(null);
+        setLoading(false);
+        setError(null);
+    }, []);
+
+    const openCount = useCallback((count: InventoryCount) => {
+        viewVersion.current += 1;
+        setInventoryCount(count);
+        setLoading(false);
+        setError(null);
+    }, []);
 
     return {
-        inventoryCount,
-
-        loading,
-        savingProductId,
-        submitting,
-
-        error,
-
-        getByFolio,
-        startCount,
-        captureItem,
-        submitCount,
-        clearCount,
-        pendingReviewCounts,
-
-        loadingPendingReview,
-        postingFolio,
-
-        reviewError,
-
-        getPendingReview,
-        postCount,
-
-        draftCounts,
-        loadingDrafts,
-        draftsError,
-
-        getDrafts,
-        openCount,
+        inventoryCount, loading, error, savingProductIds, submitting, postingFolio, postError,
+        draftCounts, hasLoadedDrafts, loadingDrafts, draftsError, getDrafts,
+        pendingReviewCounts, hasLoadedPendingReview, loadingPendingReview, reviewError, getPendingReview,
+        getByFolio, startCount, captureItem, submitCount, postCount, clearCount, openCount,
     };
 };

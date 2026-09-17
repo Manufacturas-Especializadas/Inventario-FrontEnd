@@ -80,9 +80,7 @@ export const useInventory = (
                     setHasLoaded(true);
                 } catch (error) {
                     if (currentRequestId !== requestId.current) return;
-                    setBalances([]);
-                    setHasLoaded(false);
-
+                    // Keep the last successful result; invalidate() clears it when the scope changes.
                     setError(
                         getApiErrorMessage(
                             error,

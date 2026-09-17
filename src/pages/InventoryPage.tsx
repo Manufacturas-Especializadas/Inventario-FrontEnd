@@ -52,9 +52,11 @@ export const InventoryPage = () => {
     const {
         warehouses,
         loading: loadingWarehouses,
+        error: warehousesError,
+        refresh: refreshWarehouses,
     } = useWarehouses();
 
-    const showResults = hasRequested && hasLoaded && !loading && !error;
+    const showResults = hasRequested && hasLoaded;
 
 
     const filteredBalances =
@@ -308,6 +310,19 @@ export const InventoryPage = () => {
                         </label>
                     </div>
                 </div>
+                {warehousesError && (
+                    <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        <p>{warehousesError}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refreshWarehouses()}
+                            disabled={loadingWarehouses}
+                            className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 disabled:opacity-50"
+                        >
+                            Reintentar almacenes
+                        </button>
+                    </div>
+                )}
                 <div className="mt-6 flex justify-end">
                     <button
                         type="button"
@@ -318,12 +333,14 @@ export const InventoryPage = () => {
                         disabled={loading || loadingWarehouses}
                         className="min-h-11 w-full rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:w-auto"
                     >
-                        Consultar inventario
+                        {loading
+                            ? hasLoaded ? "Actualizando..." : "Consultando..."
+                            : "Consultar inventario"}
                     </button>
                 </div>
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+            <section aria-busy={loading} aria-label="Resultados de inventario" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-6 sm:px-8">
                     <div>
                         <h2 className="text-lg font-semibold tracking-tight text-slate-900">
@@ -348,7 +365,9 @@ export const InventoryPage = () => {
                         disabled={!hasRequested || loading}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
-                        Actualizar
+                        {loading
+                            ? hasLoaded ? "Actualizando..." : "Consultando..."
+                            : "Actualizar"}
                     </button>
                 </div>
 
@@ -358,12 +377,17 @@ export const InventoryPage = () => {
                     </div>
                 )}
 
-                {hasRequested && loading && (
+                {hasRequested && loading && !hasLoaded && (
                     <CatalogLoadingSkeleton label="Cargando inventario" />
                 )}
 
                 {hasRequested && !loading && error && (
                     <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        {hasLoaded && (
+                            <p className="mb-2 font-medium">
+                                No fue posible actualizar el inventario. Se muestran los datos de la última consulta.
+                            </p>
+                        )}
                         <p>{error}</p>
                         <button
                             type="button"
