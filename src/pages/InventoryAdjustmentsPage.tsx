@@ -1,5 +1,6 @@
 import {
     useState,
+    useRef,
     type FormEvent,
 } from "react";
 
@@ -11,9 +12,10 @@ import {
     useWarehouses,
 } from "../hooks/useWarehouses";
 
-import {
-    usePPEProducts,
-} from "../hooks/usePPEProducts";
+import { warehouseProductsService } from "../api/services/WarehouseProductsService";
+import type { WarehouseProduct, InventoryAdjustmentFilters } from "../types/types";
+import { getApiErrorMessage } from "../utils/utils";
+import { PageHeader } from "../components/ui/PageHeader";
 
 import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 
@@ -61,10 +63,12 @@ export const InventoryAdjustmentsPage = () => {
     const {
         adjustment,
 
-        loading,
+        loadingDetail: loading,
         creating,
 
-        error,
+        detailError,
+        createError,
+        adjustments, hasLoadedList, loadingList, listError, getAdjustments, clearList,
 
         getByFolio,
         createAdjustment,
@@ -79,23 +83,52 @@ export const InventoryAdjustmentsPage = () => {
         hasLoaded: warehousesLoaded,
         refresh: loadWarehouses,
     } = useWarehouses({ autoLoad: false });
-
-
-    const {
-        products,
-        loading: loadingProducts,
-        error: productsError,
-        hasLoaded: productsLoaded,
-        refresh: loadProducts,
-    } = usePPEProducts({ autoLoad: false });
-
     const [showForm, setShowForm] = useState(false);
     const [showLookup, setShowLookup] = useState(false);
+    const [historyScope, setHistoryScope] = useState<"all" | "warehouse">("all");
+    const [historyFilters, setHistoryFilters] = useState<InventoryAdjustmentFilters>({});
+    const warehouseRequest = useRef<Promise<void> | null>(null);
+    const productRequests = useRef(new Map<number, Promise<void>>());
+    const [productsByWarehouse, setProductsByWarehouse] = useState<Record<number, WarehouseProduct[]>>({});
+    const [productErrors, setProductErrors] = useState<Record<number, string | null>>({});
+    const [loadingProductsByWarehouse, setLoadingProductsByWarehouse] = useState<Record<number, boolean>>({});
 
-    const loadFormCatalogs = () => Promise.all([
-        !warehousesLoaded && !loadingWarehouses ? loadWarehouses() : Promise.resolve(),
-        !productsLoaded && !loadingProducts ? loadProducts() : Promise.resolve(),
-    ]);
+    const loadFormCatalogs = () => {
+        if (warehousesLoaded) return Promise.resolve();
+        if (warehouseRequest.current) return warehouseRequest.current;
+        const request = loadWarehouses().finally(() => { warehouseRequest.current = null; });
+        warehouseRequest.current = request;
+        return request;
+    };
+
+    // Read-only cache keyed by warehouse; late responses cannot replace another warehouse's options.
+    const loadWarehouseProducts = (id: number) => {
+        if (!id || productsByWarehouse[id]) return Promise.resolve();
+        const pending = productRequests.current.get(id);
+        if (pending) return pending;
+        setLoadingProductsByWarehouse((current) => ({ ...current, [id]: true }));
+        setProductErrors((current) => ({ ...current, [id]: null }));
+        const request = warehouseProductsService.getByWarehouse(id).then((data) => {
+            setProductsByWarehouse((current) => ({ ...current, [id]: data }));
+        }).catch((error) => {
+            setProductErrors((current) => ({ ...current, [id]: getApiErrorMessage(error, "No fue posible cargar los productos del almacén.") }));
+        }).finally(() => {
+            productRequests.current.delete(id);
+            setLoadingProductsByWarehouse((current) => ({ ...current, [id]: false }));
+        });
+        productRequests.current.set(id, request);
+        return request;
+    };
+
+    const changeHistoryFilters = (filters: InventoryAdjustmentFilters) => {
+        setHistoryFilters(filters);
+        clearList();
+    };
+    const invalidDates = Boolean(historyFilters.dateFrom && historyFilters.dateTo && historyFilters.dateFrom > historyFilters.dateTo);
+    const queryHistory = () => {
+        if (invalidDates || (historyScope === "warehouse" && !historyFilters.warehouseId)) return;
+        void getAdjustments(historyFilters);
+    };
 
     const toggleForm = () => {
         if (!showForm) void loadFormCatalogs();
@@ -147,16 +180,16 @@ export const InventoryAdjustmentsPage = () => {
     ] = useState("");
 
 
-    const catalogError =
-        warehousesError ||
-        productsError;
+    const products = (productsByWarehouse[Number(warehouseId)] ?? []).filter((product) => product.isActive);
+    const loadingProducts = loadingProductsByWarehouse[Number(warehouseId)] ?? false;
+    const productsError = productErrors[Number(warehouseId)];
+    const catalogError = warehousesError;
 
 
     const loadingCatalogs =
-        loadingWarehouses ||
-        loadingProducts;
+        loadingWarehouses;
 
-    const catalogsReady = warehousesLoaded && productsLoaded;
+    const catalogsReady = warehousesLoaded;
 
 
     const resetForm = () => {
@@ -285,6 +318,15 @@ export const InventoryAdjustmentsPage = () => {
         }
 
 
+        if (loadingProducts || !productsByWarehouse[parsedWarehouseId]) {
+            setFormError("Espera a que se carguen los productos del almacén.");
+            return null;
+        }
+        if (!items.length || items.some((item) => !products.some((product) => product.ppeProductId === Number(item.ppeProductId)))) {
+            setFormError("Selecciona productos activos configurados para este almacén.");
+            return null;
+        }
+
         const parsedItems =
             items.map(
                 (item) => ({
@@ -397,6 +439,7 @@ export const InventoryAdjustmentsPage = () => {
 
     const handleConfirm =
         async () => {
+            if (!confirmationOpen || creating) return;
             const request =
                 validateForm();
 
@@ -439,8 +482,6 @@ export const InventoryAdjustmentsPage = () => {
                 null
             );
 
-            clearAdjustment();
-
             await getByFolio(
                 searchFolio
             );
@@ -459,23 +500,7 @@ export const InventoryAdjustmentsPage = () => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
-            <div className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
-                <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                    MESA · Administración
-                </p>
-
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Ajustes de inventario
-                </h1>
-
-                <p className="mt-3 max-w-2xl wrap-break-word text-sm leading-6 text-slate-600">
-                    Registra correcciones
-                    manuales de inventario
-                    debidamente justificadas.
-                </p>
-            </div>
-
+            <PageHeader eyebrow="MESA · Administración" title="Ajustes de inventario" description="Consulta ajustes y registra correcciones manuales de inventario debidamente justificadas." />
 
             <div className="flex flex-col gap-3 sm:flex-row">
                 <button
@@ -500,15 +525,68 @@ export const InventoryAdjustmentsPage = () => {
 
 
 
-            {((showForm && formError) || ((showForm || showLookup) && error)) && (
+
+            <section aria-label="Historial de ajustes" aria-busy={loadingList} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                <h2 className="text-lg font-semibold text-slate-900">Historial de ajustes</h2>
+                <fieldset className="my-5 flex flex-wrap gap-3">
+                    <legend className="sr-only">Alcance del historial</legend>
+                    {([["all", "Todos los almacenes"], ["warehouse", "Almacén específico"]] as const).map(([value, label]) => (
+                        <label key={value} className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm">
+                            <input type="radio" name="adjustment-history-scope" value={value} checked={historyScope === value} onChange={() => {
+                                if (value === historyScope) return;
+                                setHistoryScope(value);
+                                changeHistoryFilters({ ...historyFilters, warehouseId: undefined });
+                                if (value === "warehouse") void loadFormCatalogs();
+                            }} />{label}
+                        </label>
+                    ))}
+                </fieldset>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {historyScope === "warehouse" && <div>
+                        <label htmlFor="history-warehouse" className="block text-sm font-medium">Almacén</label>
+                        <select id="history-warehouse" value={historyFilters.warehouseId ?? ""} disabled={loadingWarehouses} onChange={(event) => changeHistoryFilters({ ...historyFilters, warehouseId: Number(event.target.value) || undefined })} className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3">
+                            <option value="">{loadingWarehouses ? "Cargando almacenes..." : "Selecciona un almacén"}</option>
+                            {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} — {warehouse.name}</option>)}
+                        </select>
+                    </div>}
+                    {([["dateFrom", "Desde"], ["dateTo", "Hasta"]] as const).map(([field, label]) => <div key={field}>
+                        <label htmlFor={"history-" + field} className="block text-sm font-medium">{label}</label>
+                        <input id={"history-" + field} type="date" value={historyFilters[field] ?? ""} aria-invalid={invalidDates} onChange={(event) => changeHistoryFilters({ ...historyFilters, [field]: event.target.value || undefined })} className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 px-3" />
+                    </div>)}
+                    <button type="button" onClick={queryHistory} disabled={loadingList || invalidDates || (historyScope === "warehouse" && !historyFilters.warehouseId)} className="min-h-11 self-end rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">{loadingList ? "Consultando..." : hasLoadedList ? "Actualizar" : "Consultar"}</button>
+                </div>
+                {historyScope === "warehouse" && warehousesError && <div role="alert" className="mt-4 text-red-700">{warehousesError}<button type="button" disabled={loadingWarehouses} onClick={() => void loadFormCatalogs()} className="ml-3 min-h-11 underline">Reintentar almacenes</button></div>}
+                {invalidDates && <p role="alert" className="mt-4 text-red-700">La fecha inicial no puede ser posterior a la fecha final.</p>}
+                {listError && <p role="alert" className="mt-4 text-red-700">{listError}</p>}
+                {loadingList && <CatalogLoadingSkeleton label="Consultando historial de ajustes" />}
+                {!loadingList && !listError && !hasLoadedList && <p className="mt-6 rounded-xl border border-dashed border-sky-200 bg-sky-50 p-6 text-sm">Los ajustes todavía no se han consultado.</p>}
+                {!loadingList && !listError && hasLoadedList && adjustments.length === 0 && <p className="mt-6 text-sm">No se encontraron ajustes para los filtros seleccionados.</p>}
+                {hasLoadedList && adjustments.length > 0 && <div className="mt-6 overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <caption className="sr-only">Ajustes para los filtros consultados</caption>
+                        <thead className="bg-slate-50 text-slate-600"><tr>{["Folio", "Almacén", "Motivo", "Creado por", "Fecha", "Acciones"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>
+                        <tbody>{adjustments.map((entry) => <tr key={entry.id} className="border-t border-slate-100">
+                            <td className="whitespace-nowrap px-4 py-3 font-mono">{entry.folio}</td>
+                            <td className="px-4 py-3">{entry.warehouseCode} — {entry.warehouseName}</td>
+                            <td className="min-w-48 max-w-sm break-words px-4 py-3">{entry.reason}</td>
+                            <td className="px-4 py-3">{entry.createdByName}</td>
+                            <td className="whitespace-nowrap px-4 py-3">{formatDateTime(entry.createdAt)}</td>
+                            <td className="px-4 py-3"><button type="button" onClick={() => void getByFolio(entry.folio)} className="min-h-11 whitespace-nowrap rounded-xl border border-sky-200 px-4 text-sky-800 focus-visible:ring-4 focus-visible:ring-sky-100" aria-label={"Ver detalle " + entry.folio}>Ver detalle</button></td>
+                        </tr>)}</tbody>
+                    </table>
+                </div>}
+            </section>
+            {loading && <CatalogLoadingSkeleton label="Cargando detalle del ajuste" />}
+            {detailError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{detailError}</p>}
+
+            {showForm && (formError || createError) && (
                 <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                    {(showForm && formError) ||
-                        error}
+                    {formError || createError}
                 </div>
             )}
 
 
-            {(showForm || showLookup) && successMessage && (
+            {successMessage && (
                 <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-800">
                     {
                         successMessage
@@ -532,7 +610,7 @@ export const InventoryAdjustmentsPage = () => {
                 )}
 
                 {showForm && loadingCatalogs && (
-                    <CatalogLoadingSkeleton label="Cargando almacenes y productos" />
+                    <CatalogLoadingSkeleton label="Cargando almacenes" />
                 )}
 
                 {showForm && catalogsReady && !loadingCatalogs && !catalogError && (
@@ -542,6 +620,9 @@ export const InventoryAdjustmentsPage = () => {
                         }
                         className="space-y-6"
                     >
+                        {warehouseId && loadingProducts && <CatalogLoadingSkeleton label="Cargando productos del almacén" />}
+                        {productsError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{productsError}<button type="button" onClick={() => void loadWarehouseProducts(Number(warehouseId))} className="ml-3 min-h-11 underline">Reintentar productos</button></div>}
+                        {warehouseId && productsByWarehouse[Number(warehouseId)] && products.length === 0 && <p role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4">Este almacén no tiene productos EPP configurados.</p>}
                         {/* Datos generales */}
 
                         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
@@ -573,11 +654,11 @@ export const InventoryAdjustmentsPage = () => {
                                         onChange={(
                                             event
                                         ) => {
-                                            setWarehouseId(
-                                                event
-                                                    .target
-                                                    .value
-                                            );
+                                            const value = event.target.value;
+                                            setWarehouseId(value);
+                                            setItems([createEmptyItem()]);
+                                            setFormError(null);
+                                            void loadWarehouseProducts(Number(value));
 
                                             setConfirmationOpen(
                                                 false
@@ -787,7 +868,7 @@ export const InventoryAdjustmentsPage = () => {
                                                                         product.isActive &&
                                                                         !otherSelectedIds.includes(
                                                                             String(
-                                                                                product.id
+                                                                                product.ppeProductId
                                                                             )
                                                                         )
                                                                 )
@@ -797,10 +878,10 @@ export const InventoryAdjustmentsPage = () => {
                                                                     ) => (
                                                                         <option
                                                                             key={
-                                                                                product.id
+                                                                                product.ppeProductId
                                                                             }
                                                                             value={
-                                                                                product.id
+                                                                                product.ppeProductId
                                                                             }
                                                                         >
                                                                             {
@@ -810,7 +891,7 @@ export const InventoryAdjustmentsPage = () => {
                                                                                 " — "
                                                                             }
                                                                             {
-                                                                                product.name
+                                                                                product.productName
                                                                             }
                                                                         </option>
                                                                     )
@@ -965,7 +1046,7 @@ export const InventoryAdjustmentsPage = () => {
                                                     (
                                                         product
                                                     ) =>
-                                                        product.id ===
+                                                        product.ppeProductId ===
                                                         Number(
                                                             item.ppeProductId
                                                         )
@@ -985,7 +1066,7 @@ export const InventoryAdjustmentsPage = () => {
                                                 >
                                                     <div>
                                                         <p className="wrap-break-word text-sm font-medium text-slate-800">
-                                                            {product?.name ??
+                                                            {product?.productName ??
                                                                 "Producto"}
                                                         </p>
 
@@ -1052,13 +1133,15 @@ export const InventoryAdjustmentsPage = () => {
 
             {/* Resultado / consulta */}
 
-            {(showForm || showLookup) && adjustment && (
+            {adjustment && (
                 <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
                             Resultado
                         </p>
 
+                        <button type="button" onClick={clearAdjustment} className="float-right min-h-11 rounded-xl border border-slate-200 px-4 text-sm">Cerrar detalle</button>
+                        <p className="mt-2 text-sm text-slate-600">Creado por: {adjustments.find((entry) => entry.folio === adjustment.folio)?.createdByName ?? ("Usuario #" + adjustment.createdByUserId)}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-3">
                             <h2 className="break-all font-mono text-lg font-semibold tracking-tight text-slate-900">
                                 {

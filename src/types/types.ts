@@ -763,6 +763,24 @@ export interface InventoryAdjustmentItem {
     availableQuantity: number;
 }
 
+export interface InventoryAdjustmentFilters {
+    warehouseId?: number;
+    dateFrom?: string;
+    dateTo?: string;
+}
+
+export interface InventoryAdjustmentSummary {
+    id: number;
+    folio: string;
+    warehouseId: number;
+    warehouseCode: string;
+    warehouseName: string;
+    reason: string;
+    createdByUserId: number;
+    createdByName: string;
+    createdAt: string;
+}
+
 export interface InventoryAdjustment {
     id: number;
 
