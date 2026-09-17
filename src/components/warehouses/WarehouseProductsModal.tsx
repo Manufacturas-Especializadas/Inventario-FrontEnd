@@ -12,10 +12,6 @@ import {
     useAuth,
 } from "../../hooks/useAuth";
 
-import {
-    usePPEProducts,
-} from "../../hooks/usePPEProducts";
-
 import { useWarehouseProducts } from "../../hooks/useWarehouseProducts.ts";
 
 import type {
@@ -51,17 +47,6 @@ export const WarehouseProductsModal = ({
 
 
     const {
-        products,
-        loading: loadingProducts,
-        hasLoaded: hasLoadedProducts,
-        error: productsError,
-        refresh: refreshProducts,
-    } = usePPEProducts({
-        autoLoad: false,
-    });
-
-
-    const {
         loadingWarehouseId,
         error: relationsError,
 
@@ -77,21 +62,9 @@ export const WarehouseProductsModal = ({
 
 
     const [
-        selectedProductId,
-        setSelectedProductId,
-    ] = useState("");
-
-
-    const [
         search,
         setSearch,
     ] = useState("");
-
-
-    const [
-        submitting,
-        setSubmitting,
-    ] = useState(false);
 
 
     const [
@@ -126,23 +99,9 @@ export const WarehouseProductsModal = ({
         void getByWarehouse(
             warehouse.id
         );
-
-        /*
-         * El catálogo completo de productos solamente
-         * lo necesita Administrator para asignar nuevos.
-         */
-        if (
-            isAdministrator &&
-            !hasLoadedProducts
-        ) {
-            void refreshProducts();
-        }
     }, [
         warehouse,
         getByWarehouse,
-        isAdministrator,
-        hasLoadedProducts,
-        refreshProducts,
     ]);
 
 
@@ -153,7 +112,6 @@ export const WarehouseProductsModal = ({
      * No eliminamos cache.
      */
     useEffect(() => {
-        setSelectedProductId("");
         setSearch("");
         setActionError(null);
         setSuccessMessage(null);
@@ -220,53 +178,6 @@ export const WarehouseProductsModal = ({
         warehouse.id;
 
 
-    const assignedProductIds =
-        useMemo(
-            () =>
-                new Set(
-                    relations.map(
-                        (relation) =>
-                            relation.ppeProductId
-                    )
-                ),
-            [relations]
-        );
-
-
-    /*
-     * Solo productos:
-     *
-     * - activos globalmente
-     * - que todavía NO tienen relación
-     *
-     * Si la relación existe pero está inactiva,
-     * se reactiva desde la tabla; no se crea otra.
-     */
-    const availableProducts =
-        useMemo(
-            () =>
-                products
-                    .filter(
-                        (product) =>
-                            product.isActive &&
-                            !assignedProductIds.has(
-                                product.id
-                            )
-                    )
-                    .sort(
-                        (a, b) =>
-                            a.name.localeCompare(
-                                b.name,
-                                "es"
-                            )
-                    ),
-            [
-                products,
-                assignedProductIds,
-            ]
-        );
-
-
     const filteredRelations =
         useMemo(() => {
             const normalizedSearch =
@@ -315,54 +226,6 @@ export const WarehouseProductsModal = ({
             relations,
             search,
         ]);
-
-
-    const handleAddProduct =
-        async () => {
-            if (
-                !warehouse ||
-                !selectedProductId
-            ) {
-                return;
-            }
-
-            setSubmitting(true);
-            setActionError(null);
-            setSuccessMessage(null);
-
-            try {
-                const created =
-                    await warehouseProductsService
-                        .create({
-                            warehouseId:
-                                warehouse.id,
-
-                            ppeProductId:
-                                Number(
-                                    selectedProductId
-                                ),
-                        });
-
-                upsertRelation(
-                    created
-                );
-
-                setSelectedProductId("");
-
-                setSuccessMessage(
-                    `Producto "${created.productName}" agregado al almacén.`
-                );
-            } catch (error) {
-                setActionError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible agregar el producto al almacén."
-                    )
-                );
-            } finally {
-                setSubmitting(false);
-            }
-        };
 
 
     const handleStatusChange =
@@ -481,134 +344,6 @@ export const WarehouseProductsModal = ({
 
 
                 <div className="overflow-y-auto px-6 py-6 sm:px-8">
-                    {/* AGREGAR PRODUCTO */}
-                    {isAdministrator && (
-                        <section className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5">
-                            <div>
-                                <h3 className="text-sm font-semibold text-slate-900">
-                                    Agregar producto
-                                </h3>
-
-                                <p className="mt-1 text-sm text-slate-600">
-                                    Asigna un producto activo para que forme parte del inventario y los conteos de este almacén.
-                                </p>
-                            </div>
-
-                            {!warehouse.isActive && (
-                                <div
-                                    role="alert"
-                                    className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-                                >
-                                    El almacén está inactivo. No puedes agregar o reactivar productos hasta activarlo.
-                                </div>
-                            )}
-
-                            {loadingProducts && (
-                                <p className="mt-4 text-sm text-sky-800">
-                                    Cargando catálogo de productos...
-                                </p>
-                            )}
-
-                            {!loadingProducts &&
-                                productsError && (
-                                    <div
-                                        role="alert"
-                                        className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                                    >
-                                        <span>
-                                            {productsError}
-                                        </span>
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                void refreshProducts()
-                                            }
-                                            className="font-semibold underline underline-offset-2"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                )}
-
-                            {!loadingProducts &&
-                                !productsError &&
-                                hasLoadedProducts && (
-                                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                                        <select
-                                            value={
-                                                selectedProductId
-                                            }
-                                            onChange={(
-                                                event
-                                            ) =>
-                                                setSelectedProductId(
-                                                    event
-                                                        .target
-                                                        .value
-                                                )
-                                            }
-                                            disabled={
-                                                submitting ||
-                                                !warehouse.isActive ||
-                                                availableProducts.length ===
-                                                0
-                                            }
-                                            className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                                        >
-                                            <option value="">
-                                                {availableProducts.length ===
-                                                    0
-                                                    ? "No hay productos disponibles para asignar"
-                                                    : "Selecciona un producto"}
-                                            </option>
-
-                                            {availableProducts.map(
-                                                (
-                                                    product
-                                                ) => (
-                                                    <option
-                                                        key={
-                                                            product.id
-                                                        }
-                                                        value={
-                                                            product.id
-                                                        }
-                                                    >
-                                                        {
-                                                            product.sku
-                                                        }{" "}
-                                                        ·{" "}
-                                                        {
-                                                            product.name
-                                                        }
-                                                    </option>
-                                                )
-                                            )}
-                                        </select>
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                void handleAddProduct()
-                                            }
-                                            disabled={
-                                                submitting ||
-                                                !warehouse.isActive ||
-                                                !selectedProductId
-                                            }
-                                            className="min-h-11 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {submitting
-                                                ? "Agregando..."
-                                                : "Agregar"}
-                                        </button>
-                                    </div>
-                                )}
-                        </section>
-                    )}
-
-
                     {/* MENSAJES */}
                     {actionError && (
                         <div

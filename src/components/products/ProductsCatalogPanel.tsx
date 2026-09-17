@@ -431,7 +431,7 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
 
                                             {isAdministrator && (
                                                 <td className="px-5 py-4">
-                                                    <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-[28rem] sm:grid-cols-3">                                                        <button
+                                                    <div className="ml-auto grid w-40 grid-cols-1 gap-2 sm:w-md sm:grid-cols-3">                                                        <button
                                                         type="button"
                                                         onClick={() =>
                                                             startEditing(
