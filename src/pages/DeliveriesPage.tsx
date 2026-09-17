@@ -57,6 +57,7 @@ const normalizeText = (
 export const DeliveriesPage = () => {
     const {
         pendingRequests,
+        pendingHasLoaded,
 
         loadingPending,
         deliveringFolio,
@@ -75,7 +76,9 @@ export const DeliveriesPage = () => {
         warehouses,
         loading: loadingWarehouses,
         error: warehousesError,
-    } = useWarehouses();
+        hasLoaded: warehousesLoaded,
+        refresh: loadWarehouses,
+    } = useWarehouses({ autoLoad: false });
 
 
     const [
@@ -83,8 +86,18 @@ export const DeliveriesPage = () => {
         setSelectedWarehouseId,
     ] = useState("");
 
-    const [hasRequested, setHasRequested] = useState(false);
+    const [scope, setScope] = useState<"all" | "warehouse">("all");
+    const warehouseLoadRequest = useRef<Promise<void> | null>(null);
+    const deliveryInFlight = useRef(false);
     const warehouseSelectionVersion = useRef(0);
+
+    const ensureWarehouses = () => {
+        if (warehousesLoaded) return Promise.resolve();
+        if (warehouseLoadRequest.current) return warehouseLoadRequest.current;
+        const request = loadWarehouses().finally(() => { warehouseLoadRequest.current = null; });
+        warehouseLoadRequest.current = request;
+        return request;
+    };
 
     const [
         pendingSearch,
@@ -359,7 +372,7 @@ export const DeliveriesPage = () => {
 
     const getWarehouseFilterId =
         (): number | null => {
-            if (!selectedWarehouseId) {
+            if (scope === "all" || !selectedWarehouseId) {
                 return null;
             }
 
@@ -391,11 +404,21 @@ export const DeliveriesPage = () => {
         clearDeliverError();
         setDeliveryResult(null);
         warehouseSelectionVersion.current += 1;
-        setHasRequested(false);
         clearPending();
         resetPendingFilters();
     };
 
+    const handleScopeChange = (value: "all" | "warehouse") => {
+        if (value === scope) return;
+        setScope(value);
+        handleWarehouseChange("");
+        if (value === "warehouse") void ensureWarehouses();
+    };
+
+    const canQuery = scope === "all" || getWarehouseFilterId() !== null;
+    const scopeLabel = scope === "all"
+        ? "Todos los almacenes"
+        : warehouses.find((warehouse) => warehouse.id === Number(selectedWarehouseId))?.name ?? "Selecciona un almacén";
 
     const openDelivery = (
         folio: string
@@ -428,6 +451,7 @@ export const DeliveriesPage = () => {
             folio: string
         ) => {
             event.preventDefault();
+            if (deliveryInFlight.current) return;
 
             const normalizedEmployeeNumber =
                 employeeNumber.trim();
@@ -439,25 +463,25 @@ export const DeliveriesPage = () => {
             setDeliveryResult(null);
             const currentWarehouseVersion = warehouseSelectionVersion.current;
 
-            const result =
-                await deliverRequest(
+            deliveryInFlight.current = true;
+            try {
+                const result = await deliverRequest(
                     folio,
                     normalizedEmployeeNumber
                 );
 
-            if (!result || currentWarehouseVersion !== warehouseSelectionVersion.current) {
-                return;
+                if (currentWarehouseVersion !== warehouseSelectionVersion.current) {
+                    clearDeliverError();
+                    return;
+                }
+                if (!result) return;
+
+                setDeliveryResult(result);
+                setDeliveryFolio(null);
+                setEmployeeNumber("");
+            } finally {
+                deliveryInFlight.current = false;
             }
-
-            setDeliveryResult(
-                result
-            );
-
-            setDeliveryFolio(
-                null
-            );
-
-            setEmployeeNumber("");
         };
 
 
@@ -476,11 +500,24 @@ export const DeliveriesPage = () => {
                 <div className="mb-6 flex items-center gap-3">
                     <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">01</span>
                     <div>
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Selecciona el almacén</h2>
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Alcance de consulta</h2>
                         <p className="mt-1 text-sm leading-6 text-slate-500">Consulta las entregas pendientes de un almacén o de todos.</p>
                     </div>
                 </div>
+                <fieldset className="mb-5 flex flex-wrap gap-3">
+                    <legend className="sr-only">Alcance de consulta</legend>
+                    {([
+                        ["all", "Todos los almacenes"],
+                        ["warehouse", "Un almacén específico"],
+                    ] as const).map(([value, label]) => (
+                        <label key={value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+                            <input type="radio" name="delivery-scope" value={value} checked={scope === value} onChange={() => handleScopeChange(value)} className="h-4 w-4 accent-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200" />
+                            {label}
+                        </label>
+                    ))}
+                </fieldset>
                 <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+                    {scope === "warehouse" && (
                     <div className="w-full max-w-md">
                         <label htmlFor="delivery-warehouse" className="block text-sm font-medium text-slate-700">
                             Almacén
@@ -505,7 +542,7 @@ export const DeliveriesPage = () => {
                             className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                         >
                             <option value="">
-                                Todos los almacenes
+                                {loadingWarehouses ? "Cargando almacenes..." : "Selecciona un almacén"}
                             </option>
 
                             {warehouses
@@ -539,35 +576,37 @@ export const DeliveriesPage = () => {
                                 )}
                         </select>
                     </div>
+                    )}
 
 
                     <button
                         type="button"
                         onClick={() => {
-                            setHasRequested(true);
+                            if (!canQuery) return;
                             void getPending(
                                 getWarehouseFilterId()
                             );
                         }}
                         disabled={
-                            loadingPending
+                            loadingPending || !canQuery
                         }
                         className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                     >
                         {loadingPending
                             ? "Consultando..."
-                            : hasRequested
+                            : pendingHasLoaded
                                 ? "Actualizar"
                                 : "Consultar entregas"}
                     </button>
                 </div>
 
 
-                {warehousesError && (
+                {scope === "warehouse" && warehousesError && (
                     <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {
                             warehousesError
                         }
+                        <button type="button" disabled={loadingWarehouses} onClick={() => void ensureWarehouses()} className="ml-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2 font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 disabled:opacity-50">Reintentar almacenes</button>
                     </p>
                 )}
             </section>
@@ -693,8 +732,7 @@ export const DeliveriesPage = () => {
 
 
             {/* Solicitudes */}
-            {hasRequested && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <section aria-label="Solicitudes por entregar" aria-busy={loadingPending} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div className="flex items-start gap-3">
                         <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">02</span>
                         <div>
@@ -702,6 +740,7 @@ export const DeliveriesPage = () => {
                             <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                                 Solicitudes por entregar
                             </h2>
+                            <p className="mt-2 text-sm font-medium text-sky-800">Alcance: {scopeLabel}</p>
 
                             <p className="mt-2 text-sm leading-6 text-slate-500">
                                 Solo aparecen solicitudes
@@ -939,7 +978,10 @@ export const DeliveriesPage = () => {
                         </div>
                     )}
 
-                    {hasRequested && pendingError && (
+                    {!pendingHasLoaded && !loadingPending && !pendingError && (
+                        <p className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center text-sm text-slate-700">Las solicitudes pendientes todavía no se han consultado.</p>
+                    )}
+                    {pendingError && (
                         <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {
                                 pendingError
@@ -948,7 +990,7 @@ export const DeliveriesPage = () => {
                     )}
 
 
-                    {hasRequested && loadingPending &&
+                    {loadingPending &&
                         pendingRequests.length ===
                         0 && (
                             <div role="status" className="mt-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
@@ -958,14 +1000,13 @@ export const DeliveriesPage = () => {
                         )}
 
 
-                    {hasRequested && !loadingPending &&
+                    {pendingHasLoaded && !loadingPending &&
                         !pendingError &&
                         pendingRequests.length ===
                         0 && (
                             <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
                                 <p className="text-sm font-medium text-slate-700">
-                                    No hay solicitudes
-                                    pendientes.
+                                    No hay solicitudes pendientes para entregar en este alcance.
                                 </p>
 
                                 <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -1244,8 +1285,7 @@ export const DeliveriesPage = () => {
                                                                     type="submit"
                                                                     disabled={
                                                                         !employeeNumber.trim() ||
-                                                                        deliveringFolio ===
-                                                                        request.folio
+                                                                        deliveringFolio !== null
                                                                     }
                                                                     className="min-h-11 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
                                                                 >
@@ -1264,7 +1304,6 @@ export const DeliveriesPage = () => {
                             </div>
                         )}
                 </section>
-            )}
         </div>
     );
 };
