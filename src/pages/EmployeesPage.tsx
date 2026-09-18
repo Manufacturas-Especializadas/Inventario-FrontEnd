@@ -1,5 +1,6 @@
 import {
     useMemo,
+    useRef,
     useState,
     type FormEvent,
 } from "react";
@@ -53,10 +54,13 @@ const getUnitTypeLabel = (
 export const EmployeesPage = () => {
     const {
         employees,
+        hasLoaded,
+        refresh,
+        mutationError,
 
         loading,
         saving,
-        changingStatusId,
+        changingStatusIds,
 
         error,
 
@@ -65,15 +69,27 @@ export const EmployeesPage = () => {
         setEmployeeStatus,
 
         clearError,
-    } = useEmployees();
+    } = useEmployees({ autoLoad: false });
 
 
     const {
         organizationalUnits,
+        hasLoaded: unitsHasLoaded,
+        error: unitsError,
+        refresh: refreshUnits,
         loading:
         loadingOrganizationalUnits,
     } =
-        useOrganizationalUnits();
+        useOrganizationalUnits({ autoLoad: false });
+    const pendingUnits = useRef<ReturnType<typeof refreshUnits> | null>(null);
+    const loadUnits = () => {
+        if (pendingUnits.current) return pendingUnits.current;
+        if (unitsHasLoaded) return Promise.resolve(organizationalUnits);
+        const request = refreshUnits().finally(() => { pendingUnits.current = null; });
+        pendingUnits.current = request;
+        return request;
+    };
+    const unitsReady = unitsHasLoaded && !loadingOrganizationalUnits && !unitsError;
 
 
     const [
@@ -258,6 +274,7 @@ export const EmployeesPage = () => {
             setShowForm(
                 true
             );
+            void loadUnits();
         };
 
 
@@ -299,6 +316,7 @@ export const EmployeesPage = () => {
         setShowForm(
             true
         );
+        void loadUnits();
 
         window.scrollTo({
             top: 0,
@@ -322,6 +340,7 @@ export const EmployeesPage = () => {
                 FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (saving || !unitsReady || activeUnits.length === 0 || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))) return;
 
             setFormError(
                 null
@@ -549,6 +568,7 @@ export const EmployeesPage = () => {
                     onClick={
                         openCreateForm
                     }
+                    disabled={saving}
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                 >
                     <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -560,10 +580,10 @@ export const EmployeesPage = () => {
 
 
             {(formError ||
-                error) && (
+                mutationError) && (
                     <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
                         {formError ||
-                            error}
+                            mutationError}
                     </div>
                 )}
 
@@ -597,7 +617,18 @@ export const EmployeesPage = () => {
                     </div>
 
 
+                    {loadingOrganizationalUnits && <p role="status" className="mt-4 text-sm text-sky-800">Cargando unidades organizacionales...</p>}
+                    {unitsError && (
+                        <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <p>No fue posible cargar las unidades organizacionales. {unitsError}</p>
+                            <button type="button" disabled={loadingOrganizationalUnits} onClick={() => void loadUnits()}
+                                className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar unidades</button>
+                        </div>
+                    )}
+                    {unitsReady && activeUnits.length === 0 && <p role="status" className="mt-4 text-sm text-slate-600">No hay unidades organizacionales activas disponibles.</p>}
+
                     <form
+                        aria-busy={saving || loadingOrganizationalUnits}
                         onSubmit={
                             handleSubmit
                         }
@@ -691,7 +722,7 @@ export const EmployeesPage = () => {
                                     }
                                     disabled={
                                         saving ||
-                                        loadingOrganizationalUnits
+                                        !unitsReady
                                     }
                                     className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
                                 >
@@ -700,6 +731,11 @@ export const EmployeesPage = () => {
                                         una unidad
                                     </option>
 
+                                    {!unitsReady && organizationalUnitId && (
+                                        <option value={organizationalUnitId} disabled>
+                                            {employees.find((employee) => employee.id === editingEmployeeId)?.organizationalUnitName ?? "Unidad actual"}
+                                        </option>
+                                    )}
                                     {activeUnits.map(
                                         (
                                             unit
@@ -744,7 +780,7 @@ export const EmployeesPage = () => {
                             <button
                                 type="submit"
                                 disabled={
-                                    saving
+                                    saving || !unitsReady || activeUnits.length === 0 || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))
                                 }
                                 className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                             >
@@ -762,7 +798,7 @@ export const EmployeesPage = () => {
 
             {/* Resumen */}
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            {hasLoaded && <div className="grid gap-4 sm:grid-cols-3">
                 <div className="min-w-0 rounded-2xl border border-sky-200 bg-linear-to-br from-white to-sky-50/70 p-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-6">
                     <p className="text-sm text-slate-500">
                         Total
@@ -800,12 +836,12 @@ export const EmployeesPage = () => {
                         }
                     </p>
                 </div>
-            </div>
+            </div>}
 
 
             {/* Tabla */}
 
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+            <section aria-label="Empleados registrados" aria-busy={loading} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="border-b border-slate-200 p-6 sm:p-8">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -814,7 +850,7 @@ export const EmployeesPage = () => {
                                 registrados
                             </h2>
 
-                            <p className="mt-1 text-sm leading-6 text-slate-500">
+                            {hasLoaded && <p className="mt-1 text-sm leading-6 text-slate-500">
                                 {
                                     filteredEmployees.length
                                 }{" "}
@@ -823,7 +859,7 @@ export const EmployeesPage = () => {
                                     1
                                     ? ""
                                     : "s"}
-                            </p>
+                            </p>}
                         </div>
 
 
@@ -887,7 +923,20 @@ export const EmployeesPage = () => {
                 </div>
 
 
-                {loading && (
+                <div className="px-6 py-4 sm:px-8">
+                    <button type="button" disabled={loading} onClick={() => void refresh()}
+                        className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:opacity-50">
+                        {loading ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar" : "Cargar empleados"}
+                    </button>
+                </div>
+                {!hasLoaded && !loading && !error && <p className="px-6 pb-6 text-sm text-slate-600">Los empleados todavía no se han cargado.</p>}
+                {error && (
+                    <div role="alert" className="mx-6 mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {hasLoaded && <p>No fue posible actualizar los empleados. Se muestran los últimos datos disponibles.</p>}
+                        <p>{error}</p>
+                    </div>
+                )}
+                {loading && !hasLoaded && (
                     <div role="status" className="flex flex-col items-center gap-4 px-6 py-14 text-center text-sm text-slate-600">
                         <span aria-hidden="true" className="h-8 w-8 animate-spin rounded-full border-2 border-sky-100 border-t-sky-600 motion-reduce:animate-none" />
                         Cargando
@@ -896,7 +945,7 @@ export const EmployeesPage = () => {
                 )}
 
 
-                {!loading &&
+                {hasLoaded &&
                     filteredEmployees.length ===
                     0 && (
                         <div role="status" className="px-6 py-14 text-center">
@@ -916,7 +965,7 @@ export const EmployeesPage = () => {
                     )}
 
 
-                {!loading &&
+                {hasLoaded &&
                     filteredEmployees.length >
                     0 && (
                         <div tabIndex={0} role="region" aria-label="Listado de empleados" className="overflow-x-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200">
@@ -1032,8 +1081,7 @@ export const EmployeesPage = () => {
                                                             }
                                                             disabled={
                                                                 saving ||
-                                                                changingStatusId ===
-                                                                employee.id
+                                                                changingStatusIds.has(employee.id)
                                                             }
                                                             className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                                                         >
@@ -1049,8 +1097,7 @@ export const EmployeesPage = () => {
                                                                 )
                                                             }
                                                             disabled={
-                                                                changingStatusId ===
-                                                                employee.id
+                                                                (saving && editingEmployeeId === employee.id) || changingStatusIds.has(employee.id)
                                                             }
                                                             className={
                                                                 employee.isActive
@@ -1058,8 +1105,7 @@ export const EmployeesPage = () => {
                                                                     : "min-h-11 rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-colors enabled:hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                                                             }
                                                         >
-                                                            {changingStatusId ===
-                                                                employee.id
+                                                            {changingStatusIds.has(employee.id)
                                                                 ? "Guardando..."
                                                                 : employee.isActive
                                                                     ? "Desactivar"

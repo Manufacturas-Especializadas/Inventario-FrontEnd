@@ -26,6 +26,10 @@ interface UseEmployeesOptions {
 
 export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
     const [hasLoaded, setHasLoaded] = useState(false);
+    const loaded = useRef(false);
+    const savingRequest = useRef(false);
+    const pendingMutations = useRef(new Set<number>());
+    const [mutationError, setMutationError] = useState<string | null>(null);
     const pendingRequest = useRef<Promise<Employee[]> | null>(null);
     const updatesDuringLoad = useRef(new Map<number, Employee>());
 
@@ -44,12 +48,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
         setSaving,
     ] = useState(false);
 
-    const [
-        changingStatusId,
-        setChangingStatusId,
-    ] = useState<number | null>(
-        null
-    );
+    const [changingStatusIds, setChangingStatusIds] = useState<Set<number>>(() => new Set());
 
     const [
         error,
@@ -71,6 +70,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
                 updatesDuringLoad.current.forEach((employee) => merged.set(employee.id, employee));
                 const result = Array.from(merged.values());
                 setEmployees(result);
+                loaded.current = true;
                 setHasLoaded(true);
                 return result;
             } catch (error) {
@@ -92,8 +92,10 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
                 request:
                     CreateEmployeeRequest
             ): Promise<Employee | null> => {
+                if (savingRequest.current) return null;
+                savingRequest.current = true;
                 setSaving(true);
-                setError(null);
+                setMutationError(null);
 
                 try {
                     const employee =
@@ -103,7 +105,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
                             );
 
                     if (pendingRequest.current) updatesDuringLoad.current.set(employee.id, employee);
-                    setEmployees(
+                    if (loaded.current) setEmployees(
                         (current) =>
                             [
                                 ...current.filter((item) => item.id !== employee.id),
@@ -119,7 +121,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return employee;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             "No fue posible crear el empleado."
@@ -128,6 +130,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return null;
                 } finally {
+                    savingRequest.current = false;
                     setSaving(false);
                 }
             },
@@ -141,8 +144,11 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
                 request:
                     UpdateEmployeeRequest
             ): Promise<Employee | null> => {
+                if (savingRequest.current || pendingMutations.current.has(request.id)) return null;
+                savingRequest.current = true;
+                pendingMutations.current.add(request.id);
                 setSaving(true);
-                setError(null);
+                setMutationError(null);
 
                 try {
                     const employee =
@@ -173,7 +179,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return employee;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             "No fue posible actualizar el empleado."
@@ -182,6 +188,8 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return null;
                 } finally {
+                    savingRequest.current = false;
+                    pendingMutations.current.delete(request.id);
                     setSaving(false);
                 }
             },
@@ -195,11 +203,11 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
                 employeeId: number,
                 isActive: boolean
             ): Promise<Employee | null> => {
-                setChangingStatusId(
-                    employeeId
-                );
+                if (pendingMutations.current.has(employeeId)) return null;
+                pendingMutations.current.add(employeeId);
+                setChangingStatusIds((current) => new Set(current).add(employeeId));
 
-                setError(null);
+                setMutationError(null);
 
                 try {
                     const employee =
@@ -225,7 +233,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return employee;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             isActive
@@ -236,9 +244,12 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
                     return null;
                 } finally {
-                    setChangingStatusId(
-                        null
-                    );
+                    pendingMutations.current.delete(employeeId);
+                    setChangingStatusIds((current) => {
+                        const next = new Set(current);
+                        next.delete(employeeId);
+                        return next;
+                    });
                 }
             },
             []
@@ -247,7 +258,7 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
     const clearError =
         useCallback(() => {
-            setError(null);
+            setMutationError(null);
         }, []);
 
 
@@ -262,9 +273,11 @@ export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
 
         loading,
         saving,
-        changingStatusId,
+        changingStatusIds,
+        changingStatusId: changingStatusIds.values().next().value ?? null,
 
         error,
+        mutationError,
 
         refresh,
 
