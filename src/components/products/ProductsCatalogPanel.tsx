@@ -27,6 +27,7 @@ interface ProductsCatalogPanelProps {
     loading: boolean;
     selectedProductIds: Set<number>;
     onAssignSelected: () => void;
+    onAssignSuppliers: () => void;
 
     toggleProductSelection: (
         productId: number,
@@ -51,7 +52,7 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
     categoryFilter, setCategoryFilter, setSuccessMessage, hasFilters, clearFilters,
     isAdministrator, isSubmitting, changingStatusId, actionError,
     startEditing, handleStatusChange, refresh, loading, selectedProductIds, toggleProductSelection,
-    setProductsSelection, clearProductSelection, onAssignSelected, onAssignProduct,
+    setProductsSelection, clearProductSelection, onAssignSelected, onAssignProduct, onAssignSuppliers,
 }: ProductsCatalogPanelProps) {
     const filterCategories = useMemo(() => Array.from(
         new Map(products.map((product) => [product.categoryId, product.categoryName]))
@@ -272,6 +273,10 @@ export const ProductsCatalogPanel = memo(function ProductsCatalogPanel({
                                     className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200"
                                 >
                                     Asignar a almacenes
+                                </button>
+                                <button type="button" onClick={onAssignSuppliers} aria-controls="supplier-assignment-modal"
+                                    className="min-h-11 rounded-xl border border-sky-300 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200">
+                                    Asignar a proveedores
                                 </button>
                             </div>
                         </div>

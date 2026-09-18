@@ -1,5 +1,5 @@
 import {
-    useEffect,
+    useMemo,
     useState,
     type FormEvent,
 } from "react";
@@ -53,6 +53,9 @@ export const OrganizationalUnitsPage =
     () => {
         const {
             organizationalUnits,
+            hasLoaded: unitsHasLoaded,
+            refresh: refreshUnits,
+            createError,
 
             loading: loadingUnits,
             creating,
@@ -65,6 +68,9 @@ export const OrganizationalUnitsPage =
 
         const {
             limits,
+            hasLoaded: limitsHasLoaded,
+            saveError,
+            clearError: clearLimitError,
 
             loading: loadingLimits,
             saving,
@@ -74,15 +80,31 @@ export const OrganizationalUnitsPage =
             setLimit,
             refresh: refreshLimits,
         } =
-            useOrganizationalUnitPPELimits();
+            useOrganizationalUnitPPELimits({ autoLoad: false });
 
 
         const {
             products,
+            hasLoaded: productsHasLoaded,
+            refresh: refreshProducts,
             loading: loadingProducts,
             error: productsError,
-        } = usePPEProducts();
+        } = usePPEProducts({ autoLoad: false });
 
+
+        const [showLimitForm, setShowLimitForm] = useState(false);
+        const [unitFormError, setUnitFormError] = useState<string | null>(null);
+        const [unitSuccess, setUnitSuccess] = useState<string | null>(null);
+        const catalogsReady = unitsHasLoaded && limitsHasLoaded && productsHasLoaded && !unitsError && !limitsError && !productsError;
+        const openLimitForm = () => {
+            setShowLimitForm(true);
+            setFormError(null);
+            clearLimitError();
+            void Promise.all([
+                !limitsHasLoaded ? refreshLimits() : Promise.resolve(),
+                !productsHasLoaded ? refreshProducts() : Promise.resolve(),
+            ]);
+        };
 
         // Crear unidad
 
@@ -176,58 +198,15 @@ export const OrganizationalUnitsPage =
             );
 
 
-        /*
-         * Cuando seleccionamos una combinación
-         * Unidad + Producto existente,
-         * cargamos su configuración actual.
-         */
-        useEffect(() => {
-            if (
-                !limitUnitId ||
-                !limitProductId
-            ) {
-                setMaxQuantityPerCycle(
-                    ""
-                );
-
-                setLimitIsActive(
-                    true
-                );
-
-                return;
-            }
-
-            if (
-                selectedExistingLimit
-            ) {
-                setMaxQuantityPerCycle(
-                    String(
-                        selectedExistingLimit
-                            .maxQuantityPerCycle
-                    )
-                );
-
-                setLimitIsActive(
-                    selectedExistingLimit
-                        .isActive
-                );
-
-                return;
-            }
-
-            setMaxQuantityPerCycle(
-                ""
-            );
-
-            setLimitIsActive(
-                true
-            );
-        }, [
-            limitUnitId,
-            limitProductId,
-            selectedExistingLimit,
-        ]);
-
+        // Reset on a different combination or changed server values, not on every refresh object.
+        const selectionKey = JSON.stringify([limitUnitId, limitProductId, limitsHasLoaded,
+            selectedExistingLimit?.maxQuantityPerCycle, selectedExistingLimit?.isActive]);
+        const [previousSelection, setPreviousSelection] = useState(selectionKey);
+        if (previousSelection !== selectionKey) {
+            setPreviousSelection(selectionKey);
+            setMaxQuantityPerCycle(selectedExistingLimit ? String(selectedExistingLimit.maxQuantityPerCycle) : "");
+            setLimitIsActive(selectedExistingLimit?.isActive ?? true);
+        }
 
         const handleCreateUnit =
             async (
@@ -236,8 +215,8 @@ export const OrganizationalUnitsPage =
             ) => {
                 event.preventDefault();
 
-                setFormError(null);
-                setSuccessMessage(null);
+                setUnitFormError(null);
+                setUnitSuccess(null);
 
                 const normalizedName =
                     name.trim();
@@ -245,7 +224,7 @@ export const OrganizationalUnitsPage =
                 if (
                     !normalizedName
                 ) {
-                    setFormError(
+                    setUnitFormError(
                         "El nombre de la unidad es obligatorio."
                     );
 
@@ -256,7 +235,7 @@ export const OrganizationalUnitsPage =
                     normalizedName.length >
                     150
                 ) {
-                    setFormError(
+                    setUnitFormError(
                         "El nombre no puede superar los 150 caracteres."
                     );
 
@@ -270,7 +249,7 @@ export const OrganizationalUnitsPage =
                     normalizedDescription.length >
                     500
                 ) {
-                    setFormError(
+                    setUnitFormError(
                         "La descripción no puede superar los 500 caracteres."
                     );
 
@@ -303,7 +282,7 @@ export const OrganizationalUnitsPage =
                     return;
                 }
 
-                setSuccessMessage(
+                setUnitSuccess(
                     `Unidad "${result.name}" creada correctamente.`
                 );
 
@@ -320,6 +299,7 @@ export const OrganizationalUnitsPage =
                     FormEvent<HTMLFormElement>
             ) => {
                 event.preventDefault();
+                if (saving || !catalogsReady || activeUnits.length === 0 || activeProducts.length === 0) return;
 
                 setFormError(null);
                 setSuccessMessage(null);
@@ -416,6 +396,10 @@ export const OrganizationalUnitsPage =
                 number,
             ppeProductId: number
         ) => {
+            openLimitForm();
+            const existing = limits.find((limit) => limit.organizationalUnitId === organizationalUnitId && limit.ppeProductId === ppeProductId);
+            setMaxQuantityPerCycle(existing ? String(existing.maxQuantityPerCycle) : "");
+            setLimitIsActive(existing?.isActive ?? true);
             setLimitUnitId(
                 String(
                     organizationalUnitId
@@ -437,8 +421,7 @@ export const OrganizationalUnitsPage =
          * Convertimos la lista plana en filas
          * ordenadas jerárquicamente.
          */
-        const buildHierarchy =
-            () => {
+        const hierarchyRows = useMemo(() => {
                 const rows: {
                     unit:
                     OrganizationalUnit;
@@ -523,11 +506,7 @@ export const OrganizationalUnitsPage =
                 }
 
                 return rows;
-            };
-
-
-        const hierarchyRows =
-            buildHierarchy();
+            }, [organizationalUnits]);
 
 
         const sortedLimits =
@@ -554,13 +533,6 @@ export const OrganizationalUnitsPage =
             );
 
 
-        const combinedError =
-            formError ||
-            unitsError ||
-            limitsError ||
-            productsError;
-
-
         return (
             <div className="mx-auto max-w-7xl space-y-6">
                 <PageHeader
@@ -569,24 +541,6 @@ export const OrganizationalUnitsPage =
                     description="Configura la estructura organizacional y los límites específicos aplicables a cada unidad."
                     descriptionWidth="wide"
                 />
-
-
-                {combinedError && (
-                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                        {
-                            combinedError
-                        }
-                    </div>
-                )}
-
-
-                {successMessage && (
-                    <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-800">
-                        {
-                            successMessage
-                        }
-                    </div>
-                )}
 
 
                 {/* Crear unidad */}
@@ -620,6 +574,8 @@ export const OrganizationalUnitsPage =
                     </div>
 
 
+                    {(unitFormError || createError) && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{unitFormError || createError}</div>}
+                    {unitSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{unitSuccess}</p>}
                     <form
                         onSubmit={
                             handleCreateUnit
@@ -822,7 +778,7 @@ export const OrganizationalUnitsPage =
 
                 {/* Jerarquía */}
 
-                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <section aria-label="Estructura organizacional" aria-busy={loadingUnits} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div className="border-b border-slate-100 pb-6">
                         <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                             Jerarquía actual
@@ -837,14 +793,22 @@ export const OrganizationalUnitsPage =
                     </div>
 
 
-                    {loadingUnits && (
+                    <button type="button" onClick={() => void refreshUnits()} disabled={loadingUnits}
+                        className="mt-4 min-h-11 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
+                        {loadingUnits ? unitsHasLoaded ? "Actualizando unidades..." : "Cargando unidades..." : "Actualizar unidades"}
+                    </button>
+                    {unitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {unitsHasLoaded && <p>No fue posible actualizar la estructura. Se muestran los últimos datos disponibles.</p>}
+                        <p>{unitsError}</p>
+                    </div>}
+                    {loadingUnits && !unitsHasLoaded && (
                         <p role="status" className="mt-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
                             Cargando unidades...
                         </p>
                     )}
 
 
-                    {!loadingUnits &&
+                    {unitsHasLoaded &&
                         hierarchyRows.length ===
                         0 && (
                             <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
@@ -855,7 +819,7 @@ export const OrganizationalUnitsPage =
                         )}
 
 
-                    {!loadingUnits &&
+                    {unitsHasLoaded &&
                         hierarchyRows.length >
                         0 && (
                             <div tabIndex={0} role="region" aria-label="Jerarquía de unidades organizacionales" className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/40 p-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
@@ -956,7 +920,24 @@ export const OrganizationalUnitsPage =
                     </div>
 
 
-                    <form
+                    <button type="button" disabled={saving} onClick={() => showLimitForm ? setShowLimitForm(false) : openLimitForm()}
+                        className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 disabled:opacity-50">
+                        {showLimitForm ? "Cerrar configuración" : "Configurar límite"}
+                    </button>
+                    {showLimitForm && <>
+                    {(loadingLimits || loadingProducts) && <p role="status" className="mt-4 text-sm text-sky-800">Cargando catálogos para configurar el límite...</p>}
+                    {limitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        <p>No fue posible verificar las reglas existentes. {limitsError}</p>
+                        <button type="button" disabled={loadingLimits} onClick={() => void refreshLimits()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar reglas</button>
+                    </div>}
+                    {productsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        <p>No fue posible cargar los productos. {productsError}</p>
+                        <button type="button" disabled={loadingProducts} onClick={() => void refreshProducts()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar productos</button>
+                    </div>}
+                    {productsHasLoaded && activeProducts.length === 0 && <p role="status" className="mt-4 text-sm text-slate-600">No hay productos activos disponibles para configurar límites.</p>}
+                    {(formError || saveError) && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{formError || saveError}</p>}
+                    {successMessage && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{successMessage}</p>}
+                    <form aria-busy={saving || loadingLimits || loadingProducts}
                         onSubmit={
                             handleSaveLimit
                         }
@@ -983,7 +964,7 @@ export const OrganizationalUnitsPage =
                                         )
                                     }
                                     disabled={
-                                        saving
+                                        !catalogsReady || saving
                                     }
                                     className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
                                 >
@@ -1038,7 +1019,7 @@ export const OrganizationalUnitsPage =
                                         )
                                     }
                                     disabled={
-                                        saving ||
+                                        !catalogsReady || saving ||
                                         loadingProducts
                                     }
                                     className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
@@ -1098,7 +1079,7 @@ export const OrganizationalUnitsPage =
                                         )
                                     }
                                     disabled={
-                                        saving
+                                        !catalogsReady || saving
                                     }
                                     className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
                                 />
@@ -1123,7 +1104,7 @@ export const OrganizationalUnitsPage =
                                         )
                                     }
                                     disabled={
-                                        saving
+                                        !catalogsReady || saving
                                     }
                                     className="h-5 w-5 shrink-0 rounded border-slate-300 accent-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                                 />
@@ -1136,7 +1117,7 @@ export const OrganizationalUnitsPage =
                         )}
 
 
-                        {limitUnitId &&
+                        {catalogsReady && limitUnitId &&
                             limitProductId && (
                                 <div className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4">
                                     {selectedExistingLimit ? (
@@ -1168,8 +1149,8 @@ export const OrganizationalUnitsPage =
                             <button
                                 type="submit"
                                 disabled={
-                                    saving ||
-                                    !limitUnitId ||
+                                        !catalogsReady || saving ||
+                                    activeUnits.length === 0 || activeProducts.length === 0 || !limitUnitId ||
                                     !limitProductId ||
                                     !maxQuantityPerCycle
                                 }
@@ -1183,12 +1164,13 @@ export const OrganizationalUnitsPage =
                             </button>
                         </div>
                     </form>
+                    </>}
                 </section>
 
 
                 {/* Reglas existentes */}
 
-                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <section aria-label="Reglas configuradas" aria-busy={loadingLimits} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h2 className="text-lg font-semibold tracking-tight text-slate-900">
@@ -1214,14 +1196,18 @@ export const OrganizationalUnitsPage =
                             }
                             className="min-h-11 w-full shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
                         >
-                            {loadingLimits
-                                ? "Actualizando..."
-                                : "Actualizar"}
+                            {loadingLimits ? limitsHasLoaded ? "Actualizando..." : "Cargando reglas..." : limitsHasLoaded ? "Actualizar" : "Consultar reglas"}
                         </button>
                     </div>
 
 
-                    {!loadingLimits &&
+                    {!limitsHasLoaded && !loadingLimits && !limitsError && <p className="mt-4 text-sm text-slate-600">Las reglas todavía no se han consultado.</p>}
+                    {loadingLimits && !limitsHasLoaded && <p role="status" className="mt-4 text-sm text-sky-800">Consultando reglas...</p>}
+                    {limitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {limitsHasLoaded && <p>No fue posible actualizar las reglas. Se muestran los últimos datos disponibles.</p>}
+                        <p>{limitsError}</p>
+                    </div>}
+                    {limitsHasLoaded &&
                         sortedLimits.length ===
                         0 && (
                             <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
@@ -1232,7 +1218,7 @@ export const OrganizationalUnitsPage =
                         )}
 
 
-                    {sortedLimits.length >
+                    {limitsHasLoaded && sortedLimits.length >
                         0 && (
                             <div tabIndex={0} role="region" aria-label="Límites EPP configurados" className="mt-6 overflow-x-auto rounded-xl border border-slate-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
                                 <table className="w-full min-w-190 text-left text-sm">
@@ -1314,6 +1300,7 @@ export const OrganizationalUnitsPage =
                                                     <td className="px-5 py-4 text-right">
                                                         <button
                                                             type="button"
+                                                            disabled={saving}
                                                             onClick={() =>
                                                                 handleEditLimit(
                                                                     limit.organizationalUnitId,

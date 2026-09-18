@@ -262,6 +262,10 @@ export interface CreateProductSupplierRequest {
     isPreferred: boolean;
 }
 
+export interface SetProductSupplierStatusRequest {
+    isActive: boolean;
+}
+
 //Warehouse
 export interface Warehouse {
     id: number;

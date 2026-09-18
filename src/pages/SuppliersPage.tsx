@@ -16,6 +16,8 @@ import {
     useSuppliers,
 } from "../hooks/useSuppliers";
 
+import { useSupplierProducts } from "../hooks/useSupplierProducts";
+
 import type {
     Supplier,
 } from "../types/types";
@@ -28,6 +30,9 @@ import {
     validateSupplierContact,
     type SupplierContactErrors,
 } from "../utils/supplierValidation";
+
+
+import { SupplierProductsModal } from "../components/suppliers/SupplierProductsModal";
 
 import { PageHeader } from "../components/ui/PageHeader";
 import { StatCard } from "../components/ui/StatCard";
@@ -140,6 +145,39 @@ export const SuppliersPage = () => {
     ] = useState<number | null>(
         null
     );
+
+    const [
+        selectedProductsSupplier,
+        setSelectedProductsSupplier,
+    ] = useState<Supplier | null>(
+        null
+    );
+
+    const {
+        supplierProducts,
+        loadingSupplierProducts,
+        supplierProductsError,
+        hasLoadedSupplierProducts,
+        loadSupplierProducts,
+        refreshSupplierProducts,
+        upsertRelation,
+    } = useSupplierProducts(
+        selectedProductsSupplier?.id ??
+        null
+    );
+
+    const openSupplierProducts =
+        (
+            supplier: Supplier
+        ) => {
+            setSelectedProductsSupplier(
+                supplier
+            );
+
+            void loadSupplierProducts(
+                supplier.id
+            );
+        };
 
     const summary =
         useMemo(() => {
@@ -737,14 +775,14 @@ export const SuppliersPage = () => {
                                             Estado
                                         </th>
 
-                                        {isAdministrator && (
-                                            <th
-                                                scope="col"
-                                                className="px-6 py-4 text-right"
-                                            >
-                                                Acciones
-                                            </th>
-                                        )}
+
+                                        <th
+                                            scope="col"
+                                            className="px-6 py-4 text-right"
+                                        >
+                                            Acciones
+                                        </th>
+
                                     </tr>
                                 </thead>
 
@@ -784,17 +822,62 @@ export const SuppliersPage = () => {
                                                     <ActiveStatusBadge isActive={supplier.isActive} />
                                                 </td>
 
-                                                {isAdministrator && (
-                                                    <td className="px-6 py-5">
-                                                        <CatalogRowActions
-                                                            isActive={supplier.isActive}
-                                                            isChanging={changingStatusId === supplier.id}
-                                                            disabled={isSubmitting || changingStatusId !== null}
-                                                            onEdit={() => startEditing(supplier)}
-                                                            onToggleStatus={() => void handleStatusChange(supplier)}
-                                                        />
-                                                    </td>
-                                                )}
+                                                <td className="px-6 py-5">
+                                                    <div className="flex flex-col items-end gap-2 xl:flex-row xl:justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                openSupplierProducts(
+                                                                    supplier
+                                                                )
+                                                            }
+                                                            className="inline-flex min-h-11 w-40 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 shadow-sm transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                                                        >
+                                                            <svg
+                                                                aria-hidden="true"
+                                                                className="h-4 w-4 shrink-0"
+                                                                viewBox="0 0 24 24"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.5"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                            >
+                                                                <path d="M4 7h16M4 12h16M4 17h16" />
+                                                            </svg>
+
+                                                            Productos
+                                                        </button>
+
+
+                                                        {isAdministrator && (
+                                                            <CatalogRowActions
+                                                                isActive={
+                                                                    supplier.isActive
+                                                                }
+                                                                isChanging={
+                                                                    changingStatusId ===
+                                                                    supplier.id
+                                                                }
+                                                                disabled={
+                                                                    isSubmitting ||
+                                                                    changingStatusId !==
+                                                                    null
+                                                                }
+                                                                onEdit={() =>
+                                                                    startEditing(
+                                                                        supplier
+                                                                    )
+                                                                }
+                                                                onToggleStatus={() =>
+                                                                    void handleStatusChange(
+                                                                        supplier
+                                                                    )
+                                                                }
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         )
                                     )}
@@ -1022,6 +1105,51 @@ export const SuppliersPage = () => {
                         </fieldset>
                     </form>
                 </CatalogFormModal>
+            )}
+
+            {selectedProductsSupplier && (
+                <SupplierProductsModal
+                    key={selectedProductsSupplier.id}
+                    supplier={
+                        selectedProductsSupplier
+                    }
+
+                    supplierProducts={
+                        supplierProducts
+                    }
+
+                    loadingSupplierProducts={
+                        loadingSupplierProducts
+                    }
+
+                    supplierProductsError={
+                        supplierProductsError
+                    }
+
+                    hasLoadedSupplierProducts={
+                        hasLoadedSupplierProducts
+                    }
+
+                    isAdministrator={
+                        isAdministrator
+                    }
+
+                    onRefresh={() =>
+                        void refreshSupplierProducts(
+                            selectedProductsSupplier.id
+                        )
+                    }
+
+                    onUpsertRelation={
+                        upsertRelation
+                    }
+
+                    onClose={() =>
+                        setSelectedProductsSupplier(
+                            null
+                        )
+                    }
+                />
             )}
         </div>
     );

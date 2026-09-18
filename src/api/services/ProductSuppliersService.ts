@@ -5,6 +5,7 @@ import {
 import type {
     CreateProductSupplierRequest,
     ProductSupplier,
+    SetProductSupplierStatusRequest,
 } from "../../types/types";
 
 export const productSuppliersService = {
@@ -36,6 +37,20 @@ export const productSuppliersService = {
         const response =
             await apiClient.post<ProductSupplier>(
                 "/product-suppliers",
+                request
+            );
+
+        return response.data;
+    },
+
+    async setStatus(
+        ppeProductId: number,
+        supplierId: number,
+        request: SetProductSupplierStatusRequest
+    ): Promise<ProductSupplier> {
+        const response =
+            await apiClient.put<ProductSupplier>(
+                `/product-suppliers/${ppeProductId}/${supplierId}/status`,
                 request
             );
 

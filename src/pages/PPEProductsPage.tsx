@@ -57,6 +57,9 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
 import { ProductsCatalogPanel } from "../components/products/ProductsCatalogPanel";
 import { normalizeProductText } from "../utils/productText";
+import { useSuppliers } from "../hooks/useSuppliers";
+import { useSupplierProducts } from "../hooks/useSupplierProducts";
+import { ProductSupplierAssignmentModal } from "../components/products/ProductSupplierAssignmentModal";
 
 type StatusFilter = "all" | "active" | "inactive";
 type ProductFormField = "category" | "name" | "size" | "color" | "stock-unit" | "minimum-stock" | "max-cycle" | "replacement-days";
@@ -111,6 +114,19 @@ export const PPEProductsPage = () => {
         refresh: refreshUnits,
     } = useUnits({ autoLoad: false });
 
+    const {
+        suppliers, hasLoaded: suppliersLoaded, loading: loadingSuppliers,
+        error: suppliersError, refresh: refreshSuppliers,
+    } = useSuppliers({ autoLoad: false });
+    const [supplierAssignmentProducts, setSupplierAssignmentProducts] = useState<PPEProduct[] | null>(null);
+    const [assignmentSupplierId, setAssignmentSupplierId] = useState<number | null>(null);
+    // Keep the keyed relation cache alive when the assignment modal closes.
+    const supplierRelations = useSupplierProducts(assignmentSupplierId);
+    const loadSupplierCatalogs = () => Promise.all([
+        !suppliersLoaded || suppliersError ? refreshSuppliers() : Promise.resolve(),
+        !unitsLoaded || unitsError ? refreshUnits() : Promise.resolve(),
+    ]);
+
     const loadingCatalogs =
         loadingCategories ||
         loadingSizes ||
@@ -141,6 +157,15 @@ export const PPEProductsPage = () => {
         hasRole(
             "Administrator"
         );
+
+    const openSupplierAssignment = () => {
+        if (!isAdministrator) return;
+        const selected = products.filter((product) => product.isActive && selectedProductIds.has(product.id));
+        if (!selected.length) return;
+        setAssignmentSupplierId(null);
+        setSupplierAssignmentProducts(selected);
+        void loadSupplierCatalogs();
+    };
 
     const [showForm, setShowForm] = useState(false);
     const formPanelRef = useRef<HTMLDivElement>(null);
@@ -925,6 +950,7 @@ export const PPEProductsPage = () => {
                         setProductsSelection={setProductsSelection}
                         clearProductSelection={clearProductSelection}
                         onAssignSelected={openWarehouseAssignment}
+                        onAssignSuppliers={openSupplierAssignment}
                         onAssignProduct={openSingleWarehouseAssignment}
                     />
                 )}
@@ -1416,6 +1442,28 @@ export const PPEProductsPage = () => {
                 )}
 
             </div>
+
+            {supplierAssignmentProducts && isAdministrator && (
+                <ProductSupplierAssignmentModal
+                    products={supplierAssignmentProducts}
+                    suppliers={suppliers}
+                    units={activeUnits}
+                    catalogsReady={suppliersLoaded && unitsLoaded}
+                    catalogsLoading={loadingSuppliers || loadingUnits}
+                    catalogsError={suppliersError || unitsError}
+                    loadCatalogs={loadSupplierCatalogs}
+                    supplierId={assignmentSupplierId}
+                    onSelectSupplier={(id) => {
+                        setAssignmentSupplierId(id);
+                        if (id !== null) void supplierRelations.loadSupplierProducts(id);
+                    }}
+                    relations={supplierRelations}
+                    onClose={() => {
+                        setSupplierAssignmentProducts(null);
+                        setAssignmentSupplierId(null);
+                    }}
+                />
+            )}
 
             <ProductWarehouseAssignmentModal
                 open={
