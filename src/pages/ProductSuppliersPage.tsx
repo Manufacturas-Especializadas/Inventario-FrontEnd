@@ -1,5 +1,6 @@
 import {
     useState,
+    useRef,
     type FormEvent,
 } from "react";
 
@@ -10,10 +11,6 @@ import {
 import {
     usePPEProducts,
 } from "../hooks/usePPEProducts";
-
-import {
-    useProductSuppliers,
-} from "../hooks/useProductSuppliers";
 
 import {
     useSuppliers,
@@ -27,7 +24,6 @@ import {
 } from "../hooks/useUnits";
 
 import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
-import { ProductSupplierLookupPanel } from "../components/productSuppliers/ProductSupplierLookupPanel";
 
 import { PageHeader } from "../components/ui/PageHeader";
 
@@ -102,9 +98,8 @@ export const ProductSuppliersPage = () => {
     ] = useState(false);
 
     const [showForm, setShowForm] = useState(false);
-    const [showLookup, setShowLookup] = useState(false);
-    const [lookupProductId, setLookupProductId] = useState("");
-    const selectedProductId = lookupProductId ? Number(lookupProductId) : null;
+    const submittingRef = useRef(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const loadFormCatalogs = () => Promise.all([
         !productsLoaded ? loadProducts() : Promise.resolve(),
@@ -113,26 +108,10 @@ export const ProductSuppliersPage = () => {
     ]);
 
     const toggleForm = () => {
+        if (submittingRef.current) return;
         if (!showForm) void loadFormCatalogs();
         setShowForm(!showForm);
     };
-
-    const toggleLookup = () => {
-        if (!showLookup && !productsLoaded) void loadProducts();
-        setShowLookup(!showLookup);
-    };
-
-    const {
-        productSuppliers,
-        loading,
-        error,
-        refresh,
-        hasLoaded,
-        loadByProduct,
-        upsertRelation,
-    } = useProductSuppliers(
-        selectedProductId
-    );
 
     const resetForm = () => {
         setPPEProductId("");
@@ -149,6 +128,8 @@ export const ProductSuppliersPage = () => {
             event: FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (submittingRef.current || !catalogsReady || catalogsLoading || catalogsError) return;
+            setSuccessMessage(null);
 
             setFormError(null);
 
@@ -190,12 +171,13 @@ export const ProductSuppliersPage = () => {
                 return;
             }
 
+            submittingRef.current = true;
             setIsSubmitting(true);
 
             const createdProductId = Number(ppeProductId);
 
             try {
-                const relation = await productSuppliersService
+                await productSuppliersService
                     .create({
                         ppeProductId: createdProductId,
 
@@ -223,8 +205,8 @@ export const ProductSuppliersPage = () => {
                         isPreferred,
                     });
 
-                upsertRelation(relation);
                 resetForm();
+                setSuccessMessage("Relación producto-proveedor creada correctamente.");
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -233,6 +215,7 @@ export const ProductSuppliersPage = () => {
                     )
                 );
             } finally {
+                submittingRef.current = false;
                 setIsSubmitting(false);
             }
         };
@@ -254,15 +237,16 @@ export const ProductSuppliersPage = () => {
             />
 
             <div className="flex flex-col gap-3 sm:flex-row">
-                <button type="button" onClick={toggleForm} aria-expanded={showForm} aria-controls="new-product-supplier" className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none">
+                <button type="button" onClick={toggleForm} disabled={isSubmitting} aria-expanded={showForm} aria-controls="new-product-supplier" className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none">
+                    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
                     {showForm ? "Ocultar formulario" : "Nueva relación"}
                     <svg aria-hidden="true" className={`h-4 w-4 transition-transform duration-200 motion-reduce:transition-none ${showForm ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
                 </button>
-                <button type="button" onClick={toggleLookup} aria-expanded={showLookup} aria-controls="product-supplier-lookup" className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none">
-                    {showLookup ? "Ocultar relaciones" : "Consultar relaciones"}
-                    <svg aria-hidden="true" className={`h-4 w-4 transition-transform duration-200 motion-reduce:transition-none ${showLookup ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-                </button>
             </div>
+
+            {successMessage && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">{successMessage}</div>}
 
             <div id="new-product-supplier" hidden={!showForm}>
                 {showForm && (
@@ -287,290 +271,280 @@ export const ProductSuppliersPage = () => {
                         ) : catalogsReady && (
                             <form
                                 onSubmit={handleSubmit}
-                                className="mt-7 grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+                                noValidate
+                                className="mt-7"
                             >
-                                <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3">
-                                    <span aria-hidden="true" className="text-xs font-semibold text-sky-700">01</span>
-                                    <h3 className="text-sm font-semibold text-slate-800">Producto y proveedor</h3>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Producto
-                                    </label>
+                                <fieldset disabled={isSubmitting} className="grid min-w-0 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3">
+                                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">01</span>
+                                        <h3 className="text-sm font-semibold text-slate-800">Producto y proveedor</h3>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="relation-product" className="block text-sm font-medium text-slate-700">
+                                            Producto
+                                        </label>
 
-                                    <select
-                                        value={ppeProductId}
-                                        onChange={(event) =>
-                                            setPPEProductId(
-                                                event.target.value
-                                            )
-                                        }
-                                        disabled={
-                                            catalogsLoading ||
-                                            isSubmitting
-                                        }
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    >
-                                        <option value="">
-                                            Selecciona...
-                                        </option>
-
-                                        {products
-                                            .filter(
-                                                (product) =>
-                                                    product.isActive
-                                            )
-                                            .map(
-                                                (product) => (
-                                                    <option
-                                                        key={
-                                                            product.id
-                                                        }
-                                                        value={
-                                                            product.id
-                                                        }
-                                                    >
-                                                        {product.sku} -{" "}
-                                                        {product.name}
-                                                    </option>
+                                        <select
+                                            id="relation-product"
+                                            value={ppeProductId}
+                                            onChange={(event) =>
+                                                setPPEProductId(
+                                                    event.target.value
                                                 )
-                                            )}
-                                    </select>
-                                </div>
+                                            }
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                Selecciona...
+                                            </option>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Proveedor
-                                    </label>
-
-                                    <select
-                                        value={supplierId}
-                                        onChange={(event) =>
-                                            setSupplierId(
-                                                event.target.value
-                                            )
-                                        }
-                                        disabled={
-                                            catalogsLoading ||
-                                            isSubmitting
-                                        }
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    >
-                                        <option value="">
-                                            Selecciona...
-                                        </option>
-
-                                        {suppliers
-                                            .filter(
-                                                (supplier) =>
-                                                    supplier.isActive
-                                            )
-                                            .map(
-                                                (supplier) => (
-                                                    <option
-                                                        key={
-                                                            supplier.id
-                                                        }
-                                                        value={
-                                                            supplier.id
-                                                        }
-                                                    >
-                                                        {
-                                                            supplier.name
-                                                        }
-                                                    </option>
+                                            {products
+                                                .filter(
+                                                    (product) =>
+                                                        product.isActive
                                                 )
-                                            )}
-                                    </select>
-                                </div>
+                                                .map(
+                                                    (product) => (
+                                                        <option
+                                                            key={
+                                                                product.id
+                                                            }
+                                                            value={
+                                                                product.id
+                                                            }
+                                                        >
+                                                            {product.sku} -{" "}
+                                                            {product.name}
+                                                        </option>
+                                                    )
+                                                )}
+                                        </select>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Código del proveedor
-                                    </label>
+                                    <div>
+                                        <label htmlFor="relation-supplier" className="block text-sm font-medium text-slate-700">
+                                            Proveedor
+                                        </label>
 
-                                    <input
-                                        type="text"
-                                        value={
-                                            supplierProductCode
-                                        }
-                                        onChange={(event) =>
-                                            setSupplierProductCode(
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="Ej. ART-001"
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    />
-                                </div>
+                                        <select
+                                            id="relation-supplier"
+                                            value={supplierId}
+                                            onChange={(event) =>
+                                                setSupplierId(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                Selecciona...
+                                            </option>
 
-                                <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3 pt-3">
-                                    <span aria-hidden="true" className="text-xs font-semibold text-sky-700">02</span>
-                                    <h3 className="text-sm font-semibold text-slate-800">Compra y empaque</h3>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Unidad de compra
-                                    </label>
+                                            {suppliers
+                                                .filter(
+                                                    (supplier) =>
+                                                        supplier.isActive
+                                                )
+                                                .map(
+                                                    (supplier) => (
+                                                        <option
+                                                            key={
+                                                                supplier.id
+                                                            }
+                                                            value={
+                                                                supplier.id
+                                                            }
+                                                        >
+                                                            {
+                                                                supplier.name
+                                                            }
+                                                        </option>
+                                                    )
+                                                )}
+                                        </select>
+                                    </div>
 
-                                    <select
-                                        value={purchaseUnitId}
-                                        onChange={(event) =>
-                                            setPurchaseUnitId(
-                                                event.target.value
-                                            )
-                                        }
-                                        disabled={
-                                            loadingUnits ||
-                                            isSubmitting
-                                        }
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    >
-                                        <option value="">
-                                            {loadingUnits
-                                                ? "Cargando unidades..."
-                                                : "Selecciona..."}
-                                        </option>
+                                    <div>
+                                        <label htmlFor="relation-code" className="block text-sm font-medium text-slate-700">
+                                            Código del proveedor
+                                        </label>
 
-                                        {activeUnits.map(
-                                            (unit) => (
-                                                <option
-                                                    key={unit.id}
-                                                    value={unit.id}
-                                                >
-                                                    {unit.name}
-                                                    {unit.symbol
-                                                        ? ` (${unit.symbol})`
-                                                        : ""}
-                                                </option>
-                                            )
-                                        )}
-                                    </select>
-
-                                    {unitsError && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {unitsError}
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Unidades por paquete
-                                    </label>
-
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        value={
-                                            unitsPerPackage
-                                        }
-                                        onChange={(event) =>
-                                            setUnitsPerPackage(
-                                                event.target.value
-                                            )
-                                        }
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Código de barras
-                                    </label>
-
-                                    <input
-                                        type="text"
-                                        value={
-                                            packageBarcode
-                                        }
-                                        onChange={(event) =>
-                                            setPackageBarcode(
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="Opcional"
-                                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                                    />
-                                </div>
-
-                                <div className="md:col-span-2 xl:col-span-3">
-                                    <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-sky-200 bg-sky-50/60 p-5 transition-colors hover:bg-sky-50 focus-within:ring-4 focus-within:ring-sky-100 motion-reduce:transition-none">
                                         <input
-                                            type="checkbox"
-                                            checked={
-                                                isPreferred
+                                            id="relation-code"
+                                            type="text"
+                                            value={
+                                                supplierProductCode
                                             }
                                             onChange={(event) =>
-                                                setIsPreferred(
-                                                    event.target
-                                                        .checked
+                                                setSupplierProductCode(
+                                                    event.target.value
                                                 )
                                             }
-                                            className="h-5 w-5 shrink-0 accent-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+                                            placeholder="Ej. ART-001"
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
                                         />
-
-                                        <span>
-                                            <span className="block text-sm font-semibold text-slate-800">
-                                                Proveedor preferido
-                                            </span>
-
-                                            <span className="mt-1 block text-xs leading-5 text-slate-600">
-                                                Será la opción
-                                                principal para
-                                                comprar este
-                                                producto.
-                                            </span>
-                                        </span>
-                                    </label>
-                                </div>
-
-                                {formError && (
-                                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 xl:col-span-3">
-                                        {formError}
                                     </div>
-                                )}
 
-                                <div className="flex justify-end border-t border-slate-100 pt-5 md:col-span-2 xl:col-span-3">
-                                    <button
-                                        type="submit"
-                                        disabled={
-                                            catalogsLoading ||
-                                            isSubmitting
-                                        }
-                                        className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
-                                    >
-                                        {isSubmitting
-                                            ? "Guardando..."
-                                            : "Asociar proveedor"}
-                                    </button>
-                                </div>
+                                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3 pt-3">
+                                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">02</span>
+                                        <h3 className="text-sm font-semibold text-slate-800">Compra y empaque</h3>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="relation-unit" className="block text-sm font-medium text-slate-700">
+                                            Unidad de compra
+                                        </label>
+
+                                        <select
+                                            id="relation-unit"
+                                            value={purchaseUnitId}
+                                            onChange={(event) =>
+                                                setPurchaseUnitId(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                loadingUnits ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                {loadingUnits
+                                                    ? "Cargando unidades..."
+                                                    : "Selecciona..."}
+                                            </option>
+
+                                            {activeUnits.map(
+                                                (unit) => (
+                                                    <option
+                                                        key={unit.id}
+                                                        value={unit.id}
+                                                    >
+                                                        {unit.name}
+                                                        {unit.symbol
+                                                            ? ` (${unit.symbol})`
+                                                            : ""}
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+
+                                        {unitsError && (
+                                            <p className="mt-1 text-xs text-red-600">
+                                                {unitsError}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="relation-package-units" className="block text-sm font-medium text-slate-700">
+                                            Unidades por paquete
+                                        </label>
+
+                                        <input
+                                            id="relation-package-units"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={
+                                                unitsPerPackage
+                                            }
+                                            onChange={(event) =>
+                                                setUnitsPerPackage(
+                                                    event.target.value
+                                                )
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="relation-barcode" className="block text-sm font-medium text-slate-700">
+                                            Código de barras
+                                        </label>
+
+                                        <input
+                                            id="relation-barcode"
+                                            type="text"
+                                            value={
+                                                packageBarcode
+                                            }
+                                            onChange={(event) =>
+                                                setPackageBarcode(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="Opcional"
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="md:col-span-2 xl:col-span-3">
+                                        <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-sky-200 bg-sky-50/60 p-5 transition-colors hover:bg-sky-50 focus-within:ring-4 focus-within:ring-sky-100 motion-reduce:transition-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    isPreferred
+                                                }
+                                                onChange={(event) =>
+                                                    setIsPreferred(
+                                                        event.target
+                                                            .checked
+                                                    )
+                                                }
+                                                className="h-5 w-5 shrink-0 accent-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+                                            />
+
+                                            <span>
+                                                <span className="block text-sm font-semibold text-slate-800">
+                                                    Proveedor preferido
+                                                </span>
+
+                                                <span className="mt-1 block text-xs leading-5 text-slate-600">
+                                                    Será la opción
+                                                    principal para
+                                                    comprar este
+                                                    producto.
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {formError && (
+                                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 xl:col-span-3">
+                                            {formError}
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-end border-t border-slate-100 pt-5 md:col-span-2 xl:col-span-3">
+                                        <button
+                                            type="submit"
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
+                                        >
+                                            {isSubmitting
+                                                ? "Guardando..."
+                                                : "Asociar proveedor"}
+                                        </button>
+                                    </div>
+                                </fieldset>
                             </form>
                         )}
                     </section>
                 )}
             </div>
 
-            <div id="product-supplier-lookup" hidden={!showLookup}>
-                {showLookup && (
-                    <ProductSupplierLookupPanel
-                        products={products}
-                        productsLoading={loadingProducts}
-                        productsError={productsError}
-                        productsLoaded={productsLoaded}
-                        onRetryProducts={() => void loadProducts()}
-                        selectedProductId={lookupProductId}
-                        onProductChange={setLookupProductId}
-                        productSuppliers={productSuppliers}
-                        loading={loading}
-                        error={error}
-                        hasLoaded={hasLoaded}
-                        onLoad={() => { if (selectedProductId) void loadByProduct(selectedProductId); }}
-                        onRefresh={() => { if (selectedProductId) void refresh(selectedProductId); }}
-                    />
-                )}
-            </div>
         </div>
     );
 };

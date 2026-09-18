@@ -321,6 +321,7 @@ export const ReceivingPage = () => {
                 </div>
 
                 <div className="mt-5 flex justify-end">
+
                     <button type="button" onClick={() => void handleRefreshOrders()} disabled={loadingOrders || isSubmitting} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">
                         {loadingOrders ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar órdenes" : "Cargar órdenes"}
                     </button>

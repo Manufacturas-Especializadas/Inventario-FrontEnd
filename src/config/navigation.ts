@@ -90,7 +90,7 @@ export const navigationItems: NavigationItem[] = [
     },
 
     {
-        label: "Productos por proveedor",
+        label: "Relación producto-proveedor",
         path: "/product-suppliers",
         group: "purchasing",
         roles: [

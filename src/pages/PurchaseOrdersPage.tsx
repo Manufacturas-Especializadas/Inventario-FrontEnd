@@ -835,17 +835,17 @@ export const PurchaseOrdersPage = () => {
                 }} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">Nueva orden</button>
                 {!showForm && editingOrder && <button type="button" onClick={() => setShowForm(true)} className="min-h-11 rounded-xl border border-sky-200 px-4 py-2 text-sm text-sky-800">Continuar edición</button>}
             </div>
-                    {formError && (
-                        <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {formError}
-                        </div>
-                    )}
+            {formError && (
+                <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {formError}
+                </div>
+            )}
 
-                    {successMessage && (
-                        <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                            {successMessage}
-                        </div>
-                    )}
+            {successMessage && (
+                <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {successMessage}
+                </div>
+            )}
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
@@ -1244,534 +1244,534 @@ export const PurchaseOrdersPage = () => {
                     )}
             </section>
             {showForm && (
-            <section ref={formPanelRef} id="purchase-order-form-panel" tabIndex={-1} aria-label={editingOrder ? "Editar orden" : "Nueva orden"} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                        <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" /></svg>
-                    </span>
-                    <div>
-                        <h2 className="text-lg font-semibold text-slate-900">
-                            {editingOrder
-                                ? `Editar orden ${editingOrder.folio}`
-                                : "Nueva orden de compra"}
-                        </h2>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                            {editingOrder
-                                ? "Modifica los datos, productos y cantidades de la orden."
-                                : "Define el proveedor, la entrega y los productos de tu pedido."}
-                        </p>
-                    </div>
-                </div>
-
-                <button type="button" disabled={isSubmitting} onClick={() => setShowForm(false)} className="mt-4 min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:opacity-50">Ocultar formulario</button>
-                {suppliersError && <div role="alert" className="mt-4 text-sm text-red-700">{suppliersError} <button type="button" disabled={loadingSuppliers} onClick={() => void loadSuppliers()} className="min-h-11 px-3 underline">Reintentar proveedores</button></div>}
-                {supplierProductsError && <button type="button" onClick={() => void loadSupplierProducts(Number(supplierId))} className="mt-4 min-h-11 rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700">Reintentar productos</button>}
-                <form
-                    onSubmit={handleSubmit}
-                    className="mt-7"
-                >
-                    <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
-                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-xs font-semibold text-sky-800">01</span>
+                <section ref={formPanelRef} id="purchase-order-form-panel" tabIndex={-1} aria-label={editingOrder ? "Editar orden" : "Nueva orden"} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" /></svg>
+                        </span>
                         <div>
-                            <h3 className="text-sm font-semibold text-slate-800">Datos de la orden</h3>
-                            <p className="mt-1 text-sm text-slate-500">Identifica el pedido y confirma las condiciones de entrega.</p>
-                        </div>
-                    </div>
-                    <div className="grid min-w-0 gap-5 sm:grid-cols-2 2xl:grid-cols-4 [&>div]:min-w-0">
-                        <div>
-                            <label htmlFor="purchase-order-supplier" className="block text-sm font-medium text-slate-700">
-                                Proveedor
-                            </label>
-
-                            <select
-                                id="purchase-order-supplier"
-                                aria-busy={loadingSuppliers}
-                                value={supplierId}
-                                disabled={loadingSuppliers || isSubmitting}
-                                onChange={(event) => {
-                                    if (event.target.value) void loadSupplierProducts(Number(event.target.value));
-                                    setSupplierId(
-                                        event.target.value
-                                    );
-
-                                    setItems([
-                                        createEmptyItem(),
-                                    ]);
-
-                                    setFormError(null);
-                                    setSuccessMessage(null);
-                                }}
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="">
-                                    Selecciona un proveedor
-                                </option>
-
-                                {editingOrder?.supplierId === Number(supplierId) && !suppliers.some((supplier) => supplier.id === Number(supplierId) && supplier.isActive) && (
-                                    <option value={supplierId} disabled>{editingOrder.supplierName}</option>
-                                )}
-                                {suppliers
-                                    .filter(
-                                        (supplier) =>
-                                            supplier.isActive
-                                    )
-                                    .map(
-                                        (supplier) => (
-                                            <option
-                                                key={
-                                                    supplier.id
-                                                }
-                                                value={
-                                                    supplier.id
-                                                }
-                                            >
-                                                {
-                                                    supplier.name
-                                                }
-                                            </option>
-                                        )
-                                    )}
-                            </select>
-                            {loadingSuppliers && (
-                                <p role="status" className="mt-2 text-sm text-sky-700">
-                                    Cargando proveedores...
-                                </p>
-                            )}
-                        </div>
-
-                        <div>
-                            <label htmlFor="purchase-order-number" className="block text-sm font-medium text-slate-700">
-                                Número de orden de compra
-                            </label>
-
-                            <input
-                                id="purchase-order-number"
-                                type="text"
-                                value={
-                                    purchaseOrderNumber
-                                }
-                                onChange={(event) =>
-                                    setPurchaseOrderNumber(
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Ej. OC-2026-00125"
-                                disabled={isSubmitting}
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="purchase-order-delivery" className="block text-sm font-medium text-slate-700">
-                                Fecha de entrega confirmada
-                            </label>
-
-                            <input
-                                id="purchase-order-delivery"
-                                type="date"
-                                value={
-                                    confirmedDeliveryDate
-                                }
-                                min={
-                                    getTodayInputValue()
-                                }
-                                onChange={(event) =>
-                                    setConfirmedDeliveryDate(
-                                        event.target.value
-                                    )
-                                }
-                                disabled={isSubmitting}
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="purchase-order-currency" className="block text-sm font-medium text-slate-700">
-                                Moneda
-                            </label>
-
-                            <select
-                                id="purchase-order-currency"
-                                value={currencyCode}
-                                onChange={(event) =>
-                                    setCurrencyCode(
-                                        event.target.value
-                                    )
-                                }
-                                disabled={isSubmitting}
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                            >
-                                <option value="MXN">
-                                    MXN
-                                </option>
-
-                                <option value="USD">
-                                    USD
-                                </option>
-                            </select>
-                        </div>
-
-                        <div className="sm:col-span-2 2xl:col-span-4">
-                            <label htmlFor="purchase-order-notes" className="block text-sm font-medium text-slate-700">
-                                Notas
-                            </label>
-
-                            <textarea
-                                id="purchase-order-notes"
-                                value={notes}
-                                onChange={(event) =>
-                                    setNotes(
-                                        event.target.value
-                                    )
-                                }
-                                rows={3}
-                                disabled={isSubmitting}
-                                className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none resize-y"
-                            />
+                            <h2 className="text-lg font-semibold text-slate-900">
+                                {editingOrder
+                                    ? `Editar orden ${editingOrder.folio}`
+                                    : "Nueva orden de compra"}
+                            </h2>
+                            <p className="mt-1 text-sm leading-6 text-slate-500">
+                                {editingOrder
+                                    ? "Modifica los datos, productos y cantidades de la orden."
+                                    : "Define el proveedor, la entrega y los productos de tu pedido."}
+                            </p>
                         </div>
                     </div>
 
-                    <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-                        <div className="flex flex-wrap items-center justify-between gap-4">
+                    <button type="button" disabled={isSubmitting} onClick={() => setShowForm(false)} className="mt-4 min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:opacity-50">Ocultar formulario</button>
+                    {suppliersError && <div role="alert" className="mt-4 text-sm text-red-700">{suppliersError} <button type="button" disabled={loadingSuppliers} onClick={() => void loadSuppliers()} className="min-h-11 px-3 underline">Reintentar proveedores</button></div>}
+                    {supplierProductsError && <button type="button" onClick={() => void loadSupplierProducts(Number(supplierId))} className="mt-4 min-h-11 rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700">Reintentar productos</button>}
+                    <form
+                        onSubmit={handleSubmit}
+                        className="mt-7"
+                    >
+                        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+                            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-xs font-semibold text-sky-800">01</span>
                             <div>
-                                <h3 className="flex items-center gap-3 font-semibold text-slate-900">
-                                    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-xs font-semibold text-sky-800">02</span>
-                                    Productos
-                                </h3>
+                                <h3 className="text-sm font-semibold text-slate-800">Datos de la orden</h3>
+                                <p className="mt-1 text-sm text-slate-500">Identifica el pedido y confirma las condiciones de entrega.</p>
+                            </div>
+                        </div>
+                        <div className="grid min-w-0 gap-5 sm:grid-cols-2 2xl:grid-cols-4 [&>div]:min-w-0">
+                            <div>
+                                <label htmlFor="purchase-order-supplier" className="block text-sm font-medium text-slate-700">
+                                    Proveedor
+                                </label>
 
-                                <p className="mt-1 text-sm leading-6 text-slate-500">
-                                    Selecciona cada artículo, indica la cantidad y revisa su equivalencia a inventario.
-                                </p>
+                                <select
+                                    id="purchase-order-supplier"
+                                    aria-busy={loadingSuppliers}
+                                    value={supplierId}
+                                    disabled={loadingSuppliers || isSubmitting}
+                                    onChange={(event) => {
+                                        if (event.target.value) void loadSupplierProducts(Number(event.target.value));
+                                        setSupplierId(
+                                            event.target.value
+                                        );
+
+                                        setItems([
+                                            createEmptyItem(),
+                                        ]);
+
+                                        setFormError(null);
+                                        setSuccessMessage(null);
+                                    }}
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                >
+                                    <option value="">
+                                        Selecciona un proveedor
+                                    </option>
+
+                                    {editingOrder?.supplierId === Number(supplierId) && !suppliers.some((supplier) => supplier.id === Number(supplierId) && supplier.isActive) && (
+                                        <option value={supplierId} disabled>{editingOrder.supplierName}</option>
+                                    )}
+                                    {suppliers
+                                        .filter(
+                                            (supplier) =>
+                                                supplier.isActive
+                                        )
+                                        .map(
+                                            (supplier) => (
+                                                <option
+                                                    key={
+                                                        supplier.id
+                                                    }
+                                                    value={
+                                                        supplier.id
+                                                    }
+                                                >
+                                                    {
+                                                        supplier.name
+                                                    }
+                                                </option>
+                                            )
+                                        )}
+                                </select>
+                                {loadingSuppliers && (
+                                    <p role="status" className="mt-2 text-sm text-sky-700">
+                                        Cargando proveedores...
+                                    </p>
+                                )}
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={addItem}
-                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
-                                disabled={
-                                    isSubmitting ||
-                                    !supplierId ||
-                                    loadingSupplierProducts ||
-                                    Boolean(
-                                        supplierProductsError
-                                    ) ||
-                                    supplierProducts.length === 0
-                                }
-                            >
-                                + Agregar producto
-                            </button>
+                            <div>
+                                <label htmlFor="purchase-order-number" className="block text-sm font-medium text-slate-700">
+                                    Número de orden de compra
+                                </label>
+
+                                <input
+                                    id="purchase-order-number"
+                                    type="text"
+                                    value={
+                                        purchaseOrderNumber
+                                    }
+                                    onChange={(event) =>
+                                        setPurchaseOrderNumber(
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Ej. OC-2026-00125"
+                                    disabled={isSubmitting}
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="purchase-order-delivery" className="block text-sm font-medium text-slate-700">
+                                    Fecha de entrega confirmada
+                                </label>
+
+                                <input
+                                    id="purchase-order-delivery"
+                                    type="date"
+                                    value={
+                                        confirmedDeliveryDate
+                                    }
+                                    min={
+                                        getTodayInputValue()
+                                    }
+                                    onChange={(event) =>
+                                        setConfirmedDeliveryDate(
+                                            event.target.value
+                                        )
+                                    }
+                                    disabled={isSubmitting}
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="purchase-order-currency" className="block text-sm font-medium text-slate-700">
+                                    Moneda
+                                </label>
+
+                                <select
+                                    id="purchase-order-currency"
+                                    value={currencyCode}
+                                    onChange={(event) =>
+                                        setCurrencyCode(
+                                            event.target.value
+                                        )
+                                    }
+                                    disabled={isSubmitting}
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                >
+                                    <option value="MXN">
+                                        MXN
+                                    </option>
+
+                                    <option value="USD">
+                                        USD
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div className="sm:col-span-2 2xl:col-span-4">
+                                <label htmlFor="purchase-order-notes" className="block text-sm font-medium text-slate-700">
+                                    Notas
+                                </label>
+
+                                <textarea
+                                    id="purchase-order-notes"
+                                    value={notes}
+                                    onChange={(event) =>
+                                        setNotes(
+                                            event.target.value
+                                        )
+                                    }
+                                    rows={3}
+                                    disabled={isSubmitting}
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none resize-y"
+                                />
+                            </div>
                         </div>
 
-                        <div className="mt-5 space-y-4">
-                            {items.map(
-                                (item, index) => (
-                                    <div
-                                        key={item.key}
-                                        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
-                                    >
-                                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 pb-4">
-                                            <span className="rounded-lg border border-sky-100 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800">
-                                                Producto {index + 1}
-                                            </span>
+                        <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="flex items-center gap-3 font-semibold text-slate-900">
+                                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-xs font-semibold text-sky-800">02</span>
+                                        Productos
+                                    </h3>
 
-                                            {items.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        removeItem(
-                                                            item.key
-                                                        )
-                                                    }
-                                                    className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
-                                                >
-                                                    Quitar
-                                                </button>
-                                            )}
-                                        </div>
+                                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                                        Selecciona cada artículo, indica la cantidad y revisa su equivalencia a inventario.
+                                    </p>
+                                </div>
 
-                                        <div className="grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] [&>div]:min-w-0">
-                                            <div className="sm:col-span-2 xl:col-span-1">
-                                                <label htmlFor={`purchase-order-product-${item.key}`} className="block text-sm font-medium text-slate-700">
-                                                    Producto
-                                                </label>
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
+                                    disabled={
+                                        isSubmitting ||
+                                        !supplierId ||
+                                        loadingSupplierProducts ||
+                                        Boolean(
+                                            supplierProductsError
+                                        ) ||
+                                        supplierProducts.length === 0
+                                    }
+                                >
+                                    + Agregar producto
+                                </button>
+                            </div>
 
-                                                <select
-                                                    id={`purchase-order-product-${item.key}`}
-                                                    value={
-                                                        item.ppeProductId
-                                                    }
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            item.key,
-                                                            "ppeProductId",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        !supplierId ||
-                                                        loadingSupplierProducts ||
-                                                        Boolean(
-                                                            supplierProductsError
-                                                        ) ||
-                                                        isSubmitting
-                                                    }
-                                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                                >
+                            <div className="mt-5 space-y-4">
+                                {items.map(
+                                    (item, index) => (
+                                        <div
+                                            key={item.key}
+                                            className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+                                        >
+                                            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 pb-4">
+                                                <span className="rounded-lg border border-sky-100 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800">
+                                                    Producto {index + 1}
+                                                </span>
+
+                                                {items.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            removeItem(
+                                                                item.key
+                                                            )
+                                                        }
+                                                        className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                                                    >
+                                                        Quitar
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] [&>div]:min-w-0">
+                                                <div className="sm:col-span-2 xl:col-span-1">
+                                                    <label htmlFor={`purchase-order-product-${item.key}`} className="block text-sm font-medium text-slate-700">
+                                                        Producto
+                                                    </label>
+
+                                                    <select
+                                                        id={`purchase-order-product-${item.key}`}
+                                                        value={
+                                                            item.ppeProductId
+                                                        }
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                item.key,
+                                                                "ppeProductId",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            !supplierId ||
+                                                            loadingSupplierProducts ||
+                                                            Boolean(
+                                                                supplierProductsError
+                                                            ) ||
+                                                            isSubmitting
+                                                        }
+                                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                                    >
 
 
-                                                    <option value="">
-                                                        {!supplierId
-                                                            ? "Selecciona primero un proveedor"
-                                                            : loadingSupplierProducts
-                                                                ? "Cargando productos..."
-                                                                : "Selecciona producto"}
-                                                    </option>
+                                                        <option value="">
+                                                            {!supplierId
+                                                                ? "Selecciona primero un proveedor"
+                                                                : loadingSupplierProducts
+                                                                    ? "Cargando productos..."
+                                                                    : "Selecciona producto"}
+                                                        </option>
 
-                                                    {editingOrder?.supplierId === Number(supplierId) && !supplierProducts.some((product) => product.ppeProductId === Number(item.ppeProductId)) && editingOrder.items.filter((entry) => entry.ppeProductId === Number(item.ppeProductId)).map((entry) => (
-                                                        <option key={entry.ppeProductId} value={entry.ppeProductId} disabled>{entry.sku} - {entry.productName}</option>
-                                                    ))}
-                                                    {supplierProducts.map(
-                                                        (relation) => (
-                                                            <option
-                                                                key={
-                                                                    relation.ppeProductId
-                                                                }
-                                                                value={
-                                                                    relation.ppeProductId
-                                                                }
-                                                            >
-                                                                {relation.sku}
-                                                                {" - "}
-                                                                {relation.productName}
-                                                            </option>
-                                                        )
-                                                    )}
-                                                </select>
-                                                {supplierId &&
-                                                    !loadingSupplierProducts &&
-                                                    !supplierProductsError &&
-                                                    supplierProducts.length === 0 && (
-                                                        <p className="mt-2 text-sm text-amber-700">
-                                                            Este proveedor no tiene productos activos configurados.
+                                                        {editingOrder?.supplierId === Number(supplierId) && !supplierProducts.some((product) => product.ppeProductId === Number(item.ppeProductId)) && editingOrder.items.filter((entry) => entry.ppeProductId === Number(item.ppeProductId)).map((entry) => (
+                                                            <option key={entry.ppeProductId} value={entry.ppeProductId} disabled>{entry.sku} - {entry.productName}</option>
+                                                        ))}
+                                                        {supplierProducts.map(
+                                                            (relation) => (
+                                                                <option
+                                                                    key={
+                                                                        relation.ppeProductId
+                                                                    }
+                                                                    value={
+                                                                        relation.ppeProductId
+                                                                    }
+                                                                >
+                                                                    {relation.sku}
+                                                                    {" - "}
+                                                                    {relation.productName}
+                                                                </option>
+                                                            )
+                                                        )}
+                                                    </select>
+                                                    {supplierId &&
+                                                        !loadingSupplierProducts &&
+                                                        !supplierProductsError &&
+                                                        supplierProducts.length === 0 && (
+                                                            <p className="mt-2 text-sm text-amber-700">
+                                                                Este proveedor no tiene productos activos configurados.
+                                                            </p>
+                                                        )}
+
+                                                    {supplierProductsError && (
+                                                        <p className="mt-2 text-sm text-red-700">
+                                                            {supplierProductsError}
                                                         </p>
                                                     )}
 
-                                                {supplierProductsError && (
-                                                    <p className="mt-2 text-sm text-red-700">
-                                                        {supplierProductsError}
-                                                    </p>
-                                                )}
+                                                </div>
 
-                                            </div>
+                                                <div>
+                                                    <label htmlFor={`purchase-order-quantity-${item.key}`} className="block text-sm font-medium text-slate-700">
+                                                        Cantidad de compra
+                                                    </label>
 
-                                            <div>
-                                                <label htmlFor={`purchase-order-quantity-${item.key}`} className="block text-sm font-medium text-slate-700">
-                                                    Cantidad de compra
-                                                </label>
-
-                                                <input
-                                                    id={`purchase-order-quantity-${item.key}`}
-                                                    type="number"
-                                                    min="1"
-                                                    step="1"
-                                                    value={
-                                                        item.orderedPurchaseQuantity
-                                                    }
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            item.key,
-                                                            "orderedPurchaseQuantity",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label htmlFor={`purchase-order-cost-${item.key}`} className="block text-sm font-medium text-slate-700">
-                                                    Costo por unidad de compra
-                                                </label>
-
-                                                <input
-                                                    id={`purchase-order-cost-${item.key}`}
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    value={
-                                                        item.purchaseUnitCost
-                                                    }
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            item.key,
-                                                            "purchaseUnitCost",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    placeholder="Opcional"
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
-                                                />
-                                            </div>
-
-                                            {item.ppeProductId &&
-                                                (() => {
-                                                    const relation =
-                                                        supplierProducts.find(
-                                                            (product) =>
-                                                                product.ppeProductId ===
-                                                                Number(
-                                                                    item.ppeProductId
-                                                                )
-                                                        );
-
-                                                    if (!relation) {
-                                                        return null;
-                                                    }
-
-                                                    const purchaseQuantity =
-                                                        Number(
+                                                    <input
+                                                        id={`purchase-order-quantity-${item.key}`}
+                                                        type="number"
+                                                        min="1"
+                                                        step="1"
+                                                        value={
                                                             item.orderedPurchaseQuantity
-                                                        );
+                                                        }
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                item.key,
+                                                                "orderedPurchaseQuantity",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                                    />
+                                                </div>
 
-                                                    const stockQuantity =
-                                                        Number.isFinite(
-                                                            purchaseQuantity
-                                                        ) &&
-                                                            purchaseQuantity > 0
-                                                            ? purchaseQuantity *
-                                                            relation.unitsPerPackage
-                                                            : 0;
+                                                <div>
+                                                    <label htmlFor={`purchase-order-cost-${item.key}`} className="block text-sm font-medium text-slate-700">
+                                                        Costo por unidad de compra
+                                                    </label>
 
-                                                    return (
-                                                        <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4 sm:col-span-2 xl:col-span-3">
-                                                            <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                                                                <div>
-                                                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                                                                        Unidad de inventario
-                                                                    </p>
+                                                    <input
+                                                        id={`purchase-order-cost-${item.key}`}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={
+                                                            item.purchaseUnitCost
+                                                        }
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                item.key,
+                                                                "purchaseUnitCost",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        placeholder="Opcional"
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 motion-reduce:transition-none"
+                                                    />
+                                                </div>
 
-                                                                    <p className="mt-1 font-semibold text-slate-900">
-                                                                        {
-                                                                            relation.stockUnit
-                                                                        }
+                                                {item.ppeProductId &&
+                                                    (() => {
+                                                        const relation =
+                                                            supplierProducts.find(
+                                                                (product) =>
+                                                                    product.ppeProductId ===
+                                                                    Number(
+                                                                        item.ppeProductId
+                                                                    )
+                                                            );
 
-                                                                        {relation.stockUnitSymbol &&
-                                                                            ` (${relation.stockUnitSymbol})`}
-                                                                    </p>
-                                                                </div>
+                                                        if (!relation) {
+                                                            return null;
+                                                        }
 
-                                                                <div>
-                                                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                                                                        Unidad de compra
-                                                                    </p>
+                                                        const purchaseQuantity =
+                                                            Number(
+                                                                item.orderedPurchaseQuantity
+                                                            );
 
-                                                                    <p className="mt-1 font-semibold text-slate-900">
-                                                                        {
-                                                                            relation.purchaseUnit
-                                                                        }
+                                                        const stockQuantity =
+                                                            Number.isFinite(
+                                                                purchaseQuantity
+                                                            ) &&
+                                                                purchaseQuantity > 0
+                                                                ? purchaseQuantity *
+                                                                relation.unitsPerPackage
+                                                                : 0;
 
-                                                                        {relation.purchaseUnitSymbol &&
-                                                                            ` (${relation.purchaseUnitSymbol})`}
-                                                                    </p>
-                                                                </div>
+                                                        return (
+                                                            <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4 sm:col-span-2 xl:col-span-3">
+                                                                <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                                                                    <div>
+                                                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                                                            Unidad de inventario
+                                                                        </p>
 
-                                                                <div>
-                                                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                                                                        Contenido
-                                                                    </p>
-
-                                                                    <p className="mt-1 font-semibold text-slate-900">
-                                                                        1{" "}
-                                                                        {
-                                                                            relation.purchaseUnit
-                                                                        }{" "}
-                                                                        ={" "}
-                                                                        {
-                                                                            relation.unitsPerPackage
-                                                                        }{" "}
-                                                                        {
-                                                                            relation.stockUnit
-                                                                        }
-                                                                    </p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                                                                        Código del proveedor
-                                                                    </p>
-
-                                                                    <p className="mt-1 font-semibold text-slate-900">
-                                                                        {relation.supplierProductCode ??
-                                                                            "No registrado"}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-
-                                                            {stockQuantity > 0 && (
-                                                                <div className="mt-4 border-t border-sky-200 pt-3">
-                                                                    <p className="text-sm text-sky-900">
-                                                                        <span className="font-semibold">
-                                                                            Equivalencia:
-                                                                        </span>{" "}
-                                                                        {purchaseQuantity}{" "}
-                                                                        {
-                                                                            relation.purchaseUnit
-                                                                        }{" "}
-                                                                        ={" "}
-                                                                        <span className="font-semibold">
+                                                                        <p className="mt-1 font-semibold text-slate-900">
                                                                             {
-                                                                                stockQuantity
+                                                                                relation.stockUnit
+                                                                            }
+
+                                                                            {relation.stockUnitSymbol &&
+                                                                                ` (${relation.stockUnitSymbol})`}
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                                                            Unidad de compra
+                                                                        </p>
+
+                                                                        <p className="mt-1 font-semibold text-slate-900">
+                                                                            {
+                                                                                relation.purchaseUnit
+                                                                            }
+
+                                                                            {relation.purchaseUnitSymbol &&
+                                                                                ` (${relation.purchaseUnitSymbol})`}
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                                                            Contenido
+                                                                        </p>
+
+                                                                        <p className="mt-1 font-semibold text-slate-900">
+                                                                            1{" "}
+                                                                            {
+                                                                                relation.purchaseUnit
+                                                                            }{" "}
+                                                                            ={" "}
+                                                                            {
+                                                                                relation.unitsPerPackage
                                                                             }{" "}
                                                                             {
                                                                                 relation.stockUnit
                                                                             }
-                                                                        </span>
-                                                                    </p>
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                                                            Código del proveedor
+                                                                        </p>
+
+                                                                        <p className="mt-1 font-semibold text-slate-900">
+                                                                            {relation.supplierProductCode ??
+                                                                                "No registrado"}
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })()}
+
+                                                                {stockQuantity > 0 && (
+                                                                    <div className="mt-4 border-t border-sky-200 pt-3">
+                                                                        <p className="text-sm text-sky-900">
+                                                                            <span className="font-semibold">
+                                                                                Equivalencia:
+                                                                            </span>{" "}
+                                                                            {purchaseQuantity}{" "}
+                                                                            {
+                                                                                relation.purchaseUnit
+                                                                            }{" "}
+                                                                            ={" "}
+                                                                            <span className="font-semibold">
+                                                                                {
+                                                                                    stockQuantity
+                                                                                }{" "}
+                                                                                {
+                                                                                    relation.stockUnit
+                                                                                }
+                                                                            </span>
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                            </div>
                                         </div>
-                                    </div>
-                                )
-                            )}
+                                    )
+                                )}
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
-                        {editingOrder && (
+                        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                            {editingOrder && (
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    disabled={isSubmitting}
+                                    className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
+                                >
+                                    Cancelar edición
+                                </button>
+                            )}
+
                             <button
-                                type="button"
-                                onClick={resetForm}
-                                disabled={isSubmitting}
-                                className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 min-h-11"
+                                type="submit"
+                                disabled={isSubmitting || loadingSuppliers || loadingSupplierProducts || !suppliersLoaded || Boolean(suppliersError) || Boolean(supplierProductsError)}
+                                className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto min-h-11"
                             >
-                                Cancelar edición
+                                {isSubmitting
+                                    ? "Guardando..."
+                                    : editingOrder
+                                        ? "Guardar cambios"
+                                        : "Crear orden de compra"}
                             </button>
-                        )}
+                        </div>
 
-                        <button
-                            type="submit"
-                            disabled={isSubmitting || loadingSuppliers || loadingSupplierProducts || !suppliersLoaded || Boolean(suppliersError) || Boolean(supplierProductsError)}
-                            className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto min-h-11"
-                        >
-                            {isSubmitting
-                                ? "Guardando..."
-                                : editingOrder
-                                    ? "Guardar cambios"
-                                    : "Crear orden de compra"}
-                        </button>
-                    </div>
-
-                </form>
-            </section>
+                    </form>
+                </section>
 
             )}
 
