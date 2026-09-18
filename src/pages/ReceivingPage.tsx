@@ -35,7 +35,9 @@ export const ReceivingPage = () => {
         loading: loadingOrders,
         error: ordersError,
         refresh: refreshOrders,
-    } = usePurchaseOrders();
+        hasLoaded,
+        removePurchaseOrder,
+    } = usePurchaseOrders({ autoLoad: false });
 
     const [
         receivingWarehouses,
@@ -49,6 +51,11 @@ export const ReceivingPage = () => {
 
     const receivingWarehousesRequestId =
         useRef(0);
+    const warehousesByFolio = useRef(new Map<string, Warehouse[]>());
+    const warehouseRequests = useRef(new Map<string, Promise<Warehouse[]>>());
+    const selectedFolio = useRef<string | null>(null);
+    const submittingRequest = useRef(false);
+    const [receivingWarehousesError, setReceivingWarehousesError] = useState<string | null>(null);
 
     const [
         searchTerm,
@@ -126,65 +133,84 @@ export const ReceivingPage = () => {
             searchTerm,
         ]);
 
-    const handleSelectOrder =
-        async (order: PurchaseOrder) => {
-            const requestId =
-                ++receivingWarehousesRequestId.current;
 
-            setSelectedOrder(order);
-            setWarehouseId("");
-            setReceivingWarehouses([]);
-            setReceipt(null);
-            setFormError(null);
+    const clearSelection = () => {
+        receivingWarehousesRequestId.current += 1;
+        selectedFolio.current = null;
+        setSelectedOrder(null);
+        setWarehouseId("");
+        setNotes("");
+        setReceivingWarehouses([]);
+        setLoadingReceivingWarehouses(false);
+        setReceivingWarehousesError(null);
+        setFormError(null);
+    };
 
-            setLoadingReceivingWarehouses(true);
+    const handleRefreshOrders = async () => {
+        const orders = await refreshOrders();
+        if (!orders) return; // A failed refresh preserves the list and the current form.
+        const available = new Map(orders.filter((order) => order.status === 2).map((order) => [order.folio, order]));
+        for (const folio of warehousesByFolio.current.keys()) {
+            if (!available.has(folio)) warehousesByFolio.current.delete(folio);
+        }
+        for (const folio of warehouseRequests.current.keys()) {
+            if (!available.has(folio)) warehouseRequests.current.delete(folio);
+        }
+        if (selectedFolio.current) {
+            const current = available.get(selectedFolio.current);
+            if (current) setSelectedOrder(current);
+            else clearSelection();
+        }
+    };
 
-            try {
-                const data =
-                    await purchaseOrdersService
-                        .getReceivingWarehouses(
-                            order.folio
-                        );
-
-                if (
-                    requestId !==
-                    receivingWarehousesRequestId.current
-                ) {
-                    return;
+    const loadReceivingWarehouses = async (folio: string) => {
+        const requestId = ++receivingWarehousesRequestId.current;
+        setReceivingWarehousesError(null);
+        setLoadingReceivingWarehouses(true);
+        try {
+            let data = warehousesByFolio.current.get(folio);
+            if (!data) {
+                let request = warehouseRequests.current.get(folio);
+                if (!request) {
+                    request = purchaseOrdersService.getReceivingWarehouses(folio).then((result) => {
+                        // An unavailable or received order must not repopulate its invalidated cache.
+                        if (warehouseRequests.current.get(folio) === request) warehousesByFolio.current.set(folio, result);
+                        return result;
+                    }).finally(() => {
+                        if (warehouseRequests.current.get(folio) === request) warehouseRequests.current.delete(folio);
+                    });
+                    warehouseRequests.current.set(folio, request);
                 }
-
-                setReceivingWarehouses(data);
-            } catch (error) {
-                if (
-                    requestId !==
-                    receivingWarehousesRequestId.current
-                ) {
-                    return;
-                }
-
-                setReceivingWarehouses([]);
-
-                setFormError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible consultar los almacenes disponibles para esta orden."
-                    )
-                );
-            } finally {
-                if (
-                    requestId ===
-                    receivingWarehousesRequestId.current
-                ) {
-                    setLoadingReceivingWarehouses(false);
-                }
+                data = await request;
             }
-        };
+            if (requestId !== receivingWarehousesRequestId.current) return;
+            setReceivingWarehouses(data);
+        } catch (error) {
+            if (requestId !== receivingWarehousesRequestId.current) return;
+            setReceivingWarehousesError(getApiErrorMessage(error, "No fue posible consultar los almacenes disponibles para esta orden."));
+        } finally {
+            if (requestId === receivingWarehousesRequestId.current) setLoadingReceivingWarehouses(false);
+        }
+    };
+
+    const handleSelectOrder = (order: PurchaseOrder) => {
+        if (submittingRequest.current) return;
+        selectedFolio.current = order.folio;
+        setSelectedOrder(order);
+        setWarehouseId("");
+        setNotes("");
+        setReceivingWarehouses([]);
+        setReceipt(null);
+        setFormError(null);
+        void loadReceivingWarehouses(order.folio);
+    };
 
     const handleSubmit =
         async (
             event: FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (submittingRequest.current) return;
 
             setFormError(null);
             setReceipt(null);
@@ -204,7 +230,9 @@ export const ReceivingPage = () => {
                 !Number.isInteger(
                     parsedWarehouseId
                 ) ||
-                parsedWarehouseId <= 0
+                parsedWarehouseId <= 0 ||
+                loadingReceivingWarehouses ||
+                !receivingWarehouses.some((warehouse) => warehouse.id === parsedWarehouseId)
             ) {
                 setFormError(
                     "Selecciona un almacén."
@@ -213,6 +241,7 @@ export const ReceivingPage = () => {
                 return;
             }
 
+            submittingRequest.current = true;
             setIsSubmitting(true);
 
             try {
@@ -232,12 +261,12 @@ export const ReceivingPage = () => {
 
                 setReceipt(result);
 
-                setSelectedOrder(null);
-                setWarehouseId("");
-                setNotes("");
-
-                await refreshOrders();
+                removePurchaseOrder(selectedOrder.id);
+                warehousesByFolio.current.delete(selectedOrder.folio);
+                warehouseRequests.current.delete(selectedOrder.folio);
+                clearSelection();
             } catch (error) {
+                if (selectedFolio.current !== selectedOrder.folio) return;
                 setFormError(
                     getApiErrorMessage(
                         error,
@@ -245,6 +274,7 @@ export const ReceivingPage = () => {
                     )
                 );
             } finally {
+                submittingRequest.current = false;
                 setIsSubmitting(false);
             }
         };
@@ -259,7 +289,7 @@ export const ReceivingPage = () => {
                 description="Recibe órdenes de compra confirmadas y registra automáticamente la entrada al inventario."
             />
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+            <section aria-label="Órdenes pendientes de recepción" aria-busy={loadingOrders} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                 <div className="flex items-start gap-3">
                     <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">01</span>
                     <div>
@@ -290,7 +320,15 @@ export const ReceivingPage = () => {
                     />
                 </div>
 
-                {loadingOrders && (
+                <div className="mt-5 flex justify-end">
+                    <button type="button" onClick={() => void handleRefreshOrders()} disabled={loadingOrders || isSubmitting} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">
+                        {loadingOrders ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar órdenes" : "Cargar órdenes"}
+                    </button>
+                </div>
+                {!hasLoaded && !loadingOrders && !ordersError && (
+                    <p className="mt-5 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-6 text-sm text-slate-600">Las órdenes todavía no se han cargado.</p>
+                )}
+                {loadingOrders && !hasLoaded && (
                     <div role="status" className="mt-5 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
                         Cargando órdenes...
                     </div>
@@ -299,12 +337,12 @@ export const ReceivingPage = () => {
                 {!loadingOrders &&
                     ordersError && (
                         <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                            {hasLoaded && <p className="mb-2 font-medium">No fue posible actualizar las órdenes. Se muestran los datos de la última consulta.</p>}
                             {ordersError}
                         </div>
                     )}
 
-                {!loadingOrders &&
-                    !ordersError &&
+                {hasLoaded &&
                     filteredOrders.length === 0 && (
                         <div className="mt-5 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
                             <p className="text-sm font-semibold text-slate-900">No hay órdenes pendientes para esta consulta</p>
@@ -318,6 +356,7 @@ export const ReceivingPage = () => {
                             <button
                                 key={order.id}
                                 type="button"
+                                disabled={isSubmitting}
                                 onClick={() =>
                                     handleSelectOrder(
                                         order
@@ -377,7 +416,7 @@ export const ReceivingPage = () => {
             </section>
 
             {selectedOrder && (
-                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <section aria-label="Detalle de recepción" aria-busy={loadingReceivingWarehouses} className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                     <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-5">
                         <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700">02</span>
                         <div>
@@ -477,6 +516,14 @@ export const ReceivingPage = () => {
                         onSubmit={handleSubmit}
                         className="mt-7 border-t border-slate-100 pt-6"
                     >
+                        {loadingReceivingWarehouses && <p role="status" className="mb-5 text-sm text-sky-800">Cargando almacenes compatibles...</p>}
+                        {receivingWarehousesError && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <p>{receivingWarehousesError}</p>
+                            <button type="button" disabled={loadingReceivingWarehouses || isSubmitting} onClick={() => void loadReceivingWarehouses(selectedOrder.folio)} className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 font-semibold focus-visible:ring-4 focus-visible:ring-red-100 disabled:opacity-50">Reintentar almacenes</button>
+                        </div>}
+                        {!loadingReceivingWarehouses && !receivingWarehousesError && receivingWarehouses.length === 0 && (
+                            <p role="status" className="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-slate-700">No hay almacenes configurados para recibir todos los productos de esta orden.</p>
+                        )}
                         <div className="grid gap-5 md:grid-cols-2">
                             <div>
                                 <label htmlFor="receiving-warehouse" className="block text-sm font-medium text-slate-700">
@@ -547,7 +594,7 @@ export const ReceivingPage = () => {
                         <div className="mt-6 flex justify-end border-t border-slate-100 pt-6">
                             <button
                                 type="submit"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || loadingReceivingWarehouses || !warehouseId || receivingWarehouses.length === 0 || Boolean(receivingWarehousesError)}
                                 className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
                             >
                                 {isSubmitting

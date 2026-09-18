@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -19,7 +20,15 @@ import {
 } from "../utils/utils";
 
 
-export const useEmployees = () => {
+interface UseEmployeesOptions {
+    autoLoad?: boolean;
+}
+
+export const useEmployees = ({ autoLoad = true }: UseEmployeesOptions = {}) => {
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const pendingRequest = useRef<Promise<Employee[]> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, Employee>());
+
     const [
         employees,
         setEmployees,
@@ -50,35 +59,32 @@ export const useEmployees = () => {
     );
 
 
-    const refresh =
-        useCallback(async () => {
-            setLoading(true);
-            setError(null);
-
+    const refresh = useCallback((): Promise<Employee[]> => {
+        if (pendingRequest.current) return pendingRequest.current;
+        setLoading(true);
+        setError(null);
+        updatesDuringLoad.current.clear();
+        const request = (async () => {
             try {
-                const data =
-                    await employeesService
-                        .getAll();
-
-                setEmployees(
-                    data
-                );
-
-                return data;
+                const data = await employeesService.getAll();
+                const merged = new Map(data.map((employee) => [employee.id, employee]));
+                updatesDuringLoad.current.forEach((employee) => merged.set(employee.id, employee));
+                const result = Array.from(merged.values());
+                setEmployees(result);
+                setHasLoaded(true);
+                return result;
             } catch (error) {
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible consultar los empleados."
-                    )
-                );
-
+                setError(getApiErrorMessage(error, "No fue posible consultar los empleados."));
                 return [];
             } finally {
                 setLoading(false);
+                pendingRequest.current = null;
+                updatesDuringLoad.current.clear();
             }
-        }, []);
-
+        })();
+        pendingRequest.current = request;
+        return request;
+    }, []);
 
     const createEmployee =
         useCallback(
@@ -96,10 +102,11 @@ export const useEmployees = () => {
                                 request
                             );
 
+                    if (pendingRequest.current) updatesDuringLoad.current.set(employee.id, employee);
                     setEmployees(
                         (current) =>
                             [
-                                ...current,
+                                ...current.filter((item) => item.id !== employee.id),
                                 employee,
                             ].sort(
                                 (a, b) =>
@@ -144,6 +151,7 @@ export const useEmployees = () => {
                                 request
                             );
 
+                    if (pendingRequest.current) updatesDuringLoad.current.set(employee.id, employee);
                     setEmployees(
                         (current) =>
                             current
@@ -203,6 +211,7 @@ export const useEmployees = () => {
                                 }
                             );
 
+                    if (pendingRequest.current) updatesDuringLoad.current.set(employee.id, employee);
                     setEmployees(
                         (current) =>
                             current.map(
@@ -243,12 +252,13 @@ export const useEmployees = () => {
 
 
     useEffect(() => {
-        void refresh();
-    }, [refresh]);
+        if (autoLoad) void refresh();
+    }, [autoLoad, refresh]);
 
 
     return {
         employees,
+        hasLoaded,
 
         loading,
         saving,

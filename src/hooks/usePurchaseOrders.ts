@@ -24,8 +24,8 @@ interface UsePurchaseOrdersOptions {
 export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions = {}) => {
     const [hasLoaded, setHasLoaded] = useState(false);
     const loaded = useRef(false);
-    const pendingRequest = useRef<Promise<void> | null>(null);
-    const updatesDuringLoad = useRef(new Map<number, PurchaseOrder>());
+    const pendingRequest = useRef<Promise<PurchaseOrder[] | null> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, PurchaseOrder | null>());
     const [
         purchaseOrders,
         setPurchaseOrders,
@@ -55,10 +55,15 @@ export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions 
                             .getAll();
 
                     const merged = new Map(data.map((order) => [order.id, order]));
-                    updatesDuringLoad.current.forEach((order) => merged.set(order.id, order));
-                    setPurchaseOrders(Array.from(merged.values()));
+                    updatesDuringLoad.current.forEach((order, id) => {
+                        if (order) merged.set(id, order);
+                        else merged.delete(id);
+                    });
+                    const orders = Array.from(merged.values());
+                    setPurchaseOrders(orders);
                     loaded.current = true;
                     setHasLoaded(true);
+                    return orders;
                 } catch (error) {
                     setError(
                         getApiErrorMessage(
@@ -66,6 +71,7 @@ export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions 
                             "No fue posible cargar las órdenes de compra."
                         )
                     );
+                    return null;
                 } finally {
                     setLoading(false);
                     pendingRequest.current = null;
@@ -85,6 +91,12 @@ export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions 
             : [...current, order]);
     }, []);
 
+    const removePurchaseOrder = useCallback((id: number) => {
+        if (pendingRequest.current) updatesDuringLoad.current.set(id, null);
+        if (!loaded.current) return;
+        setPurchaseOrders((current) => current.filter((order) => order.id !== id));
+    }, []);
+
     useEffect(() => {
         if (autoLoad) void getPurchaseOrders();
     }, [autoLoad, getPurchaseOrders]);
@@ -93,6 +105,7 @@ export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions 
         purchaseOrders,
         hasLoaded,
         upsertPurchaseOrder,
+        removePurchaseOrder,
         loading,
         error,
         refresh: getPurchaseOrders,

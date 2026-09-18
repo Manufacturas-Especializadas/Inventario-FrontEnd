@@ -92,11 +92,21 @@ export const UsersPage = () => {
 
     const {
         employees,
-    } = useEmployees();
+        hasLoaded: employeesHasLoaded,
+        loading: loadingEmployees,
+        error: employeesError,
+        refresh: refreshEmployees,
+    } = useEmployees({ autoLoad: false });
 
 
     const {
         users,
+        hasLoaded,
+        refresh,
+        mutationError,
+        creationWarning,
+        unverifiedUserId,
+        retryCreatedUser,
 
         loading,
         creating,
@@ -115,7 +125,7 @@ export const UsersPage = () => {
         setUserStatus,
 
         clearError,
-    } = useUsers();
+    } = useUsers({ autoLoad: false });
 
 
     const [
@@ -208,6 +218,10 @@ export const UsersPage = () => {
         string | null
     >(null);
 
+
+    const mutationBusy = creating || updatingId !== null || changingRolesId !== null || resettingPasswordId !== null || changingStatusId !== null;
+    const createCatalogsReady = hasLoaded && employeesHasLoaded && !loading && !loadingEmployees && !error && !employeesError;
+    const canCreate = createCatalogsReady && unverifiedUserId === null;
 
     const usersByEmployeeId =
         useMemo(
@@ -376,6 +390,10 @@ export const UsersPage = () => {
             setFormMode(
                 "create"
             );
+            void Promise.all([
+                !hasLoaded ? refresh() : Promise.resolve(),
+                !employeesHasLoaded ? refreshEmployees() : Promise.resolve(),
+            ]);
         };
 
 
@@ -511,6 +529,7 @@ export const UsersPage = () => {
                 FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (mutationBusy || !canCreate) return;
 
             setFormError(
                 null
@@ -524,7 +543,7 @@ export const UsersPage = () => {
 
 
             if (
-                !employeeNumber
+                !availableEmployees.some((employee) => employee.employeeNumber === employeeNumber)
             ) {
                 setFormError(
                     "Selecciona un empleado."
@@ -930,6 +949,7 @@ export const UsersPage = () => {
                     onClick={
                         openCreateForm
                     }
+                    disabled={mutationBusy}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                 >
                     <svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -941,10 +961,10 @@ export const UsersPage = () => {
 
 
             {(formError ||
-                error) && (
+                mutationError) && (
                     <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
                         {formError ||
-                            error}
+                            mutationError}
                     </div>
                 )}
 
@@ -957,6 +977,22 @@ export const UsersPage = () => {
                 </div>
             )}
 
+
+            {creationWarning && (
+                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p>{creationWarning}</p>
+                    <button type="button" disabled={creating} className="mt-3 min-h-11 rounded-xl border border-amber-300 px-4 py-2 font-semibold disabled:opacity-50"
+                        onClick={async () => {
+                            const result = await retryCreatedUser();
+                            if (result) {
+                                setSuccessMessage(`Usuario "${result.username}" creado correctamente.`);
+                                closeForm();
+                            }
+                        }}>
+                        {creating ? "Consultando detalle..." : "Reintentar detalle del usuario creado"}
+                    </button>
+                </div>
+            )}
 
             {/* Crear */}
 
@@ -975,12 +1011,29 @@ export const UsersPage = () => {
                         </p>
 
 
+                        {(loading || loadingEmployees) && <p role="status" className="mt-4 text-sm text-sky-800">Cargando usuarios y empleados necesarios para crear la cuenta...</p>}
+                        {error && (
+                            <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                <p>No fue posible verificar qué empleados ya tienen cuenta. {error}</p>
+                                <button type="button" disabled={loading} onClick={() => void refresh()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar usuarios</button>
+                            </div>
+                        )}
+                        {employeesError && (
+                            <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                <p>No fue posible cargar el catálogo de empleados. {employeesError}</p>
+                                <button type="button" disabled={loadingEmployees} onClick={() => void refreshEmployees()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar empleados</button>
+                            </div>
+                        )}
+                        {canCreate && availableEmployees.length === 0 && <p role="status" className="mt-4 text-sm text-slate-600">No hay empleados activos sin cuenta disponibles.</p>}
+
                         <form
+                            aria-busy={loading || loadingEmployees || creating}
                             onSubmit={
                                 handleCreate
                             }
                             className="mt-6 border-t border-slate-100 pt-6"
                         >
+                            <fieldset disabled={!canCreate || mutationBusy} className="min-w-0">
                             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 [&>div]:min-w-0">
                                 <div>
                                     <label htmlFor="user-employee" className="block text-sm font-medium text-slate-700">
@@ -1011,7 +1064,7 @@ export const UsersPage = () => {
                                             un empleado
                                         </option>
 
-                                        {availableEmployees.map(
+                                        {(createCatalogsReady ? availableEmployees : []).map(
                                             (
                                                 employee
                                             ) => (
@@ -1144,6 +1197,7 @@ export const UsersPage = () => {
                             </div>
 
 
+                            </fieldset>
                             <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                                 <button
                                     type="button"
@@ -1161,7 +1215,7 @@ export const UsersPage = () => {
                                 <button
                                     type="submit"
                                     disabled={
-                                        creating
+                                        mutationBusy || !canCreate
                                     }
                                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                                 >
@@ -1233,6 +1287,7 @@ export const UsersPage = () => {
                                     onClick={
                                         closeForm
                                     }
+                                    disabled={mutationBusy}
                                     className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                                 >
                                     Cancelar
@@ -1337,6 +1392,7 @@ export const UsersPage = () => {
                                     onClick={
                                         closeForm
                                     }
+                                    disabled={mutationBusy}
                                     className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                                 >
                                     Cancelar
@@ -1457,6 +1513,7 @@ export const UsersPage = () => {
                                     onClick={
                                         closeForm
                                     }
+                                    disabled={mutationBusy}
                                     className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                                 >
                                     Cancelar
@@ -1481,7 +1538,7 @@ export const UsersPage = () => {
 
             {/* Resumen */}
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            {hasLoaded && <div className="grid gap-4 sm:grid-cols-3">
                 <div className="min-w-0 rounded-2xl border border-sky-200 bg-linear-to-br from-white to-sky-50/70 p-5 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-6">
                     <p className="text-sm text-slate-500">
                         Usuarios
@@ -1518,12 +1575,12 @@ export const UsersPage = () => {
                     </p>
                     <p className="mt-2 text-xs leading-5 text-slate-500">Cuenta y empleado activos</p>
                 </div>
-            </div>
+            </div>}
 
 
             {/* Tabla */}
 
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+            <section aria-label="Usuarios registrados" aria-busy={loading} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="border-b border-slate-200 p-6 sm:p-8">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -1532,7 +1589,7 @@ export const UsersPage = () => {
                                 registrados
                             </h2>
 
-                            <p className="mt-1 wrap-anywhere text-sm leading-6 text-slate-500">
+                            {hasLoaded && <p className="mt-1 wrap-anywhere text-sm leading-6 text-slate-500">
                                 {
                                     filteredUsers.length
                                 }{" "}
@@ -1541,11 +1598,11 @@ export const UsersPage = () => {
                                     1
                                     ? ""
                                     : "s"}
-                            </p>
+                            </p>}
                         </div>
 
 
-                        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex min-w-0 flex-col flex-wrap gap-3 sm:flex-row sm:items-end">
                             <div className="min-w-0 space-y-2 sm:w-64">
                                 <label htmlFor="user-search" className="block text-sm font-medium text-slate-700">Buscar usuario</label>
                                 <input
@@ -1604,7 +1661,21 @@ export const UsersPage = () => {
                 </div>
 
 
-                {loading && (
+                <div className="px-6 py-4 sm:px-8">
+                    <button type="button" disabled={loading} onClick={() => void refresh()}
+                        className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:opacity-50">
+                        {loading ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar usuarios" : "Cargar usuarios"}
+                    </button>
+                </div>
+                {!hasLoaded && !loading && !error && <p className="px-6 pb-6 text-sm text-slate-600">Los usuarios todavía no se han cargado.</p>}
+                {error && (
+                    <div role="alert" className="mx-6 mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {hasLoaded && <p>No fue posible actualizar los usuarios. Se muestran los últimos datos disponibles.</p>}
+                        <p>{error}</p>
+                    </div>
+                )}
+
+                {loading && !hasLoaded && (
                     <div role="status" className="flex flex-col items-center gap-4 px-6 py-14 text-center text-sm text-slate-600">
                         <span aria-hidden="true" className="h-8 w-8 animate-spin rounded-full border-2 border-sky-100 border-t-sky-600 motion-reduce:animate-none" />
                         Cargando
@@ -1613,7 +1684,7 @@ export const UsersPage = () => {
                 )}
 
 
-                {!loading &&
+                {hasLoaded &&
                     filteredUsers.length ===
                     0 && (
                         <div role="status" className="flex flex-col items-center gap-4 px-6 py-14 text-center text-sm text-slate-600">
@@ -1633,7 +1704,7 @@ export const UsersPage = () => {
                     )}
 
 
-                {!loading &&
+                {hasLoaded &&
                     filteredUsers.length >
                     0 && (
                         <div tabIndex={0} role="region" aria-label="Listado de usuarios" className="overflow-x-auto focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200">
@@ -1774,6 +1845,7 @@ export const UsersPage = () => {
                                                     <td className="px-6 py-4">
                                                         <div className="ml-auto grid w-52 grid-cols-2 gap-2">
                                                             <button
+                                                                disabled={mutationBusy}
                                                                 type="button"
                                                                 onClick={() =>
                                                                     openUsernameForm(
@@ -1786,6 +1858,7 @@ export const UsersPage = () => {
                                                             </button>
 
                                                             <button
+                                                                disabled={mutationBusy}
                                                                 type="button"
                                                                 onClick={() =>
                                                                     openRolesForm(
@@ -1798,6 +1871,7 @@ export const UsersPage = () => {
                                                             </button>
 
                                                             <button
+                                                                disabled={mutationBusy}
                                                                 type="button"
                                                                 onClick={() =>
                                                                     openPasswordForm(
@@ -1817,7 +1891,7 @@ export const UsersPage = () => {
                                                                     )
                                                                 }
                                                                 disabled={
-                                                                    changingStatusId ===
+                                                                    mutationBusy || changingStatusId ===
                                                                     user.id ||
                                                                     (isOwnUser &&
                                                                         user.isActive) ||

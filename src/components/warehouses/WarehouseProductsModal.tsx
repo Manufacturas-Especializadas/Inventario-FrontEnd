@@ -2,6 +2,7 @@ import {
     useEffect,
     useMemo,
     useState,
+    useRef,
 } from "react";
 
 import {
@@ -47,8 +48,8 @@ export const WarehouseProductsModal = ({
 
 
     const {
-        loadingWarehouseId,
-        error: relationsError,
+        isLoadingWarehouse,
+        getWarehouseError,
 
         getByWarehouse,
         refreshWarehouse,
@@ -57,33 +58,26 @@ export const WarehouseProductsModal = ({
         hasLoadedWarehouse,
 
         upsertRelation,
-        clearError,
     } = useWarehouseProducts();
 
 
-    const [
-        search,
-        setSearch,
-    ] = useState("");
 
-
-    const [
-        changingStatusProductId,
-        setChangingStatusProductId,
-    ] = useState<number | null>(null);
-
-
-    const [
-        actionError,
-        setActionError,
-    ] = useState<string | null>(null);
-
-
-    const [
-        successMessage,
-        setSuccessMessage,
-    ] = useState<string | null>(null);
-
+    const warehouseId = warehouse?.id ?? null;
+    const [view, setView] = useState({
+        warehouseId,
+        version: 0,
+        search: "",
+        actionError: null as string | null,
+        successMessage: null as string | null,
+    });
+    // Reset only the visible context. The hook's cache and pending mutations survive closing.
+    if (view.warehouseId !== warehouseId) {
+        setView({ warehouseId, version: view.version + 1, search: "", actionError: null, successMessage: null });
+    }
+    const { search, actionError, successMessage } = view;
+    const setSearch = (value: string) => setView((current) => ({ ...current, search: value }));
+    const pendingStatus = useRef(new Set<string>());
+    const [changingStatusKeys, setChangingStatusKeys] = useState<Set<string>>(() => new Set());
 
     /*
      * El componente permanece montado aun cuando
@@ -102,24 +96,6 @@ export const WarehouseProductsModal = ({
     }, [
         warehouse,
         getByWarehouse,
-    ]);
-
-
-    /*
-     * Limpiamos únicamente estado visual cuando
-     * cambia el almacén.
-     *
-     * No eliminamos cache.
-     */
-    useEffect(() => {
-        setSearch("");
-        setActionError(null);
-        setSuccessMessage(null);
-
-        clearError();
-    }, [
-        warehouse?.id,
-        clearError,
     ]);
 
 
@@ -156,13 +132,10 @@ export const WarehouseProductsModal = ({
     ]);
 
 
-    const relations =
-        warehouse
-            ? getCachedByWarehouse(
-                warehouse.id
-            )
-            : [];
-
+    const relations = useMemo(
+        () => warehouse ? getCachedByWarehouse(warehouse.id) : [],
+        [warehouse, getCachedByWarehouse]
+    );
 
     const hasLoadedRelations =
         warehouse
@@ -174,8 +147,8 @@ export const WarehouseProductsModal = ({
 
     const isLoadingRelations =
         warehouse !== null &&
-        loadingWarehouseId ===
-        warehouse.id;
+        isLoadingWarehouse(warehouse.id);
+    const relationsError = warehouse ? getWarehouseError(warehouse.id) : null;
 
 
     const filteredRelations =
@@ -228,57 +201,38 @@ export const WarehouseProductsModal = ({
         ]);
 
 
-    const handleStatusChange =
-        async (
-            ppeProductId: number,
-            isActive: boolean
-        ) => {
-            if (!warehouse) {
-                return;
-            }
 
-            setChangingStatusProductId(
-                ppeProductId
-            );
-
-            setActionError(null);
-            setSuccessMessage(null);
-
-            try {
-                const updated =
-                    await warehouseProductsService
-                        .setStatus(
-                            warehouse.id,
-                            ppeProductId,
-                            {
-                                isActive:
-                                    !isActive,
-                            }
-                        );
-
-                upsertRelation(
-                    updated
-                );
-
-                setSuccessMessage(
-                    updated.isActive
-                        ? `Producto "${updated.productName}" activado en el almacén.`
-                        : `Producto "${updated.productName}" desactivado del almacén.`
-                );
-            } catch (error) {
-                setActionError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cambiar el estado del producto."
-                    )
-                );
-            } finally {
-                setChangingStatusProductId(
-                    null
-                );
-            }
-        };
-
+    const handleStatusChange = async (ppeProductId: number, isActive: boolean) => {
+        if (!warehouse || !isAdministrator || (!warehouse.isActive && !isActive)) return;
+        const key = warehouse.id + ":" + ppeProductId;
+        if (pendingStatus.current.has(key)) return;
+        pendingStatus.current.add(key);
+        setChangingStatusKeys((current) => new Set(current).add(key));
+        const version = view.version;
+        setView((current) => ({ ...current, actionError: null, successMessage: null }));
+        try {
+            const updated = await warehouseProductsService.setStatus(warehouse.id, ppeProductId, { isActive: !isActive });
+            upsertRelation(updated);
+            setView((current) => current.version === version ? {
+                ...current,
+                successMessage: updated.isActive
+                    ? `Producto "${updated.productName}" activado en el almacén.`
+                    : `Producto "${updated.productName}" desactivado del almacén.`,
+            } : current);
+        } catch (error) {
+            setView((current) => current.version === version ? {
+                ...current,
+                actionError: getApiErrorMessage(error, "No fue posible cambiar el estado del producto."),
+            } : current);
+        } finally {
+            pendingStatus.current.delete(key);
+            setChangingStatusKeys((current) => {
+                const next = new Set(current);
+                next.delete(key);
+                return next;
+            });
+        }
+    };
 
     if (!warehouse) {
         return null;
@@ -365,15 +319,14 @@ export const WarehouseProductsModal = ({
 
 
                     {/* LISTADO */}
-                    <section className="mt-6">
+                    <section aria-busy={isLoadingRelations} aria-label="Productos asignados" className="mt-6">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900">
                                     Productos asignados
                                 </h3>
 
-                                {hasLoadedRelations &&
-                                    !relationsError && (
+                                {hasLoadedRelations && (
                                         <p className="mt-1 text-sm text-slate-500">
                                             {
                                                 relations.length
@@ -395,13 +348,12 @@ export const WarehouseProductsModal = ({
                                 }
                                 className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                Actualizar
+                                {isLoadingRelations ? hasLoadedRelations ? "Actualizando..." : "Cargando..." : "Actualizar"}
                             </button>
                         </div>
 
 
                         {hasLoadedRelations &&
-                            !relationsError &&
                             relations.length > 0 && (
                                 <div className="mt-5">
                                     <label
@@ -448,6 +400,7 @@ export const WarehouseProductsModal = ({
                                     role="alert"
                                     className="mt-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
                                 >
+                                    {hasLoadedRelations && <p className="mb-2 font-medium">No fue posible actualizar los productos. Se muestran los últimos datos disponibles.</p>}
                                     {relationsError}
 
                                     <button
@@ -465,9 +418,7 @@ export const WarehouseProductsModal = ({
                             )}
 
 
-                        {!isLoadingRelations &&
-                            hasLoadedRelations &&
-                            !relationsError &&
+                        {hasLoadedRelations &&
                             relations.length ===
                             0 && (
                                 <div className="mt-5 rounded-2xl border border-dashed border-slate-300 px-6 py-10 text-center">
@@ -482,9 +433,7 @@ export const WarehouseProductsModal = ({
                             )}
 
 
-                        {!isLoadingRelations &&
-                            hasLoadedRelations &&
-                            !relationsError &&
+                        {hasLoadedRelations &&
                             relations.length > 0 &&
                             filteredRelations.length ===
                             0 && (
@@ -495,7 +444,6 @@ export const WarehouseProductsModal = ({
 
 
                         {hasLoadedRelations &&
-                            !relationsError &&
                             filteredRelations.length >
                             0 && (
                                 <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
@@ -558,8 +506,7 @@ export const WarehouseProductsModal = ({
                                                                 <button
                                                                     type="button"
                                                                     disabled={
-                                                                        changingStatusProductId ===
-                                                                        relation.ppeProductId ||
+                                                                        changingStatusKeys.has(warehouse.id + ":" + relation.ppeProductId) ||
                                                                         (!warehouse.isActive &&
                                                                             !relation.isActive)
                                                                     }
@@ -574,8 +521,7 @@ export const WarehouseProductsModal = ({
                                                                         : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
                                                                         }`}
                                                                 >
-                                                                    {changingStatusProductId ===
-                                                                        relation.ppeProductId
+                                                                    {changingStatusKeys.has(warehouse.id + ":" + relation.ppeProductId)
                                                                         ? "Guardando..."
                                                                         : relation.isActive
                                                                             ? "Desactivar"

@@ -1,200 +1,72 @@
-import {
-    useCallback,
-    useState,
-} from "react";
-
+import { useCallback, useRef, useState } from "react";
 import { warehouseProductsService } from "../api/services/WarehouseProductsService.ts";
-
-import type {
-    WarehouseProduct,
-} from "../types/types.ts";
-
-import {
-    getApiErrorMessage,
-} from "../utils/utils.ts";
-
+import type { WarehouseProduct } from "../types/types.ts";
+import { getApiErrorMessage } from "../utils/utils.ts";
 
 export const useWarehouseProducts = () => {
-    const [
-        relationsByWarehouse,
-        setRelationsByWarehouse,
-    ] = useState<Record<number, WarehouseProduct[]>>({});
+    const [relationsByWarehouse, setRelationsByWarehouse] = useState<Record<number, WarehouseProduct[]>>({});
+    const [loadedWarehouseIds, setLoadedWarehouseIds] = useState<Set<number>>(() => new Set());
+    const [loadingByWarehouse, setLoadingByWarehouse] = useState<Record<number, boolean>>({});
+    const [errorsByWarehouse, setErrorsByWarehouse] = useState<Record<number, string | null>>({});
+    const loaded = useRef(new Set<number>());
+    const pendingRequests = useRef(new Map<number, {
+        promise: Promise<void>;
+        updates: Map<number, WarehouseProduct>;
+    }>());
 
-    const [
-        loadedWarehouseIds,
-        setLoadedWarehouseIds,
-    ] = useState<Set<number>>(
-        () => new Set()
-    );
+    const getByWarehouse = useCallback((warehouseId: number, force = false): Promise<void> => {
+        const pending = pendingRequests.current.get(warehouseId);
+        if (pending) return pending.promise;
+        if (!force && loaded.current.has(warehouseId)) return Promise.resolve();
 
-    const [
-        loadingWarehouseId,
-        setLoadingWarehouseId,
-    ] = useState<number | null>(null);
+        setLoadingByWarehouse((current) => ({ ...current, [warehouseId]: true }));
+        setErrorsByWarehouse((current) => ({ ...current, [warehouseId]: null }));
+        const updates = new Map<number, WarehouseProduct>();
+        const promise = (async () => {
+            try {
+                const data = await warehouseProductsService.getByWarehouse(warehouseId);
+                // Preserve status mutations that completed while this warehouse's GET was pending.
+                const merged = new Map(data.map((relation) => [relation.ppeProductId, relation]));
+                updates.forEach((relation) => merged.set(relation.ppeProductId, relation));
+                setRelationsByWarehouse((current) => ({ ...current, [warehouseId]: Array.from(merged.values()) }));
+                loaded.current.add(warehouseId);
+                setLoadedWarehouseIds((current) => new Set(current).add(warehouseId));
+            } catch (error) {
+                setErrorsByWarehouse((current) => ({
+                    ...current,
+                    [warehouseId]: getApiErrorMessage(error, "No fue posible cargar los productos del almacén."),
+                }));
+            } finally {
+                pendingRequests.current.delete(warehouseId);
+                setLoadingByWarehouse((current) => ({ ...current, [warehouseId]: false }));
+            }
+        })();
+        pendingRequests.current.set(warehouseId, { promise, updates });
+        return promise;
+    }, []);
 
-    const [
-        error,
-        setError,
-    ] = useState<string | null>(null);
+    const upsertRelation = useCallback((relation: WarehouseProduct) => {
+        pendingRequests.current.get(relation.warehouseId)?.updates.set(relation.ppeProductId, relation);
+        setRelationsByWarehouse((current) => {
+            const relations = current[relation.warehouseId] ?? [];
+            const exists = relations.some((entry) => entry.ppeProductId === relation.ppeProductId);
+            return {
+                ...current,
+                [relation.warehouseId]: exists
+                    ? relations.map((entry) => entry.ppeProductId === relation.ppeProductId ? relation : entry)
+                    : [...relations, relation],
+            };
+        });
+    }, []);
 
-
-    const getByWarehouse =
-        useCallback(
-            async (
-                warehouseId: number,
-                force = false
-            ) => {
-                if (
-                    !force &&
-                    loadedWarehouseIds.has(warehouseId)
-                ) {
-                    return;
-                }
-
-                setLoadingWarehouseId(warehouseId);
-                setError(null);
-
-                try {
-                    const data =
-                        await warehouseProductsService
-                            .getByWarehouse(
-                                warehouseId
-                            );
-
-                    setRelationsByWarehouse(
-                        (current) => ({
-                            ...current,
-                            [warehouseId]: data,
-                        })
-                    );
-
-                    setLoadedWarehouseIds(
-                        (current) => {
-                            const next =
-                                new Set(current);
-
-                            next.add(warehouseId);
-
-                            return next;
-                        }
-                    );
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible cargar los productos del almacén."
-                        )
-                    );
-                } finally {
-                    setLoadingWarehouseId(
-                        (current) =>
-                            current === warehouseId
-                                ? null
-                                : current
-                    );
-                }
-            },
-            [loadedWarehouseIds]
-        );
-
-
-    const upsertRelation =
-        useCallback(
-            (
-                relation: WarehouseProduct
-            ) => {
-                setRelationsByWarehouse(
-                    (current) => {
-                        const warehouseRelations =
-                            current[
-                            relation.warehouseId
-                            ] ?? [];
-
-                        const exists =
-                            warehouseRelations.some(
-                                (entry) =>
-                                    entry.ppeProductId ===
-                                    relation.ppeProductId
-                            );
-
-                        const updated =
-                            exists
-                                ? warehouseRelations.map(
-                                    (entry) =>
-                                        entry.ppeProductId ===
-                                            relation.ppeProductId
-                                            ? relation
-                                            : entry
-                                )
-                                : [
-                                    ...warehouseRelations,
-                                    relation,
-                                ];
-
-                        return {
-                            ...current,
-                            [relation.warehouseId]:
-                                updated,
-                        };
-                    }
-                );
-            },
-            []
-        );
-
-
-    const getCachedByWarehouse =
-        useCallback(
-            (warehouseId: number) =>
-                relationsByWarehouse[
-                warehouseId
-                ] ?? [],
-            [relationsByWarehouse]
-        );
-
-
-    const hasLoadedWarehouse =
-        useCallback(
-            (warehouseId: number) =>
-                loadedWarehouseIds.has(
-                    warehouseId
-                ),
-            [loadedWarehouseIds]
-        );
-
-
-    const refreshWarehouse =
-        useCallback(
-            async (
-                warehouseId: number
-            ) => {
-                await getByWarehouse(
-                    warehouseId,
-                    true
-                );
-            },
-            [getByWarehouse]
-        );
-
-
-    const clearError =
-        useCallback(() => {
-            setError(null);
-        }, []);
-
+    const getCachedByWarehouse = useCallback((id: number) => relationsByWarehouse[id] ?? [], [relationsByWarehouse]);
+    const hasLoadedWarehouse = useCallback((id: number) => loadedWarehouseIds.has(id), [loadedWarehouseIds]);
+    const isLoadingWarehouse = useCallback((id: number) => loadingByWarehouse[id] ?? false, [loadingByWarehouse]);
+    const getWarehouseError = useCallback((id: number) => errorsByWarehouse[id] ?? null, [errorsByWarehouse]);
+    const refreshWarehouse = useCallback((id: number) => getByWarehouse(id, true), [getByWarehouse]);
 
     return {
-        loadingWarehouseId,
-        error,
-
-        getByWarehouse,
-        refreshWarehouse,
-
-        getCachedByWarehouse,
-        hasLoadedWarehouse,
-
-        upsertRelation,
-
-        clearError,
+        getByWarehouse, refreshWarehouse, getCachedByWarehouse, hasLoadedWarehouse,
+        isLoadingWarehouse, getWarehouseError, upsertRelation,
     };
 };

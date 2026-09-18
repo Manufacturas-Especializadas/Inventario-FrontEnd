@@ -1,5 +1,6 @@
 import {
     useState,
+    useRef,
     type FormEvent,
 } from "react";
 
@@ -31,7 +32,11 @@ export const WarehousesPage = () => {
         loading,
         error,
         refresh,
-    } = useWarehouses();
+        hasLoaded,
+        upsertWarehouse,
+    } = useWarehouses({ autoLoad: false });
+    const submittingRequest = useRef(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const [
         code,
@@ -74,8 +79,10 @@ export const WarehousesPage = () => {
             event: FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (submittingRequest.current) return;
 
             setFormError(null);
+            setSuccessMessage(null);
 
             const normalizedCode =
                 code.trim();
@@ -99,10 +106,11 @@ export const WarehousesPage = () => {
                 return;
             }
 
+            submittingRequest.current = true;
             setIsSubmitting(true);
 
             try {
-                await warehousesService.create({
+                const created = await warehousesService.create({
                     code: normalizedCode,
                     name: normalizedName,
 
@@ -113,7 +121,8 @@ export const WarehousesPage = () => {
 
                 resetForm();
 
-                await refresh();
+                upsertWarehouse(created);
+                setSuccessMessage(`Almacén "${created.name}" creado correctamente.`);
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -123,6 +132,7 @@ export const WarehousesPage = () => {
                 );
             } finally {
                 setIsSubmitting(false);
+                submittingRequest.current = false;
             }
         };
 
@@ -220,6 +230,9 @@ export const WarehousesPage = () => {
                         />
                     </div>
 
+                    {successMessage && (
+                        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 md:col-span-2">{successMessage}</div>
+                    )}
                     {formError && (
                         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2">
                             {formError}
@@ -240,14 +253,14 @@ export const WarehousesPage = () => {
                 </form>
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+            <section aria-label="Listado de almacenes" aria-busy={loading} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-6 sm:px-8">
                     <div>
                         <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                             Almacenes registrados
                         </h2>
 
-                        {!loading && !error && (
+                        {hasLoaded && (
                             <p className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
                                 {warehouses.length} almacenes
                             </p>
@@ -265,11 +278,14 @@ export const WarehousesPage = () => {
                         <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
                         </svg>
-                        Actualizar
+                        {loading ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar" : "Cargar almacenes"}
                     </button>
                 </div>
 
-                {loading && (
+                {!hasLoaded && !loading && !error && (
+                    <p className="m-6 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-6 text-sm text-slate-600">Los almacenes todavía no se han cargado.</p>
+                )}
+                {loading && !hasLoaded && (
                     <div role="status" className="m-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
                         <span aria-hidden="true" className="mx-auto mb-3 block h-6 w-6 rounded-full border-2 border-sky-200 border-t-sky-700 motion-safe:animate-spin" />
                         Cargando almacenes...
@@ -278,12 +294,12 @@ export const WarehousesPage = () => {
 
                 {!loading && error && (
                     <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        {hasLoaded && <p className="mb-2 font-medium">No fue posible actualizar los almacenes. Se muestran los últimos datos disponibles.</p>}
                         {error}
                     </div>
                 )}
 
-                {!loading &&
-                    !error &&
+                {hasLoaded &&
                     warehouses.length === 0 && (
                         <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center">
                             <svg aria-hidden="true" className="mx-auto mb-4 h-9 w-9 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -294,8 +310,7 @@ export const WarehousesPage = () => {
                         </div>
                     )}
 
-                {!loading &&
-                    !error &&
+                {hasLoaded &&
                     warehouses.length > 0 && (
                         <div tabIndex={0} role="region" aria-label="Almacenes registrados" className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600">
                             <table className="w-full min-w-190 text-left text-sm">

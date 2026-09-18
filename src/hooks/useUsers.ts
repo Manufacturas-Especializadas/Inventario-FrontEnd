@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -20,7 +21,38 @@ import {
 } from "../utils/utils";
 
 
-export const useUsers = () => {
+interface UseUsersOptions {
+    autoLoad?: boolean;
+}
+
+const sortUsers = (
+    items: AdminUser[]
+) => {
+    return [...items].sort(
+        (a, b) =>
+            a.employeeName.localeCompare(
+                b.employeeName,
+                "es"
+            ) ||
+            a.username.localeCompare(
+                b.username,
+                "es"
+            )
+    );
+};
+
+export const useUsers = ({ autoLoad = true }: UseUsersOptions = {}) => {
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const loaded = useRef(false);
+    const pendingRequest = useRef<Promise<AdminUser[]> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, AdminUser>());
+    const mutationInFlight = useRef(false);
+    const pendingCreatedId = useRef<number | null>(null);
+    const reconciledCreatedUser = useRef<AdminUser | null>(null);
+    const [unverifiedUserId, setUnverifiedUserId] = useState<number | null>(null);
+    const [creationWarning, setCreationWarning] = useState<string | null>(null);
+    const [mutationError, setMutationError] = useState<string | null>(null);
+
     const [
         users,
         setUsers,
@@ -79,146 +111,97 @@ export const useUsers = () => {
     );
 
 
-    const sortUsers = (
-        items: AdminUser[]
-    ) => {
-        return [...items].sort(
-            (a, b) =>
-                a.employeeName.localeCompare(
-                    b.employeeName,
-                    "es"
-                ) ||
-                a.username.localeCompare(
-                    b.username,
-                    "es"
-                )
-        );
-    };
+    const upsertUser = useCallback((user: AdminUser) => {
+        if (pendingRequest.current) updatesDuringLoad.current.set(user.id, user);
+        if (!loaded.current) return;
+        setUsers((current) => sortUsers([
+            ...current.filter((entry) => entry.id !== user.id), user,
+        ]));
+    }, []);
 
-
-    const replaceUser = (
-        current: AdminUser[],
-        updatedUser: AdminUser
-    ) => {
-        return sortUsers(
-            current.map(
-                (user) =>
-                    user.id ===
-                        updatedUser.id
-                        ? updatedUser
-                        : user
-            )
-        );
-    };
-
-
-    const refresh =
-        useCallback(
-            async (): Promise<
-                AdminUser[]
-            > => {
-                setLoading(true);
-                setError(null);
-
-                try {
-                    const data =
-                        await usersService
-                            .getAll();
-
-                    const sorted =
-                        sortUsers(
-                            data
-                        );
-
-                    setUsers(
-                        sorted
-                    );
-
-                    return sorted;
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible consultar los usuarios."
-                        )
-                    );
-
-                    return [];
-                } finally {
-                    setLoading(
-                        false
-                    );
+    const refresh = useCallback((): Promise<AdminUser[]> => {
+        if (pendingRequest.current) return pendingRequest.current;
+        setLoading(true);
+        setError(null);
+        updatesDuringLoad.current.clear();
+        const request = (async () => {
+            try {
+                const data = await usersService.getAll();
+                const merged = new Map(data.map((user) => [user.id, user]));
+                updatesDuringLoad.current.forEach((user) => merged.set(user.id, user));
+                const sorted = sortUsers(Array.from(merged.values()));
+                setUsers(sorted);
+                loaded.current = true;
+                setHasLoaded(true);
+                if (pendingCreatedId.current !== null && merged.has(pendingCreatedId.current)) {
+                    reconciledCreatedUser.current = merged.get(pendingCreatedId.current) ?? null;
+                    pendingCreatedId.current = null;
+                    setUnverifiedUserId(null);
+                    setCreationWarning(null);
                 }
-            },
-            []
-        );
+                return sorted;
+            } catch (error) {
+                setError(getApiErrorMessage(error, "No fue posible consultar los usuarios."));
+                return [];
+            } finally {
+                setLoading(false);
+                pendingRequest.current = null;
+                updatesDuringLoad.current.clear();
+            }
+        })();
+        pendingRequest.current = request;
+        return request;
+    }, []);
 
+    // POST only returns userId. Keep an unresolved creation separate from a failed POST.
+    const loadCreatedUser = useCallback(async (id: number): Promise<AdminUser | null> => {
+        try {
+            const user = await usersService.getById(id);
+            upsertUser(user);
+            pendingCreatedId.current = null;
+            setUnverifiedUserId(null);
+            setCreationWarning(null);
+            return user;
+        } catch {
+            // An explicit list refresh may have recovered the real DTO while detail was pending.
+            if (reconciledCreatedUser.current?.id === id) return reconciledCreatedUser.current;
+            setCreationWarning("El usuario fue creado, pero no fue posible recuperar su información. Reintenta consultar el detalle o actualiza la lista para verificarlo. No vuelvas a crear la cuenta.");
+            return null;
+        }
+    }, [upsertUser]);
 
-    const createUser =
-        useCallback(
-            async (
-                request:
-                    CreateUserRequest
-            ): Promise<AdminUser | null> => {
-                setCreating(
-                    true
-                );
+    const createUser = useCallback(async (request: CreateUserRequest): Promise<AdminUser | null> => {
+        if (mutationInFlight.current || pendingCreatedId.current !== null) return null;
+        mutationInFlight.current = true;
+        setCreating(true);
+        setMutationError(null);
+        reconciledCreatedUser.current = null;
+        try {
+            const created = await usersService.create(request);
+            pendingCreatedId.current = created.userId;
+            setUnverifiedUserId(created.userId);
+            return await loadCreatedUser(created.userId);
+        } catch (error) {
+            setMutationError(getApiErrorMessage(error, "No fue posible crear el usuario."));
+            return null;
+        } finally {
+            mutationInFlight.current = false;
+            setCreating(false);
+        }
+    }, [loadCreatedUser]);
 
-                setError(
-                    null
-                );
-
-                try {
-                    const created =
-                        await usersService
-                            .create(
-                                request
-                            );
-
-
-                    /*
-                     * POST /users solamente
-                     * devuelve userId.
-                     *
-                     * Consultamos el usuario
-                     * recién creado para obtener
-                     * el AdminUser completo.
-                     */
-                    const user =
-                        await usersService
-                            .getById(
-                                created.userId
-                            );
-
-
-                    setUsers(
-                        (current) =>
-                            sortUsers([
-                                ...current,
-                                user,
-                            ])
-                    );
-
-
-                    return user;
-                } catch (error) {
-                    setError(
-                        getApiErrorMessage(
-                            error,
-                            "No fue posible crear el usuario."
-                        )
-                    );
-
-                    return null;
-                } finally {
-                    setCreating(
-                        false
-                    );
-                }
-            },
-            []
-        );
-
+    const retryCreatedUser = useCallback(async (): Promise<AdminUser | null> => {
+        const id = pendingCreatedId.current;
+        if (id === null || mutationInFlight.current) return null;
+        mutationInFlight.current = true;
+        setCreating(true);
+        try {
+            return await loadCreatedUser(id);
+        } finally {
+            mutationInFlight.current = false;
+            setCreating(false);
+        }
+    }, [loadCreatedUser]);
 
     const updateUser =
         useCallback(
@@ -227,11 +210,13 @@ export const useUsers = () => {
                 request:
                     UpdateUserRequest
             ): Promise<AdminUser | null> => {
+                if (mutationInFlight.current) return null;
+                mutationInFlight.current = true;
                 setUpdatingId(
                     id
                 );
 
-                setError(
+                setMutationError(
                     null
                 );
 
@@ -244,18 +229,12 @@ export const useUsers = () => {
                             );
 
 
-                    setUsers(
-                        (current) =>
-                            replaceUser(
-                                current,
-                                user
-                            )
-                    );
+                    upsertUser(user);
 
 
                     return user;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             "No fue posible actualizar el usuario."
@@ -264,12 +243,13 @@ export const useUsers = () => {
 
                     return null;
                 } finally {
+                    mutationInFlight.current = false;
                     setUpdatingId(
                         null
                     );
                 }
             },
-            []
+            [upsertUser]
         );
 
 
@@ -280,11 +260,13 @@ export const useUsers = () => {
                 request:
                     SetUserRolesRequest
             ): Promise<AdminUser | null> => {
+                if (mutationInFlight.current) return null;
+                mutationInFlight.current = true;
                 setChangingRolesId(
                     id
                 );
 
-                setError(
+                setMutationError(
                     null
                 );
 
@@ -297,18 +279,12 @@ export const useUsers = () => {
                             );
 
 
-                    setUsers(
-                        (current) =>
-                            replaceUser(
-                                current,
-                                user
-                            )
-                    );
+                    upsertUser(user);
 
 
                     return user;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             "No fue posible actualizar los roles del usuario."
@@ -317,12 +293,13 @@ export const useUsers = () => {
 
                     return null;
                 } finally {
+                    mutationInFlight.current = false;
                     setChangingRolesId(
                         null
                     );
                 }
             },
-            []
+            [upsertUser]
         );
 
 
@@ -332,13 +309,14 @@ export const useUsers = () => {
                 id: number,
                 newPassword: string
             ): Promise<AdminUser | null> => {
+                if (mutationInFlight.current) return null;
                 if (
                     newPassword.length <
                     8 ||
                     newPassword.length >
                     64
                 ) {
-                    setError(
+                    setMutationError(
                         "La contraseña debe tener entre 8 y 64 caracteres."
                     );
 
@@ -346,11 +324,12 @@ export const useUsers = () => {
                 }
 
 
+                mutationInFlight.current = true;
                 setResettingPasswordId(
                     id
                 );
 
-                setError(
+                setMutationError(
                     null
                 );
 
@@ -365,18 +344,12 @@ export const useUsers = () => {
                             );
 
 
-                    setUsers(
-                        (current) =>
-                            replaceUser(
-                                current,
-                                user
-                            )
-                    );
+                    upsertUser(user);
 
 
                     return user;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             "No fue posible restablecer la contraseña."
@@ -385,12 +358,13 @@ export const useUsers = () => {
 
                     return null;
                 } finally {
+                    mutationInFlight.current = false;
                     setResettingPasswordId(
                         null
                     );
                 }
             },
-            []
+            [upsertUser]
         );
 
 
@@ -400,11 +374,13 @@ export const useUsers = () => {
                 id: number,
                 isActive: boolean
             ): Promise<AdminUser | null> => {
+                if (mutationInFlight.current) return null;
+                mutationInFlight.current = true;
                 setChangingStatusId(
                     id
                 );
 
-                setError(
+                setMutationError(
                     null
                 );
 
@@ -419,18 +395,12 @@ export const useUsers = () => {
                             );
 
 
-                    setUsers(
-                        (current) =>
-                            replaceUser(
-                                current,
-                                user
-                            )
-                    );
+                    upsertUser(user);
 
 
                     return user;
                 } catch (error) {
-                    setError(
+                    setMutationError(
                         getApiErrorMessage(
                             error,
                             isActive
@@ -441,30 +411,36 @@ export const useUsers = () => {
 
                     return null;
                 } finally {
+                    mutationInFlight.current = false;
                     setChangingStatusId(
                         null
                     );
                 }
             },
-            []
+            [upsertUser]
         );
 
 
     const clearError =
         useCallback(() => {
-            setError(
+            setMutationError(
                 null
             );
         }, []);
 
 
     useEffect(() => {
-        void refresh();
-    }, [refresh]);
+        if (autoLoad) void refresh();
+    }, [autoLoad, refresh]);
 
 
     return {
         users,
+        hasLoaded,
+        mutationError,
+        creationWarning,
+        unverifiedUserId,
+        retryCreatedUser,
 
         loading,
         creating,
