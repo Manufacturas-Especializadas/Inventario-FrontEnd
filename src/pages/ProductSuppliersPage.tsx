@@ -1,5 +1,6 @@
 import {
     useState,
+    useRef,
     type FormEvent,
 } from "react";
 
@@ -12,27 +13,44 @@ import {
 } from "../hooks/usePPEProducts";
 
 import {
-    useProductSuppliers,
-} from "../hooks/useProductSuppliers";
-
-import {
     useSuppliers,
 } from "../hooks/useSuppliers";
 
 import {
     getApiErrorMessage,
 } from "../utils/utils";
+import {
+    useUnits,
+} from "../hooks/useUnits";
+
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
+
+import { PageHeader } from "../components/ui/PageHeader";
 
 export const ProductSuppliersPage = () => {
     const {
         products,
         loading: loadingProducts,
-    } = usePPEProducts();
+        hasLoaded: productsLoaded,
+        error: productsError,
+        refresh: loadProducts,
+    } = usePPEProducts({ autoLoad: false });
 
     const {
         suppliers,
         loading: loadingSuppliers,
-    } = useSuppliers();
+        hasLoaded: suppliersLoaded,
+        error: suppliersError,
+        refresh: loadSuppliers,
+    } = useSuppliers({ autoLoad: false });
+
+    const {
+        activeUnits,
+        loading: loadingUnits,
+        error: unitsError,
+        hasLoaded: unitsLoaded,
+        refresh: loadUnits,
+    } = useUnits({ autoLoad: false });
 
     const [
         ppeProductId,
@@ -50,9 +68,9 @@ export const ProductSuppliersPage = () => {
     ] = useState("");
 
     const [
-        purchaseUnit,
-        setPurchaseUnit,
-    ] = useState("Caja");
+        purchaseUnitId,
+        setPurchaseUnitId,
+    ] = useState("");
 
     const [
         unitsPerPackage,
@@ -79,54 +97,30 @@ export const ProductSuppliersPage = () => {
         setIsSubmitting,
     ] = useState(false);
 
-    const selectedProductId = ppeProductId ? Number(ppeProductId) : null;
+    const [showForm, setShowForm] = useState(false);
+    const submittingRef = useRef(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    const {
-        productSuppliers,
-        loading,
-        error,
-        refresh,
-    } = useProductSuppliers(
-        selectedProductId
-    );
+    const loadFormCatalogs = () => Promise.all([
+        !productsLoaded ? loadProducts() : Promise.resolve(),
+        !suppliersLoaded ? loadSuppliers() : Promise.resolve(),
+        !unitsLoaded ? loadUnits() : Promise.resolve(),
+    ]);
+
+    const toggleForm = () => {
+        if (submittingRef.current) return;
+        if (!showForm) void loadFormCatalogs();
+        setShowForm(!showForm);
+    };
 
     const resetForm = () => {
         setPPEProductId("");
         setSupplierId("");
         setSupplierProductCode("");
-        setPurchaseUnit("Caja");
+        setPurchaseUnitId("");
         setUnitsPerPackage("1");
         setPackageBarcode("");
         setIsPreferred(false);
-    };
-
-    const getProductName = (
-        productId: number
-    ) => {
-        const product =
-            products.find(
-                (product) =>
-                    product.id === productId
-            );
-
-        if (!product) {
-            return `Producto #${productId}`;
-        }
-
-        return `${product.sku} - ${product.name}`;
-    };
-
-    const getSupplierName = (
-        currentSupplierId: number
-    ) => {
-        return (
-            suppliers.find(
-                (supplier) =>
-                    supplier.id ===
-                    currentSupplierId
-            )?.name ??
-            `Proveedor #${currentSupplierId}`
-        );
     };
 
     const handleSubmit =
@@ -134,6 +128,8 @@ export const ProductSuppliersPage = () => {
             event: FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
+            if (submittingRef.current || !catalogsReady || catalogsLoading || catalogsError) return;
+            setSuccessMessage(null);
 
             setFormError(null);
 
@@ -153,9 +149,9 @@ export const ProductSuppliersPage = () => {
                 return;
             }
 
-            if (!purchaseUnit.trim()) {
+            if (!purchaseUnitId) {
                 setFormError(
-                    "La unidad de compra es obligatoria."
+                    "Selecciona una unidad de compra."
                 );
 
                 return;
@@ -175,15 +171,15 @@ export const ProductSuppliersPage = () => {
                 return;
             }
 
+            submittingRef.current = true;
             setIsSubmitting(true);
+
+            const createdProductId = Number(ppeProductId);
 
             try {
                 await productSuppliersService
                     .create({
-                        ppeProductId:
-                            Number(
-                                ppeProductId
-                            ),
+                        ppeProductId: createdProductId,
 
                         supplierId:
                             Number(
@@ -195,8 +191,8 @@ export const ProductSuppliersPage = () => {
                                 .trim() ||
                             null,
 
-                        purchaseUnit:
-                            purchaseUnit.trim(),
+                        purchaseUnitId:
+                            Number(purchaseUnitId),
 
                         unitsPerPackage:
                             parsedUnits,
@@ -210,8 +206,7 @@ export const ProductSuppliersPage = () => {
                     });
 
                 resetForm();
-
-                await refresh();
+                setSuccessMessage("Relación producto-proveedor creada correctamente.");
             } catch (error) {
                 setFormError(
                     getApiErrorMessage(
@@ -220,433 +215,336 @@ export const ProductSuppliersPage = () => {
                     )
                 );
             } finally {
+                submittingRef.current = false;
                 setIsSubmitting(false);
             }
         };
 
     const catalogsLoading =
         loadingProducts ||
-        loadingSuppliers;
+        loadingSuppliers ||
+        loadingUnits;
+
+    const catalogsReady = productsLoaded && suppliersLoaded && unitsLoaded;
+    const catalogsError = productsError || suppliersError || unitsError;
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div>
-                <p className="text-sm font-medium text-slate-500">
-                    Catálogos
-                </p>
+        <div className="mx-auto max-w-7xl space-y-6">
+            <PageHeader
+                eyebrow="MESA · Catálogos"
+                title="Productos por proveedor"
+                description="Vincula tus productos con sus proveedores y define cómo se compran y reciben."
+            />
 
-                <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                    Productos por proveedor
-                </h1>
-
-                <p className="mt-2 text-sm text-slate-600">
-                    Configura qué proveedor
-                    suministra cada producto EPP y
-                    cómo se compra o recibe.
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+                <button type="button" onClick={toggleForm} disabled={isSubmitting} aria-expanded={showForm} aria-controls="new-product-supplier" className="inline-flex min-h-11 items-center justify-center gap-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none">
+                    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    {showForm ? "Ocultar formulario" : "Nueva relación"}
+                    <svg aria-hidden="true" className={`h-4 w-4 transition-transform duration-200 motion-reduce:transition-none ${showForm ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+                </button>
             </div>
 
-            <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">
-                    Nueva relación
-                </h2>
+            {successMessage && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">{successMessage}</div>}
 
-                <form
-                    onSubmit={handleSubmit}
-                    className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3"
-                >
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Producto EPP
-                        </label>
-
-                        <select
-                            value={ppeProductId}
-                            onChange={(event) =>
-                                setPPEProductId(
-                                    event.target.value
-                                )
-                            }
-                            disabled={
-                                catalogsLoading ||
-                                isSubmitting
-                            }
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        >
-                            <option value="">
-                                Selecciona...
-                            </option>
-
-                            {products
-                                .filter(
-                                    (product) =>
-                                        product.isActive
-                                )
-                                .map(
-                                    (product) => (
-                                        <option
-                                            key={
-                                                product.id
-                                            }
-                                            value={
-                                                product.id
-                                            }
-                                        >
-                                            {product.sku} -{" "}
-                                            {product.name}
-                                        </option>
-                                    )
-                                )}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Proveedor
-                        </label>
-
-                        <select
-                            value={supplierId}
-                            onChange={(event) =>
-                                setSupplierId(
-                                    event.target.value
-                                )
-                            }
-                            disabled={
-                                catalogsLoading ||
-                                isSubmitting
-                            }
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        >
-                            <option value="">
-                                Selecciona...
-                            </option>
-
-                            {suppliers
-                                .filter(
-                                    (supplier) =>
-                                        supplier.isActive
-                                )
-                                .map(
-                                    (supplier) => (
-                                        <option
-                                            key={
-                                                supplier.id
-                                            }
-                                            value={
-                                                supplier.id
-                                            }
-                                        >
-                                            {
-                                                supplier.name
-                                            }
-                                        </option>
-                                    )
-                                )}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Código del proveedor
-                        </label>
-
-                        <input
-                            type="text"
-                            value={
-                                supplierProductCode
-                            }
-                            onChange={(event) =>
-                                setSupplierProductCode(
-                                    event.target.value
-                                )
-                            }
-                            placeholder="Ej. GUA-AC-L"
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Unidad de compra
-                        </label>
-
-                        <select
-                            value={purchaseUnit}
-                            onChange={(event) =>
-                                setPurchaseUnit(
-                                    event.target.value
-                                )
-                            }
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        >
-                            <option value="Caja">
-                                Caja
-                            </option>
-
-                            <option value="Paquete">
-                                Paquete
-                            </option>
-
-                            <option value="Pieza">
-                                Pieza
-                            </option>
-
-                            <option value="Par">
-                                Par
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Unidades por paquete
-                        </label>
-
-                        <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={
-                                unitsPerPackage
-                            }
-                            onChange={(event) =>
-                                setUnitsPerPackage(
-                                    event.target.value
-                                )
-                            }
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                            Código de barras
-                        </label>
-
-                        <input
-                            type="text"
-                            value={
-                                packageBarcode
-                            }
-                            onChange={(event) =>
-                                setPackageBarcode(
-                                    event.target.value
-                                )
-                            }
-                            placeholder="Opcional"
-                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                        />
-                    </div>
-
-                    <div className="md:col-span-2 xl:col-span-3">
-                        <label className="flex cursor-pointer items-center gap-3">
-                            <input
-                                type="checkbox"
-                                checked={
-                                    isPreferred
-                                }
-                                onChange={(event) =>
-                                    setIsPreferred(
-                                        event.target
-                                            .checked
-                                    )
-                                }
-                                className="h-4 w-4"
-                            />
-
+            <div id="new-product-supplier" hidden={!showForm}>
+                {showForm && (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                                <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m10 13 4-4M8 16l-1 1a4.2 4.2 0 0 1-6-6l4-4a4.2 4.2 0 0 1 6 0M16 8l1-1a4.2 4.2 0 0 1 6 6l-4 4a4.2 4.2 0 0 1-6 0" transform="translate(0 -1)" /></svg>
+                            </span>
                             <div>
-                                <p className="text-sm font-medium text-slate-700">
-                                    Proveedor preferido
-                                </p>
-
-                                <p className="text-xs text-slate-500">
-                                    Será la opción
-                                    principal para
-                                    comprar este
-                                    producto.
-                                </p>
+                                <h2 className="text-lg font-semibold text-slate-900">
+                                    Nueva relación
+                                </h2>
+                                <p className="mt-1 text-sm leading-6 text-slate-500">Asocia un proveedor y configura la presentación de compra del producto.</p>
                             </div>
-                        </label>
-                    </div>
-
-                    {formError && (
-                        <div className="md:col-span-2 xl:col-span-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {formError}
                         </div>
-                    )}
 
-                    <div className="md:col-span-2 xl:col-span-3">
-                        <button
-                            type="submit"
-                            disabled={
-                                catalogsLoading ||
-                                isSubmitting
-                            }
-                            className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {isSubmitting
-                                ? "Guardando..."
-                                : "Asociar proveedor"}
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                    <div>
-                        <h2 className="font-semibold text-slate-900">
-                            Relaciones registradas
-                        </h2>
-
-                        {!loading && !error && (
-                            <p className="mt-1 text-xs text-slate-500">
-                                {
-                                    productSuppliers.length
-                                }{" "}
-                                relaciones
-                            </p>
-                        )}
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            void refresh()
-                        }
-                        disabled={loading}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                        Actualizar
-                    </button>
-                </div>
-
-                {loading && (
-                    <div className="p-6 text-sm text-slate-500">
-                        Cargando relaciones...
-                    </div>
-                )}
-
-                {!loading && error && (
-                    <div className="p-6 text-sm text-red-600">
-                        {error}
-                    </div>
-                )}
-
-                {!loading &&
-                    !error &&
-                    productSuppliers.length ===
-                    0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
-                            No hay relaciones
-                            producto-proveedor
-                            registradas.
-                        </div>
-                    )}
-
-                {!loading &&
-                    !error &&
-                    productSuppliers.length >
-                    0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                                    <tr>
-                                        <th className="px-5 py-3">
+                        {catalogsLoading ? <CatalogLoadingSkeleton label="Cargando productos, proveedores y unidades..." /> : catalogsError ? (
+                            <div role="alert" className="mt-6 space-y-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                                <p>{catalogsError}</p>
+                                <button type="button" onClick={() => void loadFormCatalogs()} className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none">Reintentar</button>
+                            </div>
+                        ) : catalogsReady && (
+                            <form
+                                onSubmit={handleSubmit}
+                                noValidate
+                                className="mt-7"
+                            >
+                                <fieldset disabled={isSubmitting} className="grid min-w-0 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3">
+                                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">01</span>
+                                        <h3 className="text-sm font-semibold text-slate-800">Producto y proveedor</h3>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="relation-product" className="block text-sm font-medium text-slate-700">
                                             Producto
-                                        </th>
+                                        </label>
 
-                                        <th className="px-5 py-3">
+                                        <select
+                                            id="relation-product"
+                                            value={ppeProductId}
+                                            onChange={(event) =>
+                                                setPPEProductId(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                Selecciona...
+                                            </option>
+
+                                            {products
+                                                .filter(
+                                                    (product) =>
+                                                        product.isActive
+                                                )
+                                                .map(
+                                                    (product) => (
+                                                        <option
+                                                            key={
+                                                                product.id
+                                                            }
+                                                            value={
+                                                                product.id
+                                                            }
+                                                        >
+                                                            {product.sku} -{" "}
+                                                            {product.name}
+                                                        </option>
+                                                    )
+                                                )}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="relation-supplier" className="block text-sm font-medium text-slate-700">
                                             Proveedor
-                                        </th>
+                                        </label>
 
-                                        <th className="px-5 py-3">
-                                            Código
-                                        </th>
+                                        <select
+                                            id="relation-supplier"
+                                            value={supplierId}
+                                            onChange={(event) =>
+                                                setSupplierId(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                Selecciona...
+                                            </option>
 
-                                        <th className="px-5 py-3">
-                                            Compra
-                                        </th>
+                                            {suppliers
+                                                .filter(
+                                                    (supplier) =>
+                                                        supplier.isActive
+                                                )
+                                                .map(
+                                                    (supplier) => (
+                                                        <option
+                                                            key={
+                                                                supplier.id
+                                                            }
+                                                            value={
+                                                                supplier.id
+                                                            }
+                                                        >
+                                                            {
+                                                                supplier.name
+                                                            }
+                                                        </option>
+                                                    )
+                                                )}
+                                        </select>
+                                    </div>
 
-                                        <th className="px-5 py-3">
-                                            Contenido
-                                        </th>
+                                    <div>
+                                        <label htmlFor="relation-code" className="block text-sm font-medium text-slate-700">
+                                            Código del proveedor
+                                        </label>
 
-                                        <th className="px-5 py-3">
-                                            Preferido
-                                        </th>
+                                        <input
+                                            id="relation-code"
+                                            type="text"
+                                            value={
+                                                supplierProductCode
+                                            }
+                                            onChange={(event) =>
+                                                setSupplierProductCode(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="Ej. ART-001"
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        />
+                                    </div>
 
-                                        <th className="px-5 py-3">
-                                            Estado
-                                        </th>
-                                    </tr>
-                                </thead>
+                                    <div className="col-span-full flex items-center gap-3 border-b border-slate-100 pb-3 pt-3">
+                                        <span aria-hidden="true" className="text-xs font-semibold text-sky-700">02</span>
+                                        <h3 className="text-sm font-semibold text-slate-800">Compra y empaque</h3>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="relation-unit" className="block text-sm font-medium text-slate-700">
+                                            Unidad de compra
+                                        </label>
 
-                                <tbody className="divide-y divide-slate-200">
-                                    {productSuppliers.map(
-                                        (relation) => (
-                                            <tr
+                                        <select
+                                            id="relation-unit"
+                                            value={purchaseUnitId}
+                                            onChange={(event) =>
+                                                setPurchaseUnitId(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={
+                                                loadingUnits ||
+                                                isSubmitting
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        >
+                                            <option value="">
+                                                {loadingUnits
+                                                    ? "Cargando unidades..."
+                                                    : "Selecciona..."}
+                                            </option>
 
-                                                key={`${relation.ppeProductId}-${relation.supplierId}`}
-
-                                                className="hover:bg-slate-50"
-                                            >
-                                                <td className="px-5 py-4 font-medium text-slate-900">
-                                                    {getProductName(
-                                                        relation.ppeProductId
-                                                    )}
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    {getSupplierName(
-                                                        relation.supplierId
-                                                    )}
-                                                </td>
-
-                                                <td className="px-5 py-4 font-mono text-xs">
-                                                    {relation.supplierProductCode ??
-                                                        "—"}
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    {
-                                                        relation.purchaseUnit
-                                                    }
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    {
-                                                        relation.unitsPerPackage
-                                                    }
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    {relation.isPreferred
-                                                        ? "Sí"
-                                                        : "No"}
-                                                </td>
-
-                                                <td className="px-5 py-4">
-                                                    <span
-                                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${relation.isActive
-                                                            ? "bg-emerald-50 text-emerald-700"
-                                                            : "bg-slate-100 text-slate-500"
-                                                            }`}
+                                            {activeUnits.map(
+                                                (unit) => (
+                                                    <option
+                                                        key={unit.id}
+                                                        value={unit.id}
                                                     >
-                                                        {relation.isActive
-                                                            ? "Activo"
-                                                            : "Inactivo"}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        )
+                                                        {unit.name}
+                                                        {unit.symbol
+                                                            ? ` (${unit.symbol})`
+                                                            : ""}
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+
+                                        {unitsError && (
+                                            <p className="mt-1 text-xs text-red-600">
+                                                {unitsError}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="relation-package-units" className="block text-sm font-medium text-slate-700">
+                                            Unidades por paquete
+                                        </label>
+
+                                        <input
+                                            id="relation-package-units"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={
+                                                unitsPerPackage
+                                            }
+                                            onChange={(event) =>
+                                                setUnitsPerPackage(
+                                                    event.target.value
+                                                )
+                                            }
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="relation-barcode" className="block text-sm font-medium text-slate-700">
+                                            Código de barras
+                                        </label>
+
+                                        <input
+                                            id="relation-barcode"
+                                            type="text"
+                                            value={
+                                                packageBarcode
+                                            }
+                                            onChange={(event) =>
+                                                setPackageBarcode(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="Opcional"
+                                            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="md:col-span-2 xl:col-span-3">
+                                        <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-sky-200 bg-sky-50/60 p-5 transition-colors hover:bg-sky-50 focus-within:ring-4 focus-within:ring-sky-100 motion-reduce:transition-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    isPreferred
+                                                }
+                                                onChange={(event) =>
+                                                    setIsPreferred(
+                                                        event.target
+                                                            .checked
+                                                    )
+                                                }
+                                                className="h-5 w-5 shrink-0 accent-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+                                            />
+
+                                            <span>
+                                                <span className="block text-sm font-semibold text-slate-800">
+                                                    Proveedor preferido
+                                                </span>
+
+                                                <span className="mt-1 block text-xs leading-5 text-slate-600">
+                                                    Será la opción
+                                                    principal para
+                                                    comprar este
+                                                    producto.
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {formError && (
+                                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 xl:col-span-3">
+                                            {formError}
+                                        </div>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-            </section>
+
+                                    <div className="flex justify-end border-t border-slate-100 pt-5 md:col-span-2 xl:col-span-3">
+                                        <button
+                                            type="submit"
+                                            disabled={
+                                                catalogsLoading ||
+                                                isSubmitting
+                                            }
+                                            className="w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
+                                        >
+                                            {isSubmitting
+                                                ? "Guardando..."
+                                                : "Asociar proveedor"}
+                                        </button>
+                                    </div>
+                                </fieldset>
+                            </form>
+                        )}
+                    </section>
+                )}
+            </div>
+
         </div>
     );
 };

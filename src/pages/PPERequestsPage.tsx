@@ -1,0 +1,2354 @@
+import {
+    useState,
+    useMemo,
+    useRef,
+    useEffect,
+    type FormEvent,
+} from "react";
+
+import {
+    useEmployeeLookup,
+} from "../hooks/useEmployeeLookup";
+
+import {
+    useOrganizationalUnits,
+} from "../hooks/useOrganizationalUnits";
+
+import {
+    useWarehouses,
+} from "../hooks/useWarehouses";
+
+import {
+    useRequestReasons,
+} from "../hooks/useRequestReasons";
+
+import {
+    usePPERequests,
+} from "../hooks/usePPERequests";
+
+import { PageHeader } from "../components/ui/PageHeader";
+
+import { inventoryService } from "../api/services/InventoryService";
+
+import {
+    warehouseProductsService,
+} from "../api/services/WarehouseProductsService";
+
+
+interface PPERequestFormItem {
+    key: string;
+
+    ppeProductId: string;
+
+    quantity: string;
+}
+
+interface WarehouseRequestProduct {
+    ppeProductId: number;
+
+    sku: string;
+    productName: string;
+
+    onHandQuantity: number;
+    reservedQuantity: number;
+    availableQuantity: number;
+}
+
+
+const createEmptyItem =
+    (): PPERequestFormItem => ({
+        key: crypto.randomUUID(),
+
+        ppeProductId: "",
+
+        quantity: "1",
+    });
+
+const formatDateTime = (
+    value: string
+) => {
+    return new Intl.DateTimeFormat(
+        "es-MX",
+        {
+            dateStyle: "medium",
+            timeStyle: "short",
+        }
+    ).format(
+        new Date(value)
+    );
+};
+
+const getRequestStatusConfig = (
+    status: number
+) => {
+    switch (status) {
+        case 1:
+            return {
+                label: "Pendiente",
+                className:
+                    "bg-amber-50 text-amber-700",
+            };
+
+        case 2:
+            return {
+                label: "Entregada",
+                className:
+                    "bg-emerald-50 text-emerald-700",
+            };
+
+        case 3:
+            return {
+                label: "Cancelada",
+                className:
+                    "bg-red-50 text-red-700",
+            };
+
+        default:
+            return {
+                label: "Desconocido",
+                className:
+                    "bg-slate-100 text-slate-600",
+            };
+    }
+};
+
+const getOrganizationalUnitTypeLabel = (
+    type: number
+) => {
+    switch (type) {
+        case 1:
+            return "Departamento";
+
+        case 2:
+            return "Área";
+
+        case 3:
+            return "Línea";
+
+        case 4:
+            return "Subárea";
+
+        case 5:
+            return "Equipo";
+
+        default:
+            return "Unidad";
+    }
+};
+
+type PendingRequestsSort =
+    | "newest"
+    | "oldest";
+
+
+const normalizeText = (
+    value: string | null | undefined
+) => {
+    return (value ?? "")
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .trim()
+        .toLocaleLowerCase("es");
+};
+
+export const PPERequestsPage = () => {
+    const {
+        employee,
+        loading: loadingEmployee,
+        error: employeeError,
+        getByEmployeeNumber,
+        clearEmployee,
+    } = useEmployeeLookup();
+
+    const [
+        warehouseProducts,
+        setWarehouseProducts,
+    ] = useState<
+        WarehouseRequestProduct[]
+    >([]);
+
+    const [
+        loadingWarehouseProducts,
+        setLoadingWarehouseProducts,
+    ] = useState(false);
+
+    const [
+        warehouseProductsError,
+        setWarehouseProductsError,
+    ] = useState<string | null>(null);
+
+    const [
+        loadedWarehouseId,
+        setLoadedWarehouseId,
+    ] = useState<number | null>(null);
+    const warehouseProductsVersion = useRef(0);
+    const warehouseProductsPending = useRef(false);
+
+    const {
+        organizationalUnits,
+        loading: loadingOrganizationalUnits,
+        error: organizationalUnitsError,
+        hasLoaded: organizationalUnitsLoaded,
+        refresh: loadOrganizationalUnits,
+    } = useOrganizationalUnits({ autoLoad: false });
+
+    const {
+        warehouses,
+        loading: loadingWarehouses,
+        error: warehousesError,
+        hasLoaded: warehousesLoaded,
+        refresh: loadWarehouses,
+    } = useWarehouses({ autoLoad: false });
+
+    const {
+        requestReasons,
+        loading: loadingRequestReasons,
+        error: requestReasonsError,
+        hasLoaded: requestReasonsLoaded,
+        refresh: loadRequestReasons,
+    } = useRequestReasons({ autoLoad: false });
+
+    const {
+        pendingRequests,
+        pendingHasLoaded,
+        history,
+        createResult,
+
+        loading: loadingRequest,
+        loadingPending,
+        loadingHistory,
+        cancellingFolio,
+
+        error: requestError,
+        pendingError,
+        historyError,
+        cancelError,
+
+        getPending,
+        getHistory,
+
+        createRequest,
+        cancelRequest,
+
+        clearHistory,
+    } = usePPERequests({ autoLoadPending: false });
+
+    const [showForm, setShowForm] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
+    const formCatalogRequest = useRef<Promise<unknown[]> | null>(null);
+    const formCatalogsReady = organizationalUnitsLoaded && warehousesLoaded && requestReasonsLoaded;
+
+    const loadFormCatalogs = () => {
+        if (formCatalogRequest.current) return formCatalogRequest.current;
+        const requests: Promise<unknown>[] = [];
+        if (!organizationalUnitsLoaded) requests.push(loadOrganizationalUnits());
+        if (!warehousesLoaded) requests.push(loadWarehouses());
+        if (!requestReasonsLoaded) requests.push(loadRequestReasons());
+        const request = Promise.all(requests);
+        formCatalogRequest.current = request;
+        void request.finally(() => { formCatalogRequest.current = null; });
+        return request;
+    };
+
+    useEffect(() => {
+        if (showForm) {
+            const target = employee ? formRef.current : document.getElementById("request-employee-number");
+            target?.focus({ preventScroll: true });
+            target?.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+    }, [showForm, employee]);
+
+    const [
+        cancelFolio,
+        setCancelFolio,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        cancellationReason,
+        setCancellationReason,
+    ] = useState("");
+
+    const [
+        cancellationSuccessMessage,
+        setCancellationSuccessMessage,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        employeeNumber,
+        setEmployeeNumber,
+    ] = useState("");
+
+    const [
+        requestedForOrganizationalUnitId,
+        setRequestedForOrganizationalUnitId,
+    ] = useState("");
+
+    const [
+        warehouseId,
+        setWarehouseId,
+    ] = useState("");
+
+    const [
+        requestReasonId,
+        setRequestReasonId,
+    ] = useState("");
+
+    const [
+        notes,
+        setNotes,
+    ] = useState("");
+
+    const [
+        items,
+        setItems,
+    ] = useState<PPERequestFormItem[]>([
+        createEmptyItem(),
+    ]);
+
+    const [
+        formError,
+        setFormError,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        successMessage,
+        setSuccessMessage,
+    ] = useState<string | null>(
+        null
+    );
+
+    const [
+        historyWasSearched,
+        setHistoryWasSearched,
+    ] = useState(false);
+
+    const [
+        pendingSearch,
+        setPendingSearch,
+    ] = useState("");
+
+    const [
+        pendingSort,
+        setPendingSort,
+    ] =
+        useState<PendingRequestsSort>(
+            "newest"
+        );
+
+    const loadingCatalogs =
+        loadingOrganizationalUnits ||
+        loadingWarehouses ||
+        loadingRequestReasons;
+
+
+    const catalogError =
+        organizationalUnitsError ||
+        warehousesError ||
+        requestReasonsError;
+
+    const filteredPendingRequests =
+        useMemo(() => {
+            const normalizedSearch =
+                normalizeText(
+                    pendingSearch
+                );
+
+            return pendingRequests
+                .filter((request) => {
+                    if (!normalizedSearch) {
+                        return true;
+                    }
+
+                    const matchesRequest =
+                        [
+                            request.folio,
+                            request.employeeNumber,
+                            request.employeeName,
+                            request
+                                .requestedForOrganizationalUnitName,
+                            request.warehouseName,
+                            request.requestReason,
+                            request.notes,
+                        ].some((value) =>
+                            normalizeText(
+                                value
+                            ).includes(
+                                normalizedSearch
+                            )
+                        );
+
+                    const matchesProduct =
+                        request.items.some(
+                            (item) =>
+                                normalizeText(
+                                    item.sku
+                                ).includes(
+                                    normalizedSearch
+                                ) ||
+                                normalizeText(
+                                    item.productName
+                                ).includes(
+                                    normalizedSearch
+                                )
+                        );
+
+                    return (
+                        matchesRequest ||
+                        matchesProduct
+                    );
+                })
+                .sort((first, second) => {
+                    const firstDate =
+                        new Date(
+                            first.createdAt
+                        ).getTime();
+
+                    const secondDate =
+                        new Date(
+                            second.createdAt
+                        ).getTime();
+
+                    if (
+                        pendingSort ===
+                        "oldest"
+                    ) {
+                        return (
+                            firstDate -
+                            secondDate
+                        );
+                    }
+
+                    return (
+                        secondDate -
+                        firstDate
+                    );
+                });
+        }, [
+            pendingRequests,
+            pendingSearch,
+            pendingSort,
+        ]);
+
+
+    const hasPendingFilters =
+        Boolean(
+            pendingSearch.trim() ||
+            pendingSort !== "newest"
+        );
+
+
+    const clearPendingFilters = () => {
+        setPendingSearch("");
+        setPendingSort("newest");
+    };
+
+
+    const handleEmployeeNumberChange = (
+        value: string
+    ) => {
+        setEmployeeNumber(value);
+
+        clearEmployee();
+        clearHistory();
+
+        setHistoryWasSearched(false);
+
+        setFormError(null);
+        setSuccessMessage(null);
+    };
+
+
+    const handleEmployeeLookup =
+        async () => {
+            setFormError(null);
+            setSuccessMessage(null);
+
+            await getByEmployeeNumber(
+                employeeNumber
+            );
+        };
+
+
+    const addItem = () => {
+        setItems(
+            (current) => [
+                ...current,
+                createEmptyItem(),
+            ]
+        );
+    };
+
+
+    const removeItem = (
+        key: string
+    ) => {
+        setItems(
+            (current) => {
+                if (current.length === 1) {
+                    return current;
+                }
+
+                return current.filter(
+                    (item) =>
+                        item.key !== key
+                );
+            }
+        );
+    };
+
+
+    const updateItem = (
+        key: string,
+        field:
+            | "ppeProductId"
+            | "quantity",
+        value: string
+    ) => {
+        setItems(
+            (current) =>
+                current.map(
+                    (item) =>
+                        item.key === key
+                            ? {
+                                ...item,
+                                [field]: value,
+                            }
+                            : item
+                )
+        );
+    };
+
+
+    const resetForm = () => {
+        warehouseProductsVersion.current += 1;
+        warehouseProductsPending.current = false;
+        setLoadingWarehouseProducts(false);
+        setWarehouseProducts([]);
+        setLoadedWarehouseId(null);
+        setWarehouseProductsError(null);
+        setEmployeeNumber("");
+
+        clearEmployee();
+        clearHistory();
+
+        setHistoryWasSearched(false);
+
+        setRequestedForOrganizationalUnitId(
+            ""
+        );
+
+        setWarehouseId("");
+
+        setRequestReasonId("");
+
+        setNotes("");
+
+        setItems([
+            createEmptyItem(),
+        ]);
+    };
+
+
+    const handleSubmit =
+        async (
+            event:
+                FormEvent<HTMLFormElement>
+        ) => {
+            event.preventDefault();
+            if (loadingRequest || !formCatalogsReady || loadingWarehouseProducts) return;
+
+            setFormError(null);
+            setSuccessMessage(null);
+
+
+            if (!employee) {
+                setFormError(
+                    "Busca y confirma al empleado antes de crear la solicitud."
+                );
+
+                return;
+            }
+
+
+            const parsedOrganizationalUnitId =
+                Number(
+                    requestedForOrganizationalUnitId
+                );
+
+            if (
+                !Number.isInteger(
+                    parsedOrganizationalUnitId
+                ) ||
+                parsedOrganizationalUnitId <= 0
+            ) {
+                setFormError(
+                    "Selecciona la unidad organizacional que recibirá el EPP."
+                );
+
+                return;
+            }
+
+
+            const parsedWarehouseId =
+                Number(
+                    warehouseId
+                );
+
+            if (
+                !Number.isInteger(
+                    parsedWarehouseId
+                ) ||
+                parsedWarehouseId <= 0
+            ) {
+                setFormError(
+                    "Selecciona un almacén."
+                );
+
+                return;
+            }
+
+
+            const parsedRequestReasonId =
+                Number(
+                    requestReasonId
+                );
+
+            if (
+                !Number.isInteger(
+                    parsedRequestReasonId
+                ) ||
+                parsedRequestReasonId <= 0
+            ) {
+                setFormError(
+                    "Selecciona un motivo de solicitud."
+                );
+
+                return;
+            }
+
+
+            const selectedProductIds =
+                items.map(
+                    (item) =>
+                        Number(
+                            item.ppeProductId
+                        )
+                );
+
+
+            if (
+                selectedProductIds.some(
+                    (id) =>
+                        !Number.isInteger(id) ||
+                        id <= 0
+                )
+            ) {
+                setFormError(
+                    "Todos los renglones deben tener un producto EPP."
+                );
+
+                return;
+            }
+
+
+            const uniqueProductIds =
+                new Set(
+                    selectedProductIds
+                );
+
+
+            if (
+                uniqueProductIds.size !==
+                selectedProductIds.length
+            ) {
+                setFormError(
+                    "No puedes agregar el mismo producto EPP más de una vez."
+                );
+
+                return;
+            }
+
+
+            const parsedItems =
+                items.map(
+                    (item) => ({
+                        ppeProductId:
+                            Number(
+                                item.ppeProductId
+                            ),
+
+                        quantity:
+                            Number(
+                                item.quantity
+                            ),
+                    })
+                );
+
+
+            if (
+                parsedItems.some(
+                    (item) =>
+                        !Number.isInteger(
+                            item.quantity
+                        ) ||
+                        item.quantity <= 0
+                )
+            ) {
+                setFormError(
+                    "Las cantidades deben ser números enteros mayores a cero."
+                );
+
+                return;
+            }
+
+            const productsById =
+                new Map(
+                    warehouseProducts.map(
+                        (product) => [
+                            product.ppeProductId,
+                            product,
+                        ]
+                    )
+                );
+
+
+            for (const item of parsedItems) {
+                const product =
+                    productsById.get(
+                        item.ppeProductId
+                    );
+
+                if (!product) {
+                    setFormError(
+                        "Uno de los productos seleccionados ya no pertenece al almacén. Vuelve a obtener los productos."
+                    );
+
+                    return;
+                }
+
+                if (
+                    item.quantity >
+                    product.availableQuantity
+                ) {
+                    setFormError(
+                        `No hay suficiente existencia de ${product.sku} - ${product.productName}. ` +
+                        `Disponible: ${product.availableQuantity}. ` +
+                        `Solicitado: ${item.quantity}.`
+                    );
+
+                    return;
+                }
+            }
+
+
+            const result =
+                await createRequest({
+                    employeeNumber:
+                        employee.employeeNumber,
+
+                    requestedForOrganizationalUnitId:
+                        parsedOrganizationalUnitId,
+
+                    warehouseId:
+                        parsedWarehouseId,
+
+                    requestReasonId:
+                        parsedRequestReasonId,
+
+                    notes:
+                        notes.trim() ||
+                        null,
+
+                    items:
+                        parsedItems,
+                });
+
+
+            if (!result) {
+                return;
+            }
+
+
+            setSuccessMessage(
+                `Solicitud creada correctamente. Folio: ${result.request.folio}`
+            );
+
+            resetForm();
+        };
+
+    const openCancellation = (
+        folio: string
+    ) => {
+        setCancelFolio(
+            folio
+        );
+
+        setCancellationReason("");
+
+        setCancellationSuccessMessage(
+            null
+        );
+    };
+
+
+    const closeCancellation = () => {
+        setCancelFolio(
+            null
+        );
+
+        setCancellationReason("");
+    };
+
+
+    const handleCancelRequest =
+        async (
+            folio: string
+        ) => {
+            const normalizedReason =
+                cancellationReason.trim();
+
+            if (!normalizedReason) {
+                return;
+            }
+
+            const result =
+                await cancelRequest(
+                    folio,
+                    normalizedReason
+                );
+
+            if (!result) {
+                return;
+            }
+
+            setCancellationSuccessMessage(
+                `Solicitud ${result.folio} cancelada correctamente.`
+            );
+
+            setCancelFolio(
+                null
+            );
+
+            setCancellationReason("");
+        };
+
+    const handleLoadWarehouseProducts =
+        async () => {
+            if (warehouseProductsPending.current) return;
+            const parsedWarehouseId =
+                Number(warehouseId);
+
+            if (
+                !Number.isInteger(
+                    parsedWarehouseId
+                ) ||
+                parsedWarehouseId <= 0
+            ) {
+                setWarehouseProductsError(
+                    "Selecciona un almacén."
+                );
+
+                return;
+            }
+
+            const currentVersion = ++warehouseProductsVersion.current;
+            warehouseProductsPending.current = true;
+            setLoadedWarehouseId(null);
+            setLoadingWarehouseProducts(
+                true
+            );
+
+            setWarehouseProductsError(
+                null
+            );
+
+            setWarehouseProducts([]);
+
+            try {
+                const [
+                    relations,
+                    balances,
+                ] =
+                    await Promise.all([
+                        warehouseProductsService
+                            .getByWarehouse(
+                                parsedWarehouseId
+                            ),
+
+                        inventoryService
+                            .getBalances(
+                                parsedWarehouseId
+                            ),
+                    ]);
+
+
+                if (currentVersion !== warehouseProductsVersion.current) return;
+
+                const balancesByProductId =
+                    new Map(
+                        balances.map(
+                            (balance) => [
+                                balance.ppeProductId,
+                                balance,
+                            ]
+                        )
+                    );
+
+
+                const configuredProducts:
+                    WarehouseRequestProduct[] =
+                    relations
+                        .filter(
+                            (relation) =>
+                                relation.isActive
+                        )
+                        .map(
+                            (relation) => {
+                                const balance =
+                                    balancesByProductId.get(
+                                        relation.ppeProductId
+                                    );
+
+                                return {
+                                    ppeProductId:
+                                        relation.ppeProductId,
+
+                                    sku:
+                                        relation.sku,
+
+                                    productName:
+                                        relation.productName,
+
+                                    onHandQuantity:
+                                        balance
+                                            ?.onHandQuantity ??
+                                        0,
+
+                                    reservedQuantity:
+                                        balance
+                                            ?.reservedQuantity ??
+                                        0,
+
+                                    availableQuantity:
+                                        balance
+                                            ?.availableQuantity ??
+                                        0,
+                                };
+                            }
+                        )
+                        .sort(
+                            (a, b) =>
+                                a.productName
+                                    .localeCompare(
+                                        b.productName,
+                                        "es"
+                                    )
+                        );
+
+
+                setWarehouseProducts(
+                    configuredProducts
+                );
+
+                setLoadedWarehouseId(
+                    parsedWarehouseId
+                );
+            } catch {
+                if (currentVersion !== warehouseProductsVersion.current) return;
+                setWarehouseProductsError(
+                    "No fue posible obtener los productos del almacén."
+                );
+
+                setWarehouseProducts([]);
+
+                setLoadedWarehouseId(
+                    null
+                );
+            } finally {
+                if (currentVersion === warehouseProductsVersion.current) {
+                    warehouseProductsPending.current = false;
+                    setLoadingWarehouseProducts(false);
+                }
+            }
+        };
+
+
+    return (
+        <div className="mx-auto max-w-7xl space-y-6">
+            <PageHeader
+                eyebrow="MESA · Producción"
+                title="Solicitudes de inventario"
+                description="Solicita artículos y materiales para las unidades organizacionales de MESA y consulta su seguimiento."
+            />
+
+            <div className="flex flex-wrap gap-3">
+                <button type="button" aria-expanded={showForm} aria-controls="new-request-form" onClick={() => {
+                    setShowForm(!showForm);
+                    if (!showForm) void loadFormCatalogs();
+                }} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200">
+                    {showForm ? "Ocultar nueva solicitud" : "Nueva solicitud"}
+                </button>
+            </div>
+
+            {showForm && catalogError && (
+                <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {catalogError}
+                    <button type="button" disabled={loadingCatalogs} onClick={() => void loadFormCatalogs()} className="ml-4 min-h-11 rounded-xl border border-red-200 px-4 py-2 font-semibold disabled:opacity-50">Reintentar catálogos</button>
+                </div>
+            )}
+
+
+            {successMessage && (
+                <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    {successMessage}
+                </div>
+            )}
+
+            {cancellationSuccessMessage && (
+                <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    {cancellationSuccessMessage}
+                </div>
+            )}
+
+
+            {(formError || requestError) && (
+                <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {formError || requestError}
+                </div>
+            )}
+
+
+            {createResult &&
+                createResult.warnings.length >
+                0 && (
+                    <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-sm font-semibold text-amber-800">
+                            Advertencias de la solicitud
+                        </p>
+
+                        <div className="mt-2 space-y-2">
+                            {createResult.warnings.map(
+                                (
+                                    warning,
+                                    index
+                                ) => (
+                                    <p
+                                        key={`${warning.code}-${warning.ppeProductId}-${index}`}
+                                        className="text-sm text-amber-700"
+                                    >
+                                        {
+                                            warning.message
+                                        }
+                                    </p>
+                                )
+                            )}
+                        </div>
+                    </div>
+                )}
+
+
+
+            <section aria-label="Solicitudes pendientes" aria-busy={loadingPending} className="mt-10 rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">
+                            Seguimiento
+                        </p>
+
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                            Solicitudes pendientes
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                            Solicitudes creadas que todavía
+                            no han sido entregadas ni
+                            canceladas.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            void getPending()
+                        }
+                        disabled={
+                            loadingPending
+                        }
+                        className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                    >
+                        {loadingPending
+                            ? "Cargando solicitudes..."
+                            : pendingHasLoaded ? "Actualizar" : "Cargar solicitudes"}
+                    </button>
+                </div>
+                {pendingHasLoaded && pendingRequests.length > 0 && (
+                    <div className="mt-6 border-t border-slate-100 pt-6">
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px_auto] lg:items-end">
+
+                            <div>
+                                <label
+                                    htmlFor="pending-request-search"
+                                    className="block text-sm font-medium text-slate-700"
+                                >
+                                    Buscar solicitud
+                                </label>
+
+                                <input
+                                    id="pending-request-search"
+                                    type="search"
+                                    value={
+                                        pendingSearch
+                                    }
+                                    onChange={(event) =>
+                                        setPendingSearch(
+                                            event.target
+                                                .value
+                                        )
+                                    }
+                                    placeholder="Folio, nómina, empleado, SKU o producto..."
+                                    autoComplete="off"
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                />
+                            </div>
+
+
+                            <div>
+                                <label
+                                    htmlFor="pending-request-sort"
+                                    className="block text-sm font-medium text-slate-700"
+                                >
+                                    Ordenar
+                                </label>
+
+                                <select
+                                    id="pending-request-sort"
+                                    value={
+                                        pendingSort
+                                    }
+                                    onChange={(event) =>
+                                        setPendingSort(
+                                            event.target
+                                                .value as PendingRequestsSort
+                                        )
+                                    }
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                >
+                                    <option value="newest">
+                                        Más recientes
+                                    </option>
+
+                                    <option value="oldest">
+                                        Más antiguas
+                                    </option>
+                                </select>
+                            </div>
+
+
+                            <button
+                                type="button"
+                                onClick={
+                                    clearPendingFilters
+                                }
+                                disabled={
+                                    !hasPendingFilters
+                                }
+                                className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
+
+
+                        <p className="mt-4 text-sm text-slate-500">
+                            Mostrando{" "}
+                            <span className="font-semibold text-slate-800">
+                                {
+                                    filteredPendingRequests.length
+                                }
+                            </span>
+                            {" de "}
+                            {
+                                pendingRequests.length
+                            }
+                            {" "}
+                            {pendingRequests.length === 1
+                                ? "solicitud"
+                                : "solicitudes"}
+                        </p>
+                    </div>
+                )}
+
+                {pendingError && (
+                    <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {pendingError}
+                    </div>
+                )}
+
+
+                {loadingPending &&
+                    pendingRequests.length === 0 && (
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                            <p className="text-sm text-slate-500">
+                                Cargando solicitudes
+                                pendientes...
+                            </p>
+                        </div>
+                    )}
+
+                {!pendingHasLoaded && !loadingPending && !pendingError && (
+                    <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                        <p className="text-sm font-medium text-slate-700">Las solicitudes todavía no se han cargado.</p>
+                        <p className="mt-2 text-sm text-slate-500">Pulsa Cargar solicitudes para consultar los pendientes.</p>
+                    </div>
+                )}
+
+                {!loadingPending &&
+                    pendingHasLoaded &&
+                    !pendingError &&
+                    pendingRequests.length === 0 && (
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                            <p className="text-sm font-medium text-slate-700">
+                                No hay solicitudes
+                                pendientes.
+                            </p>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                Las nuevas solicitudes
+                                aparecerán aquí.
+                            </p>
+                        </div>
+                    )}
+
+                {!loadingPending &&
+                    !pendingError &&
+                    pendingRequests.length > 0 &&
+                    filteredPendingRequests.length === 0 && (
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                            <p className="text-sm font-semibold text-slate-700">
+                                No encontramos solicitudes
+                            </p>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                Ninguna solicitud pendiente coincide con la búsqueda actual.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    clearPendingFilters
+                                }
+                                className="mt-5 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
+                    )}
+
+                {filteredPendingRequests.length > 0 && (
+                    <div className="mt-6 space-y-4">
+                        {filteredPendingRequests.map(
+                            (request) => (
+                                <article
+                                    key={
+                                        request.id
+                                    }
+                                    className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm sm:p-6"
+                                >
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <h3 className="text-base font-semibold text-slate-900">
+                                                    {
+                                                        request.folio
+                                                    }
+                                                </h3>
+
+                                                <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                                                    Pendiente
+                                                </span>
+                                            </div>
+
+                                            <p className="mt-2 text-sm text-slate-500">
+                                                Creada{" "}
+                                                {formatDateTime(
+                                                    request.createdAt
+                                                )}
+                                            </p>
+                                        </div>
+
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                openCancellation(
+                                                    request.folio
+                                                )
+                                            }
+                                            disabled={
+                                                cancellingFolio ===
+                                                request.folio
+                                            }
+                                            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Cancelar solicitud
+                                        </button>
+                                    </div>
+
+
+                                    <div className="mt-5 grid gap-5 rounded-xl bg-sky-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0 [&>div]:wrap-break-word">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                Solicitante
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-800">
+                                                {
+                                                    request.employeeName
+                                                }
+                                            </p>
+
+                                            <p className="text-xs text-slate-500">
+                                                Nómina{" "}
+                                                {
+                                                    request.employeeNumber
+                                                }
+                                            </p>
+                                        </div>
+
+
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                Unidad destino
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-800">
+                                                {request.requestedForOrganizationalUnitName ??
+                                                    "Sin unidad"}
+                                            </p>
+                                        </div>
+
+
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                Almacén
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-800">
+                                                {
+                                                    request.warehouseName
+                                                }
+                                            </p>
+                                        </div>
+
+
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                Motivo
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-800">
+                                                {
+                                                    request.requestReason
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+
+
+                                    <div className="mt-5 border-t border-slate-100 pt-5">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                            Artículos solicitados
+                                        </p>
+
+                                        <div className="mt-3 space-y-2">
+                                            {request.items.map(
+                                                (
+                                                    item
+                                                ) => (
+                                                    <div
+                                                        key={
+                                                            item.ppeProductId
+                                                        }
+                                                        className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                                    >
+                                                        <div>
+                                                            <p className="text-sm font-medium text-slate-800">
+                                                                {
+                                                                    item.productName
+                                                                }
+                                                            </p>
+
+                                                            <p className="text-xs text-slate-500">
+                                                                {
+                                                                    item.sku
+                                                                }
+                                                            </p>
+                                                        </div>
+
+                                                        <p className="text-sm font-semibold text-slate-700">
+                                                            Cantidad:{" "}
+                                                            {
+                                                                item.quantity
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+
+
+                                    {request.notes && (
+                                        <div className="mt-5 border-t border-slate-100 pt-5">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                Observaciones
+                                            </p>
+
+                                            <p className="mt-2 text-sm text-slate-600">
+                                                {
+                                                    request.notes
+                                                }
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {cancelFolio ===
+                                        request.folio && (
+                                            <div className="mt-5 border-t border-red-100 pt-5">
+                                                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                                                    <h4 className="text-sm font-semibold text-red-800">
+                                                        Cancelar solicitud
+                                                    </h4>
+
+                                                    <p className="mt-1 text-sm text-red-700">
+                                                        La solicitud dejará de estar
+                                                        pendiente y el inventario
+                                                        reservado será liberado.
+                                                    </p>
+
+
+                                                    <div className="mt-4">
+                                                        <label className="block text-sm font-medium text-red-800">
+                                                            Motivo de cancelación
+                                                        </label>
+
+                                                        <textarea
+                                                            value={
+                                                                cancellationReason
+                                                            }
+                                                            onChange={(
+                                                                event
+                                                            ) =>
+                                                                setCancellationReason(
+                                                                    event.target
+                                                                        .value
+                                                                )
+                                                            }
+                                                            maxLength={500}
+                                                            rows={3}
+                                                            disabled={
+                                                                cancellingFolio ===
+                                                                request.folio
+                                                            }
+                                                            placeholder="Explica por qué se cancela esta solicitud..."
+                                                            className="mt-2 w-full resize-y rounded-xl border border-red-200 bg-white px-4 py-3 text-base text-slate-800 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-100 disabled:opacity-60"
+                                                        />
+
+                                                        <div className="mt-1 flex justify-between">
+                                                            <p className="text-xs text-red-600">
+                                                                El motivo es
+                                                                obligatorio.
+                                                            </p>
+
+                                                            <p className="text-xs text-slate-500">
+                                                                {
+                                                                    cancellationReason.length
+                                                                }
+                                                                /500
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+
+                                                    {cancelError && (
+                                                        <div className="mt-4 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
+                                                            {
+                                                                cancelError
+                                                            }
+                                                        </div>
+                                                    )}
+
+
+                                                    <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={
+                                                                closeCancellation
+                                                            }
+                                                            disabled={
+                                                                cancellingFolio ===
+                                                                request.folio
+                                                            }
+                                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                                        >
+                                                            Volver
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                void handleCancelRequest(
+                                                                    request.folio
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                !cancellationReason.trim() ||
+                                                                cancellingFolio ===
+                                                                request.folio
+                                                            }
+                                                            className="min-h-11 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors enabled:hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            {cancellingFolio ===
+                                                                request.folio
+                                                                ? "Cancelando..."
+                                                                : "Confirmar cancelación"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                </article>
+                            )
+                        )}
+                    </div>
+                )}
+            </section>
+
+                {/* Solicitante */}
+
+                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div>
+                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>01</p>
+
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                            Empleado e historial
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                            Busca al empleado que está
+                            realizando físicamente la
+                            solicitud.
+                        </p>
+                    </div>
+
+
+                    <div className="mt-6 max-w-2xl">
+                        <label htmlFor="request-employee-number" className="block text-sm font-medium text-slate-700">
+                            Número de empleado
+                        </label>
+
+                        <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                            <input
+                                id="request-employee-number"
+                                type="text"
+                                value={
+                                    employeeNumber
+                                }
+                                onChange={(
+                                    event
+                                ) =>
+                                    handleEmployeeNumberChange(
+                                        event.target
+                                            .value
+                                    )
+                                }
+                                disabled={
+                                    loadingEmployee ||
+                                    loadingRequest
+                                }
+                                placeholder="Ej. 1234"
+                                className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                            />
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    void handleEmployeeLookup()
+                                }
+                                disabled={
+                                    loadingEmployee ||
+                                    !employeeNumber.trim()
+                                }
+                                className="shrink-0 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                            >
+                                {loadingEmployee
+                                    ? "Buscando..."
+                                    : "Buscar"}
+                            </button>
+                        </div>
+
+
+                        {employeeError && (
+                            <p className="mt-2 text-sm text-red-600">
+                                {
+                                    employeeError
+                                }
+                            </p>
+                        )}
+
+
+                        {employee && (
+                            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                                <p className="text-sm font-semibold text-emerald-800">
+                                    Empleado encontrado
+                                </p>
+
+                                <p className="mt-1 text-sm text-emerald-700">
+                                    {
+                                        employee.employeeNumber
+                                    }
+                                    {" — "}
+                                    {
+                                        employee.name
+                                    }
+                                </p>
+
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setHistoryWasSearched(
+                                            true
+                                        );
+
+                                        await getHistory(
+                                            employee.employeeNumber
+                                        );
+                                    }}
+                                    disabled={
+                                        loadingHistory
+                                    }
+                                    className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                >
+                                    {loadingHistory
+                                        ? "Consultando..."
+                                        : "Consultar historial"}
+                                </button>
+                            </div>
+                        )}
+
+                        {historyError && (
+                            <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {historyError}
+                            </div>
+                        )}
+
+
+                        {employee &&
+                            !loadingHistory &&
+                            history.length > 0 && (
+                                <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50/50 p-4 sm:p-6">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                            Historial
+                                        </p>
+
+                                        <h3 className="mt-1 text-base font-semibold text-slate-900">
+                                            Solicitudes anteriores de{" "}
+                                            {employee.name}
+                                        </h3>
+
+                                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                                            {history.length}{" "}
+                                            {history.length === 1
+                                                ? "solicitud encontrada"
+                                                : "solicitudes encontradas"}
+                                        </p>
+                                    </div>
+
+
+                                    <div className="mt-5 space-y-4">
+                                        {history.map(
+                                            (historyRequest) => {
+                                                const status =
+                                                    getRequestStatusConfig(
+                                                        historyRequest.status
+                                                    );
+
+                                                return (
+                                                    <div
+                                                        key={
+                                                            historyRequest.id
+                                                        }
+                                                        className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm"
+                                                    >
+                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div>
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <p className="font-semibold text-slate-900">
+                                                                        {
+                                                                            historyRequest.folio
+                                                                        }
+                                                                    </p>
+
+                                                                    <span
+                                                                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-current/15 ${status.className}`}
+                                                                    >
+                                                                        {
+                                                                            status.label
+                                                                        }
+                                                                    </span>
+                                                                </div>
+
+                                                                <p className="mt-2 text-xs text-slate-500">
+                                                                    Creada{" "}
+                                                                    {formatDateTime(
+                                                                        historyRequest.createdAt
+                                                                    )}
+                                                                </p>
+                                                            </div>
+
+
+                                                            <div className="text-left sm:text-right">
+                                                                <p className="text-xs text-slate-500">
+                                                                    Almacén
+                                                                </p>
+
+                                                                <p className="text-sm font-medium text-slate-700">
+                                                                    {
+                                                                        historyRequest.warehouseName
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Unidad destino
+                                                                </p>
+
+                                                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                    {historyRequest.requestedForOrganizationalUnitName ??
+                                                                        "Sin unidad"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Motivo
+                                                                </p>
+
+                                                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                    {
+                                                                        historyRequest.requestReason
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <div className="mt-4 border-t border-slate-100 pt-4">
+                                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                                Equipo
+                                                            </p>
+
+                                                            <div className="mt-2 space-y-2">
+                                                                {historyRequest.items.map(
+                                                                    (
+                                                                        item
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                item.ppeProductId
+                                                                            }
+                                                                            className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                                                        >
+                                                                            <div>
+                                                                                <p className="text-sm font-medium text-slate-800">
+                                                                                    {
+                                                                                        item.productName
+                                                                                    }
+                                                                                </p>
+
+                                                                                <p className="text-xs text-slate-500">
+                                                                                    {
+                                                                                        item.sku
+                                                                                    }
+                                                                                </p>
+                                                                            </div>
+
+                                                                            <p className="text-sm font-semibold text-slate-700">
+                                                                                Cantidad:{" "}
+                                                                                {
+                                                                                    item.quantity
+                                                                                }
+                                                                            </p>
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+
+                                                        {historyRequest.status ===
+                                                            2 &&
+                                                            historyRequest.deliveredAt && (
+                                                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                    <p className="text-xs text-emerald-700">
+                                                                        Entregada{" "}
+                                                                        {formatDateTime(
+                                                                            historyRequest.deliveredAt
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+
+
+                                                        {historyRequest.status ===
+                                                            3 && (
+                                                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                    {historyRequest.cancelledAt && (
+                                                                        <p className="text-xs text-red-700">
+                                                                            Cancelada{" "}
+                                                                            {formatDateTime(
+                                                                                historyRequest.cancelledAt
+                                                                            )}
+                                                                        </p>
+                                                                    )}
+
+                                                                    {historyRequest.cancellationReason && (
+                                                                        <p className="mt-1 text-sm text-red-700">
+                                                                            Motivo:{" "}
+                                                                            {
+                                                                                historyRequest.cancellationReason
+                                                                            }
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                        {employee &&
+                                                            historyWasSearched &&
+                                                            !loadingHistory &&
+                                                            !historyError &&
+                                                            history.length === 0 && (
+                                                                <div className="mt-6 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-8 text-center">
+                                                                    <p className="text-sm font-medium text-slate-700">
+                                                                        Este empleado todavía no tiene
+                                                                        solicitudes de artículos.
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                );
+                                            }
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                    </div>
+                </section>
+
+
+
+            {showForm && (
+            <form ref={formRef} id="new-request-form" tabIndex={-1} aria-labelledby="new-request-title" onSubmit={handleSubmit} className="space-y-6 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 id="new-request-title" className="text-lg font-semibold text-slate-900">Nueva solicitud</h2>
+                    <button type="button" onClick={() => setShowForm(false)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">Ocultar nueva solicitud</button>
+                </div>
+                {loadingCatalogs && <p role="status" className="text-sm text-slate-600">Cargando catálogos de la solicitud...</p>}
+                {!employee && <p className="text-sm text-slate-600">Busca y confirma al empleado en la sección Empleado e historial para continuar.</p>}
+                {employee && (
+                    <>
+                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                            <div>
+                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
+
+                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                    Información de la solicitud
+                                </h2>
+                            </div>
+
+
+                            <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Unidad organizacional
+                                    </label>
+
+                                    <select
+                                        value={
+                                            requestedForOrganizationalUnitId
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setRequestedForOrganizationalUnitId(
+                                                event
+                                                    .target
+                                                    .value
+                                            )
+                                        }
+                                        disabled={
+                                            loadingOrganizationalUnits ||
+                                            loadingRequest
+                                        }
+                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                    >
+                                        <option value="">
+                                            Selecciona una unidad
+                                        </option>
+
+                                        {organizationalUnits
+                                            .filter(
+                                                (unit) =>
+                                                    unit.isActive
+                                            )
+                                            .map(
+                                                (unit) => (
+                                                    <option
+                                                        key={
+                                                            unit.id
+                                                        }
+                                                        value={
+                                                            unit.id
+                                                        }
+                                                    >
+                                                        {
+                                                            unit.name
+                                                        }
+                                                        {" — "}
+                                                        {getOrganizationalUnitTypeLabel(
+                                                            unit.type
+                                                        )}
+                                                        {unit.parentName
+                                                            ? ` / ${unit.parentName}`
+                                                            : ""}
+                                                    </option>
+                                                )
+                                            )}
+                                    </select>
+
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        Esta unidad es la que
+                                        consumirá el cupo de los artículos.
+                                    </p>
+                                </div>
+
+
+                                <div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Motivo
+                                        </label>
+
+                                        <select
+                                            value={
+                                                requestReasonId
+                                            }
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                setRequestReasonId(
+                                                    event.target
+                                                        .value
+                                                )
+                                            }
+                                            disabled={
+                                                loadingRequestReasons ||
+                                                loadingRequest
+                                            }
+                                            className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                        >
+                                            <option value="">
+                                                Selecciona un motivo
+                                            </option>
+
+                                            {requestReasons.map(
+                                                (reason) => (
+                                                    <option
+                                                        key={
+                                                            reason.id
+                                                        }
+                                                        value={
+                                                            reason.id
+                                                        }
+                                                    >
+                                                        {
+                                                            reason.name
+                                                        }
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+                                    </div>
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Almacén
+                                    </label>
+
+                                    <select
+                                        value={
+                                            warehouseId
+                                        }
+                                        onChange={(event) => {
+                                            warehouseProductsVersion.current += 1;
+                                            warehouseProductsPending.current = false;
+                                            setLoadingWarehouseProducts(false);
+                                            setWarehouseId(
+                                                event.target.value
+                                            );
+
+                                            setWarehouseProducts(
+                                                []
+                                            );
+
+                                            setLoadedWarehouseId(
+                                                null
+                                            );
+
+                                            setWarehouseProductsError(
+                                                null
+                                            );
+
+                                            setItems([
+                                                createEmptyItem(),
+                                            ]);
+                                        }}
+                                        disabled={
+                                            loadingWarehouses ||
+                                            loadingRequest
+                                        }
+                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                    >
+                                        <option value="">
+                                            Selecciona un almacén
+                                        </option>
+
+                                        {warehouses
+                                            .filter(
+                                                (warehouse) =>
+                                                    warehouse.isActive
+                                            )
+                                            .map(
+                                                (
+                                                    warehouse
+                                                ) => (
+                                                    <option
+                                                        key={
+                                                            warehouse.id
+                                                        }
+                                                        value={
+                                                            warehouse.id
+                                                        }
+                                                    >
+                                                        {
+                                                            warehouse.code
+                                                        }
+                                                        {" — "}
+                                                        {
+                                                            warehouse.name
+                                                        }
+                                                    </option>
+                                                )
+                                            )}
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void handleLoadWarehouseProducts()
+                                        }
+                                        disabled={
+                                            !warehouseId ||
+                                            loadingWarehouseProducts ||
+                                            loadingRequest
+                                        }
+                                        className="mt-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {loadingWarehouseProducts
+                                            ? "Obteniendo productos..."
+                                            : "Obtener productos"}
+                                    </button>
+
+                                    {warehouseProductsError && (
+                                        <p className="mt-2 text-sm text-red-700">
+                                            {warehouseProductsError}
+                                        </p>
+                                    )}
+
+                                    {loadedWarehouseId !== null &&
+                                        !loadingWarehouseProducts && (
+                                            <p className="mt-2 text-sm text-emerald-700">
+                                                {
+                                                    warehouseProducts.length
+                                                }{" "}
+                                                productos encontrados en el almacén.
+                                            </p>
+                                        )}
+                                </div>
+
+
+
+                            </div>
+                        </section>
+
+
+
+
+                        {loadedWarehouseId === Number(warehouseId) &&
+                            !loadingWarehouseProducts &&
+                            warehouseProducts.length > 0 && (
+                                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
+
+                                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                                Artículos solicitados
+                                            </h2>
+
+                                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                                Agrega uno o varios
+                                                productos y la cantidad
+                                                requerida.
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={addItem}
+                                            disabled={
+                                                !warehouseId ||
+                                                loadedWarehouseId !==
+                                                Number(warehouseId) ||
+                                                loadingWarehouseProducts ||
+                                                loadingRequest
+                                            }
+                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                        >
+                                            Agregar producto
+                                        </button>
+                                    </div>
+
+
+                                    <div className="mt-6 space-y-4">
+                                        {items.map(
+                                            (
+                                                item,
+                                                index
+                                            ) => (
+                                                <div
+                                                    key={
+                                                        item.key
+                                                    }
+                                                    className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
+                                                >
+                                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-slate-700">
+                                                                Producto
+                                                            </label>
+
+                                                            <select
+                                                                value={
+                                                                    item.ppeProductId
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    updateItem(
+                                                                        item.key,
+                                                                        "ppeProductId",
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    !warehouseId ||
+                                                                    loadedWarehouseId !==
+                                                                    Number(warehouseId) ||
+                                                                    loadingWarehouseProducts ||
+                                                                    loadingRequest
+                                                                }
+                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                            >
+                                                                <option value="">
+                                                                    {!warehouseId
+                                                                        ? "Selecciona primero un almacén"
+                                                                        : loadingWarehouseProducts
+                                                                            ? "Cargando productos..."
+                                                                            : loadedWarehouseId !==
+                                                                                Number(warehouseId)
+                                                                                ? "Haz clic en Obtener productos"
+                                                                                : warehouseProducts.length === 0
+                                                                                    ? "El almacén no tiene productos"
+                                                                                    : "Selecciona un producto"}
+                                                                </option>
+
+                                                                {warehouseProducts.map(
+                                                                    (product) => (
+                                                                        <option
+                                                                            key={
+                                                                                product.ppeProductId
+                                                                            }
+                                                                            value={
+                                                                                product.ppeProductId
+                                                                            }
+                                                                            disabled={
+                                                                                product.availableQuantity <=
+                                                                                0
+                                                                            }
+                                                                        >
+                                                                            {product.sku}
+                                                                            {" - "}
+                                                                            {product.productName}
+                                                                            {" · "}
+
+                                                                            {product.availableQuantity > 0
+                                                                                ? `Disponibles: ${product.availableQuantity}`
+                                                                                : "Sin existencia"}
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </select>
+                                                        </div>
+
+
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-slate-700">
+                                                                Cantidad
+                                                            </label>
+
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                step="1"
+                                                                value={
+                                                                    item.quantity
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    updateItem(
+                                                                        item.key,
+                                                                        "quantity",
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    loadingRequest
+                                                                }
+                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                            />
+                                                        </div>
+
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                removeItem(
+                                                                    item.key
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                items.length ===
+                                                                1 ||
+                                                                loadingRequest
+                                                            }
+                                                            className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            Quitar
+                                                        </button>
+                                                    </div>
+
+                                                    <p className="mt-3 text-xs text-slate-500">
+                                                        Producto{" "}
+                                                        {index + 1}
+                                                    </p>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                </section>
+                            )}
+
+
+                        {/* Observaciones */}
+
+                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                            <div>
+                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
+
+                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                    Observaciones
+                                </h2>
+                            </div>
+
+
+                            <div className="mt-6">
+                                <label className="block text-sm font-medium text-slate-700">
+                                    Notas
+                                </label>
+
+                                <textarea
+                                    value={notes}
+                                    onChange={(event) =>
+                                        setNotes(
+                                            event.target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        loadingRequest
+                                    }
+                                    rows={4}
+                                    placeholder="Agrega información adicional sobre la solicitud..."
+                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                />
+
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Algunos motivos excepcionales
+                                    pueden requerir una
+                                    explicación.
+                                </p>
+                            </div>
+                        </section>
+
+
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={
+                                    loadingRequest ||
+                                    loadingCatalogs ||
+                                    !formCatalogsReady ||
+                                    loadingWarehouseProducts
+                                }
+                                className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                            >
+                                {loadingRequest
+                                    ? "Creando solicitud..."
+                                    : "Crear solicitud"}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </form>
+            )}
+        </div>
+    );
+};

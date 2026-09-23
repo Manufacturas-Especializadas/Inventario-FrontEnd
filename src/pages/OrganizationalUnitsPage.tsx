@@ -1,0 +1,1325 @@
+import {
+    useMemo,
+    useState,
+    type FormEvent,
+} from "react";
+
+import {
+    useOrganizationalUnits,
+} from "../hooks/useOrganizationalUnits";
+
+import {
+    useOrganizationalUnitPPELimits,
+} from "../hooks/useOrganizationalUnitPPELimits";
+
+import {
+    usePPEProducts,
+} from "../hooks/usePPEProducts";
+
+import type {
+    OrganizationalUnit,
+    OrganizationalUnitType,
+} from "../types/types";
+
+import { PageHeader } from "../components/ui/PageHeader";
+
+
+const getUnitTypeLabel = (
+    type: OrganizationalUnitType
+) => {
+    switch (type) {
+        case 1:
+            return "Departamento";
+
+        case 2:
+            return "Área";
+
+        case 3:
+            return "Línea";
+
+        case 4:
+            return "Subárea";
+
+        case 5:
+            return "Equipo";
+
+        default:
+            return "Desconocido";
+    }
+};
+
+
+export const OrganizationalUnitsPage =
+    () => {
+        const {
+            organizationalUnits,
+            hasLoaded: unitsHasLoaded,
+            refresh: refreshUnits,
+            createError,
+
+            loading: loadingUnits,
+            creating,
+
+            error: unitsError,
+
+            createOrganizationalUnit,
+        } = useOrganizationalUnits();
+
+
+        const {
+            limits,
+            hasLoaded: limitsHasLoaded,
+            saveError,
+            clearError: clearLimitError,
+
+            loading: loadingLimits,
+            saving,
+
+            error: limitsError,
+
+            setLimit,
+            refresh: refreshLimits,
+        } =
+            useOrganizationalUnitPPELimits({ autoLoad: false });
+
+
+        const {
+            products,
+            hasLoaded: productsHasLoaded,
+            refresh: refreshProducts,
+            loading: loadingProducts,
+            error: productsError,
+        } = usePPEProducts({ autoLoad: false });
+
+
+        const [showLimitForm, setShowLimitForm] = useState(false);
+        const [unitFormError, setUnitFormError] = useState<string | null>(null);
+        const [unitSuccess, setUnitSuccess] = useState<string | null>(null);
+        const catalogsReady = unitsHasLoaded && limitsHasLoaded && productsHasLoaded && !unitsError && !limitsError && !productsError;
+        const openLimitForm = () => {
+            setShowLimitForm(true);
+            setFormError(null);
+            clearLimitError();
+            void Promise.all([
+                !limitsHasLoaded ? refreshLimits() : Promise.resolve(),
+                !productsHasLoaded ? refreshProducts() : Promise.resolve(),
+            ]);
+        };
+
+        // Crear unidad
+
+        const [
+            name,
+            setName,
+        ] = useState("");
+
+        const [
+            description,
+            setDescription,
+        ] = useState("");
+
+        const [
+            unitType,
+            setUnitType,
+        ] =
+            useState<OrganizationalUnitType>(
+                1
+            );
+
+        const [
+            parentId,
+            setParentId,
+        ] = useState("");
+
+
+        // Límite EPP
+
+        const [
+            limitUnitId,
+            setLimitUnitId,
+        ] = useState("");
+
+        const [
+            limitProductId,
+            setLimitProductId,
+        ] = useState("");
+
+        const [
+            maxQuantityPerCycle,
+            setMaxQuantityPerCycle,
+        ] = useState("");
+
+        const [
+            limitIsActive,
+            setLimitIsActive,
+        ] = useState(true);
+
+
+        const [
+            formError,
+            setFormError,
+        ] = useState<string | null>(
+            null
+        );
+
+        const [
+            successMessage,
+            setSuccessMessage,
+        ] = useState<string | null>(
+            null
+        );
+
+
+        const activeUnits =
+            organizationalUnits.filter(
+                (unit) =>
+                    unit.isActive
+            );
+
+
+        const activeProducts =
+            products.filter(
+                (product) =>
+                    product.isActive
+            );
+
+
+        const selectedExistingLimit =
+            limits.find(
+                (limit) =>
+                    limit.organizationalUnitId ===
+                    Number(
+                        limitUnitId
+                    ) &&
+                    limit.ppeProductId ===
+                    Number(
+                        limitProductId
+                    )
+            );
+
+
+        // Reset on a different combination or changed server values, not on every refresh object.
+        const selectionKey = JSON.stringify([limitUnitId, limitProductId, limitsHasLoaded,
+            selectedExistingLimit?.maxQuantityPerCycle, selectedExistingLimit?.isActive]);
+        const [previousSelection, setPreviousSelection] = useState(selectionKey);
+        if (previousSelection !== selectionKey) {
+            setPreviousSelection(selectionKey);
+            setMaxQuantityPerCycle(selectedExistingLimit ? String(selectedExistingLimit.maxQuantityPerCycle) : "");
+            setLimitIsActive(selectedExistingLimit?.isActive ?? true);
+        }
+
+        const handleCreateUnit =
+            async (
+                event:
+                    FormEvent<HTMLFormElement>
+            ) => {
+                event.preventDefault();
+
+                setUnitFormError(null);
+                setUnitSuccess(null);
+
+                const normalizedName =
+                    name.trim();
+
+                if (
+                    !normalizedName
+                ) {
+                    setUnitFormError(
+                        "El nombre de la unidad es obligatorio."
+                    );
+
+                    return;
+                }
+
+                if (
+                    normalizedName.length >
+                    150
+                ) {
+                    setUnitFormError(
+                        "El nombre no puede superar los 150 caracteres."
+                    );
+
+                    return;
+                }
+
+                const normalizedDescription =
+                    description.trim();
+
+                if (
+                    normalizedDescription.length >
+                    500
+                ) {
+                    setUnitFormError(
+                        "La descripción no puede superar los 500 caracteres."
+                    );
+
+                    return;
+                }
+
+                const result =
+                    await createOrganizationalUnit(
+                        {
+                            name:
+                                normalizedName,
+
+                            description:
+                                normalizedDescription ||
+                                null,
+
+                            type:
+                                unitType,
+
+                            parentId:
+                                parentId
+                                    ? Number(
+                                        parentId
+                                    )
+                                    : null,
+                        }
+                    );
+
+                if (!result) {
+                    return;
+                }
+
+                setUnitSuccess(
+                    `Unidad "${result.name}" creada correctamente.`
+                );
+
+                setName("");
+                setDescription("");
+                setUnitType(1);
+                setParentId("");
+            };
+
+
+        const handleSaveLimit =
+            async (
+                event:
+                    FormEvent<HTMLFormElement>
+            ) => {
+                event.preventDefault();
+                if (saving || !catalogsReady || activeUnits.length === 0 || activeProducts.length === 0) return;
+
+                setFormError(null);
+                setSuccessMessage(null);
+
+                const parsedUnitId =
+                    Number(
+                        limitUnitId
+                    );
+
+                const parsedProductId =
+                    Number(
+                        limitProductId
+                    );
+
+                const parsedMax =
+                    Number(
+                        maxQuantityPerCycle
+                    );
+
+                if (
+                    !Number.isInteger(
+                        parsedUnitId
+                    ) ||
+                    parsedUnitId <= 0
+                ) {
+                    setFormError(
+                        "Selecciona una unidad organizacional."
+                    );
+
+                    return;
+                }
+
+                if (
+                    !Number.isInteger(
+                        parsedProductId
+                    ) ||
+                    parsedProductId <= 0
+                ) {
+                    setFormError(
+                        "Selecciona un producto."
+                    );
+
+                    return;
+                }
+
+                if (
+                    !Number.isInteger(
+                        parsedMax
+                    ) ||
+                    parsedMax <= 0
+                ) {
+                    setFormError(
+                        "El máximo por ciclo debe ser un número entero mayor a cero."
+                    );
+
+                    return;
+                }
+
+                const result =
+                    await setLimit({
+                        organizationalUnitId:
+                            parsedUnitId,
+
+                        ppeProductId:
+                            parsedProductId,
+
+                        maxQuantityPerCycle:
+                            parsedMax,
+
+                        /*
+                         * Un registro nuevo siempre
+                         * debe crearse activo.
+                         */
+                        isActive:
+                            selectedExistingLimit
+                                ? limitIsActive
+                                : true,
+                    });
+
+                if (!result) {
+                    return;
+                }
+
+                setSuccessMessage(
+                    selectedExistingLimit
+                        ? "Límite de producto actualizado correctamente."
+                        : "Límite de producto creado correctamente."
+                );
+            };
+
+
+        const handleEditLimit = (
+            organizationalUnitId:
+                number,
+            ppeProductId: number
+        ) => {
+            openLimitForm();
+            const existing = limits.find((limit) => limit.organizationalUnitId === organizationalUnitId && limit.ppeProductId === ppeProductId);
+            setMaxQuantityPerCycle(existing ? String(existing.maxQuantityPerCycle) : "");
+            setLimitIsActive(existing?.isActive ?? true);
+            setLimitUnitId(
+                String(
+                    organizationalUnitId
+                )
+            );
+
+            setLimitProductId(
+                String(
+                    ppeProductId
+                )
+            );
+
+            setFormError(null);
+            setSuccessMessage(null);
+        };
+
+
+        /*
+         * Convertimos la lista plana en filas
+         * ordenadas jerárquicamente.
+         */
+        const hierarchyRows = useMemo(() => {
+                const rows: {
+                    unit:
+                    OrganizationalUnit;
+                    depth: number;
+                }[] = [];
+
+                const visited =
+                    new Set<number>();
+
+                const appendChildren = (
+                    parent:
+                        number | null,
+                    depth: number
+                ) => {
+                    const children =
+                        organizationalUnits
+                            .filter(
+                                (unit) =>
+                                    unit.parentId ===
+                                    parent
+                            )
+                            .sort(
+                                (a, b) =>
+                                    a.name.localeCompare(
+                                        b.name,
+                                        "es"
+                                    )
+                            );
+
+                    for (
+                        const unit of
+                        children
+                    ) {
+                        if (
+                            visited.has(
+                                unit.id
+                            )
+                        ) {
+                            continue;
+                        }
+
+                        visited.add(
+                            unit.id
+                        );
+
+                        rows.push({
+                            unit,
+                            depth,
+                        });
+
+                        appendChildren(
+                            unit.id,
+                            depth + 1
+                        );
+                    }
+                };
+
+                appendChildren(
+                    null,
+                    0
+                );
+
+                /*
+                 * Protección por si existiera
+                 * algún dato histórico cuyo
+                 * padre ya no aparezca.
+                 */
+                for (
+                    const unit of
+                    organizationalUnits
+                ) {
+                    if (
+                        !visited.has(
+                            unit.id
+                        )
+                    ) {
+                        rows.push({
+                            unit,
+                            depth: 0,
+                        });
+                    }
+                }
+
+                return rows;
+            }, [organizationalUnits]);
+
+
+        const sortedLimits =
+            [...limits].sort(
+                (a, b) => {
+                    const unitCompare =
+                        a.organizationalUnitName.localeCompare(
+                            b.organizationalUnitName,
+                            "es"
+                        );
+
+                    if (
+                        unitCompare !==
+                        0
+                    ) {
+                        return unitCompare;
+                    }
+
+                    return a.productName.localeCompare(
+                        b.productName,
+                        "es"
+                    );
+                }
+            );
+
+
+        return (
+            <div className="mx-auto max-w-7xl space-y-6">
+                <PageHeader
+                    eyebrow="MESA · Administración"
+                    title="Organización y límites"
+                    description="Configura la estructura organizacional y los límites específicos aplicables a cada unidad."
+                    descriptionWidth="wide"
+                />
+
+
+                {/* Crear unidad */}
+
+                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="border-b border-slate-100 pb-6">
+                        <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="3" width="6" height="5" rx="1" />
+                                <rect x="2" y="16" width="6" height="5" rx="1" />
+                                <rect x="16" y="16" width="6" height="5" rx="1" />
+                                <path d="M12 8v4M5 16v-4h14v4" />
+                            </svg>
+                        </span>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                            Estructura
+                            organizacional
+                        </p>
+
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                            Crear unidad
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                            Puedes crear una
+                            unidad raíz o
+                            colocarla debajo
+                            de cualquier
+                            unidad activa.
+                        </p>
+                    </div>
+
+
+                    {(unitFormError || createError) && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{unitFormError || createError}</div>}
+                    {unitSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{unitSuccess}</p>}
+                    <form
+                        onSubmit={
+                            handleCreateUnit
+                        }
+                        className="mt-6"
+                    >
+                        <div className="grid gap-6 md:grid-cols-2 [&>div]:min-w-0">
+                            <div>
+                                <label htmlFor="org-unit-name" className="block text-sm font-medium text-slate-700">
+                                    Nombre
+                                </label>
+
+                                <input
+                                    id="org-unit-name"
+                                    type="text"
+                                    value={
+                                        name
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setName(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    maxLength={
+                                        150
+                                    }
+                                    disabled={
+                                        creating
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                />
+                            </div>
+
+
+                            <div>
+                                <label htmlFor="org-unit-type" className="block text-sm font-medium text-slate-700">
+                                    Tipo
+                                </label>
+
+                                <select
+                                    id="org-unit-type"
+                                    value={
+                                        unitType
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setUnitType(
+                                            Number(
+                                                event
+                                                    .target
+                                                    .value
+                                            ) as OrganizationalUnitType
+                                        )
+                                    }
+                                    disabled={
+                                        creating
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                >
+                                    <option value={1}>
+                                        Departamento
+                                    </option>
+
+                                    <option value={2}>
+                                        Área
+                                    </option>
+
+                                    <option value={3}>
+                                        Línea
+                                    </option>
+
+                                    <option value={4}>
+                                        Subárea
+                                    </option>
+
+                                    <option value={5}>
+                                        Equipo
+                                    </option>
+                                </select>
+                            </div>
+
+
+                            <div>
+                                <label htmlFor="org-unit-parent" className="block text-sm font-medium text-slate-700">
+                                    Unidad padre
+                                </label>
+
+                                <select
+                                    id="org-unit-parent"
+                                    value={
+                                        parentId
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setParentId(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        creating ||
+                                        loadingUnits
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                >
+                                    <option value="">
+                                        Sin padre
+                                        — unidad raíz
+                                    </option>
+
+                                    {activeUnits.map(
+                                        (
+                                            unit
+                                        ) => (
+                                            <option
+                                                key={
+                                                    unit.id
+                                                }
+                                                value={
+                                                    unit.id
+                                                }
+                                            >
+                                                {
+                                                    unit.name
+                                                }
+                                                {" — "}
+                                                {getUnitTypeLabel(
+                                                    unit.type
+                                                )}
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+
+                            <div>
+                                <label htmlFor="org-unit-description" className="block text-sm font-medium text-slate-700">
+                                    Descripción
+                                </label>
+
+                                <textarea
+                                    id="org-unit-description"
+                                    value={
+                                        description
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setDescription(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    maxLength={
+                                        500
+                                    }
+                                    rows={3}
+                                    disabled={
+                                        creating
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                />
+
+                                <p className="mt-2 text-right text-xs tabular-nums text-slate-500">
+                                    {
+                                        description.length
+                                    }
+                                    /500
+                                </p>
+                            </div>
+                        </div>
+
+
+                        <div className="mt-6 flex justify-end border-t border-slate-100 pt-6">
+                            <button
+                                type="submit"
+                                disabled={
+                                    creating ||
+                                    !name.trim()
+                                }
+                                className="min-h-11 w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
+                            >
+                                {creating
+                                    ? "Creando..."
+                                    : "Crear unidad"}
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+
+                {/* Jerarquía */}
+
+                <section aria-label="Estructura organizacional" aria-busy={loadingUnits} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="border-b border-slate-100 pb-6">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                            Jerarquía actual
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                            La sangría
+                            representa la
+                            relación
+                            padre-hijo.
+                        </p>
+                    </div>
+
+
+                    <button type="button" onClick={() => void refreshUnits()} disabled={loadingUnits}
+                        className="mt-4 min-h-11 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
+                        {loadingUnits ? unitsHasLoaded ? "Actualizando unidades..." : "Cargando unidades..." : "Actualizar unidades"}
+                    </button>
+                    {unitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {unitsHasLoaded && <p>No fue posible actualizar la estructura. Se muestran los últimos datos disponibles.</p>}
+                        <p>{unitsError}</p>
+                    </div>}
+                    {loadingUnits && !unitsHasLoaded && (
+                        <p role="status" className="mt-6 rounded-xl border border-sky-100 bg-sky-50 px-6 py-8 text-center text-sm text-sky-800">
+                            Cargando unidades...
+                        </p>
+                    )}
+
+
+                    {unitsHasLoaded &&
+                        hierarchyRows.length ===
+                        0 && (
+                            <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
+                                Todavía no hay
+                                unidades
+                                organizacionales.
+                            </div>
+                        )}
+
+
+                    {unitsHasLoaded &&
+                        hierarchyRows.length >
+                        0 && (
+                            <div tabIndex={0} role="region" aria-label="Jerarquía de unidades organizacionales" className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/40 p-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
+                                {hierarchyRows.map(
+                                    ({
+                                        unit,
+                                        depth,
+                                    }) => (
+                                        <div
+                                            key={
+                                                unit.id
+                                            }
+                                            className="flex min-w-120 items-center gap-4 border-b border-slate-100 py-4 transition-colors last:border-b-0 hover:bg-sky-50/70 motion-reduce:transition-none [&>div]:min-w-0 [&>div]:border-l-2 [&>div]:border-sky-200 [&>div]:pl-4"
+                                            style={{
+                                                paddingLeft:
+                                                    `${depth * 24}px`,
+                                            }}
+                                        >
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="wrap-break-word text-sm font-semibold text-slate-800">
+                                                        {
+                                                            unit.name
+                                                        }
+                                                    </p>
+
+                                                    <span className="inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-200">
+                                                        {getUnitTypeLabel(
+                                                            unit.type
+                                                        )}
+                                                    </span>
+
+                                                    <span
+                                                        className={
+                                                            unit.isActive
+                                                                ? "inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200"
+                                                                : "inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200"
+                                                        }
+                                                    >
+                                                        {unit.isActive
+                                                            ? "Activa"
+                                                            : "Inactiva"}
+                                                    </span>
+                                                </div>
+
+                                                {unit.description && (
+                                                    <p className="mt-2 max-w-2xl wrap-break-word text-xs leading-5 text-slate-500">
+                                                        {
+                                                            unit.description
+                                                        }
+                                                    </p>
+                                                )}
+
+                                                {unit.parentName && (
+                                                    <p className="mt-2 wrap-break-word text-xs leading-5 text-slate-500">
+                                                        Padre:{" "}
+                                                        {
+                                                            unit.parentName
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        )}
+                </section>
+
+
+                {/* Límites */}
+
+                <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="border-b border-slate-100 pb-6">
+                        <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 7h16M4 17h16" />
+                                <rect x="7" y="4" width="4" height="6" rx="1" fill="white" />
+                                <rect x="14" y="14" width="4" height="6" rx="1" fill="white" />
+                            </svg>
+                        </span>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                            Reglas de consumo
+                        </p>
+
+                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                            Límite por
+                            unidad
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                            Define un máximo
+                            específico por
+                            ciclo para una
+                            combinación de
+                            unidad y producto.
+                        </p>
+                    </div>
+
+
+                    <button type="button" disabled={saving} onClick={() => showLimitForm ? setShowLimitForm(false) : openLimitForm()}
+                        className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 disabled:opacity-50">
+                        {showLimitForm ? "Cerrar configuración" : "Configurar límite"}
+                    </button>
+                    {showLimitForm && <>
+                    {(loadingLimits || loadingProducts) && <p role="status" className="mt-4 text-sm text-sky-800">Cargando catálogos para configurar el límite...</p>}
+                    {limitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        <p>No fue posible verificar las reglas existentes. {limitsError}</p>
+                        <button type="button" disabled={loadingLimits} onClick={() => void refreshLimits()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar reglas</button>
+                    </div>}
+                    {productsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        <p>No fue posible cargar los productos. {productsError}</p>
+                        <button type="button" disabled={loadingProducts} onClick={() => void refreshProducts()} className="mt-2 min-h-11 rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">Reintentar productos</button>
+                    </div>}
+                    {productsHasLoaded && activeProducts.length === 0 && <p role="status" className="mt-4 text-sm text-slate-600">No hay productos activos disponibles para configurar límites.</p>}
+                    {(formError || saveError) && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{formError || saveError}</p>}
+                    {successMessage && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{successMessage}</p>}
+                    <form aria-busy={saving || loadingLimits || loadingProducts}
+                        onSubmit={
+                            handleSaveLimit
+                        }
+                        className="mt-6"
+                    >
+                        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,0.7fr)] [&>div]:min-w-0">
+                            <div>
+                                <label htmlFor="org-limit-unit" className="block text-sm font-medium text-slate-700">
+                                    Unidad
+                                </label>
+
+                                <select
+                                    id="org-limit-unit"
+                                    value={
+                                        limitUnitId
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setLimitUnitId(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        !catalogsReady || saving
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                >
+                                    <option value="">
+                                        Selecciona
+                                        una unidad
+                                    </option>
+
+                                    {activeUnits.map(
+                                        (
+                                            unit
+                                        ) => (
+                                            <option
+                                                key={
+                                                    unit.id
+                                                }
+                                                value={
+                                                    unit.id
+                                                }
+                                            >
+                                                {
+                                                    unit.name
+                                                }
+                                                {" — "}
+                                                {getUnitTypeLabel(
+                                                    unit.type
+                                                )}
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+
+                            <div>
+                                <label htmlFor="org-limit-product" className="block text-sm font-medium text-slate-700">
+                                    Producto
+                                </label>
+
+                                <select
+                                    id="org-limit-product"
+                                    value={
+                                        limitProductId
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setLimitProductId(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        !catalogsReady || saving ||
+                                        loadingProducts
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                >
+                                    <option value="">
+                                        Selecciona
+                                        un producto
+                                    </option>
+
+                                    {activeProducts.map(
+                                        (
+                                            product
+                                        ) => (
+                                            <option
+                                                key={
+                                                    product.id
+                                                }
+                                                value={
+                                                    product.id
+                                                }
+                                            >
+                                                {
+                                                    product.sku
+                                                }
+                                                {" — "}
+                                                {
+                                                    product.name
+                                                }
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+
+                            <div>
+                                <label htmlFor="org-limit-max" className="block text-sm font-medium text-slate-700">
+                                    Máximo por
+                                    ciclo
+                                </label>
+
+                                <input
+                                    id="org-limit-max"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={
+                                        maxQuantityPerCycle
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setMaxQuantityPerCycle(
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        !catalogsReady || saving
+                                    }
+                                    className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                />
+                            </div>
+                        </div>
+
+
+                        {selectedExistingLimit && (
+                            <label className="mt-5 flex min-h-11 items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-4">
+                                <input
+                                    type="checkbox"
+                                    checked={
+                                        limitIsActive
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        setLimitIsActive(
+                                            event
+                                                .target
+                                                .checked
+                                        )
+                                    }
+                                    disabled={
+                                        !catalogsReady || saving
+                                    }
+                                    className="h-5 w-5 shrink-0 rounded border-slate-300 accent-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                />
+
+                                <span className="text-sm font-medium text-slate-700">
+                                    Límite
+                                    activo
+                                </span>
+                            </label>
+                        )}
+
+
+                        {catalogsReady && limitUnitId &&
+                            limitProductId && (
+                                <div className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                                    {selectedExistingLimit ? (
+                                        <p className="text-sm leading-6 text-slate-600">
+                                            Esta
+                                            combinación
+                                            ya tiene
+                                            una regla.
+                                            Guardar
+                                            actualizará
+                                            el registro
+                                            existente.
+                                        </p>
+                                    ) : (
+                                        <p className="text-sm leading-6 text-slate-600">
+                                            Esta
+                                            combinación
+                                            todavía no
+                                            tiene un
+                                            límite
+                                            específico.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+
+                        <div className="mt-6 flex justify-end border-t border-slate-100 pt-6">
+                            <button
+                                type="submit"
+                                disabled={
+                                        !catalogsReady || saving ||
+                                    activeUnits.length === 0 || activeProducts.length === 0 || !limitUnitId ||
+                                    !limitProductId ||
+                                    !maxQuantityPerCycle
+                                }
+                                className="min-h-11 w-full rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
+                            >
+                                {saving
+                                    ? "Guardando..."
+                                    : selectedExistingLimit
+                                        ? "Actualizar límite"
+                                        : "Crear límite"}
+                            </button>
+                        </div>
+                    </form>
+                    </>}
+                </section>
+
+
+                {/* Reglas existentes */}
+
+                <section aria-label="Reglas configuradas" aria-busy={loadingLimits} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                    <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                                Reglas
+                                configuradas
+                            </h2>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-500">
+                                Límites
+                                específicos
+                                actualmente
+                                registrados.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void refreshLimits()
+                            }
+                            disabled={
+                                loadingLimits
+                            }
+                            className="min-h-11 w-full shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:w-auto"
+                        >
+                            {loadingLimits ? limitsHasLoaded ? "Actualizando..." : "Cargando reglas..." : limitsHasLoaded ? "Actualizar" : "Consultar reglas"}
+                        </button>
+                    </div>
+
+
+                    {!limitsHasLoaded && !loadingLimits && !limitsError && <p className="mt-4 text-sm text-slate-600">Las reglas todavía no se han consultado.</p>}
+                    {loadingLimits && !limitsHasLoaded && <p role="status" className="mt-4 text-sm text-sky-800">Consultando reglas...</p>}
+                    {limitsError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {limitsHasLoaded && <p>No fue posible actualizar las reglas. Se muestran los últimos datos disponibles.</p>}
+                        <p>{limitsError}</p>
+                    </div>}
+                    {limitsHasLoaded &&
+                        sortedLimits.length ===
+                        0 && (
+                            <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
+                                No hay límites
+                                específicos
+                                configurados.
+                            </div>
+                        )}
+
+
+                    {limitsHasLoaded && sortedLimits.length >
+                        0 && (
+                            <div tabIndex={0} role="region" aria-label="Límites EPP configurados" className="mt-6 overflow-x-auto rounded-xl border border-slate-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
+                                <table className="w-full min-w-190 text-left text-sm">
+                                    <thead>
+                                        <tr className="border-b border-sky-100 bg-sky-50/80 text-left text-xs font-semibold uppercase tracking-wider text-sky-800">
+                                            <th scope="col" className="px-5 py-3">
+                                                Unidad
+                                            </th>
+
+                                            <th scope="col" className="px-5 py-3">
+                                                Producto
+                                            </th>
+
+                                            <th scope="col" className="px-5 py-3 text-right">
+                                                Máximo
+                                            </th>
+
+                                            <th scope="col" className="px-5 py-3 text-center">
+                                                Estado
+                                            </th>
+
+                                            <th scope="col" className="px-5 py-3 text-right">
+                                                Acción
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="divide-y divide-slate-100">
+                                        {sortedLimits.map(
+                                            (
+                                                limit
+                                            ) => (
+                                                <tr
+                                                    className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
+                                                    key={
+                                                        limit.id
+                                                    }
+                                                >
+                                                    <td className="px-5 py-4 text-sm font-medium text-slate-800">
+                                                        {
+                                                            limit.organizationalUnitName
+                                                        }
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <p className="text-sm font-medium text-slate-800">
+                                                            {
+                                                                limit.productName
+                                                            }
+                                                        </p>
+
+                                                        <p className="text-xs text-slate-500">
+                                                            {
+                                                                limit.sku
+                                                            }
+                                                        </p>
+                                                    </td>
+
+                                                    <td className="px-5 py-4 text-right text-sm font-semibold tabular-nums text-slate-800">
+                                                        {
+                                                            limit.maxQuantityPerCycle
+                                                        }
+                                                    </td>
+
+                                                    <td className="px-5 py-4 text-center">
+                                                        <span
+                                                            className={
+                                                                limit.isActive
+                                                                    ? "inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200"
+                                                                    : "inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200"
+                                                            }
+                                                        >
+                                                            {limit.isActive
+                                                                ? "Activo"
+                                                                : "Inactivo"}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="px-5 py-4 text-right">
+                                                        <button
+                                                            type="button"
+                                                            disabled={saving}
+                                                            onClick={() =>
+                                                                handleEditLimit(
+                                                                    limit.organizationalUnitId,
+                                                                    limit.ppeProductId
+                                                                )
+                                                            }
+                                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 motion-reduce:transition-none"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                </section>
+            </div>
+        );
+    };

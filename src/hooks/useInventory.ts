@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -16,8 +17,13 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
+interface UseInventoryOptions {
+    autoLoad?: boolean;
+}
+
 export const useInventory = (
-    warehouseId: number | null
+    warehouseId: number | null,
+    { autoLoad = true }: UseInventoryOptions = {}
 ) => {
     const [
         balances,
@@ -34,41 +40,77 @@ export const useInventory = (
         setError,
     ] = useState<string | null>(null);
 
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const requestId = useRef(0);
+    const pendingRequest = useRef<{
+        warehouseId: number | null;
+        promise: Promise<void>;
+    } | null>(null);
+
+    const invalidate = useCallback(() => {
+        requestId.current += 1;
+        pendingRequest.current = null;
+        setBalances([]);
+        setHasLoaded(false);
+        setLoading(false);
+        setError(null);
+    }, []);
+
     const getBalances =
-        useCallback(async () => {
+        useCallback(() => {
+            if (pendingRequest.current?.warehouseId === warehouseId) {
+                return pendingRequest.current.promise;
+            }
+
+            const currentRequestId = ++requestId.current;
             setLoading(true);
             setError(null);
 
-            try {
-                const data =
-                    await inventoryService
-                        .getBalances(
-                            warehouseId
-                        );
+            const request = (async () => {
+                try {
+                    const data =
+                        await inventoryService
+                            .getBalances(
+                                warehouseId
+                            );
 
-                setBalances(data);
-            } catch (error) {
-                setBalances([]);
+                    // Ignore responses from a query invalidated by a warehouse change.
+                    if (currentRequestId !== requestId.current) return;
+                    setBalances(data);
+                    setHasLoaded(true);
+                } catch (error) {
+                    if (currentRequestId !== requestId.current) return;
+                    // Keep the last successful result; invalidate() clears it when the scope changes.
+                    setError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cargar el inventario."
+                        )
+                    );
+                } finally {
+                    if (currentRequestId === requestId.current) {
+                        setLoading(false);
+                        pendingRequest.current = null;
+                    }
+                }
+            })();
 
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cargar el inventario."
-                    )
-                );
-            } finally {
-                setLoading(false);
-            }
+            pendingRequest.current = { warehouseId, promise: request };
+            return request;
         }, [warehouseId]);
 
     useEffect(() => {
-        void getBalances();
-    }, [getBalances]);
+        if (autoLoad) {
+            void getBalances();
+        }
+    }, [autoLoad, getBalances]);
 
     return {
         balances,
         loading,
         error,
+        hasLoaded,
         refresh: getBalances,
+        invalidate,
     };
 };

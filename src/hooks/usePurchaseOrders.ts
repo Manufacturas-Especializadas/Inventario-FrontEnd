@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -16,7 +17,15 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
-export const usePurchaseOrders = () => {
+interface UsePurchaseOrdersOptions {
+    autoLoad?: boolean;
+}
+
+export const usePurchaseOrders = ({ autoLoad = true }: UsePurchaseOrdersOptions = {}) => {
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const loaded = useRef(false);
+    const pendingRequest = useRef<Promise<PurchaseOrder[] | null> | null>(null);
+    const updatesDuringLoad = useRef(new Map<number, PurchaseOrder | null>());
     const [
         purchaseOrders,
         setPurchaseOrders,
@@ -33,34 +42,70 @@ export const usePurchaseOrders = () => {
     ] = useState<string | null>(null);
 
     const getPurchaseOrders =
-        useCallback(async () => {
+        useCallback(() => {
+            if (pendingRequest.current) return pendingRequest.current;
             setLoading(true);
             setError(null);
+            updatesDuringLoad.current.clear();
 
-            try {
-                const data =
-                    await purchaseOrdersService
-                        .getAll();
+            const request = (async () => {
+                try {
+                    const data =
+                        await purchaseOrdersService
+                            .getAll();
 
-                setPurchaseOrders(data);
-            } catch (error) {
-                setError(
-                    getApiErrorMessage(
-                        error,
-                        "No fue posible cargar las órdenes de compra."
-                    )
-                );
-            } finally {
-                setLoading(false);
-            }
+                    const merged = new Map(data.map((order) => [order.id, order]));
+                    updatesDuringLoad.current.forEach((order, id) => {
+                        if (order) merged.set(id, order);
+                        else merged.delete(id);
+                    });
+                    const orders = Array.from(merged.values());
+                    setPurchaseOrders(orders);
+                    loaded.current = true;
+                    setHasLoaded(true);
+                    return orders;
+                } catch (error) {
+                    setError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cargar las órdenes de compra."
+                        )
+                    );
+                    return null;
+                } finally {
+                    setLoading(false);
+                    pendingRequest.current = null;
+                    updatesDuringLoad.current.clear();
+                }
+            })();
+            pendingRequest.current = request;
+            return request;
         }, []);
 
+    const upsertPurchaseOrder = useCallback((order: PurchaseOrder) => {
+        if (pendingRequest.current) updatesDuringLoad.current.set(order.id, order);
+        // A mutation alone is not a complete list; the first explicit GET establishes it.
+        if (!loaded.current) return;
+        setPurchaseOrders((current) => current.some((entry) => entry.id === order.id)
+            ? current.map((entry) => entry.id === order.id ? order : entry)
+            : [...current, order]);
+    }, []);
+
+    const removePurchaseOrder = useCallback((id: number) => {
+        if (pendingRequest.current) updatesDuringLoad.current.set(id, null);
+        if (!loaded.current) return;
+        setPurchaseOrders((current) => current.filter((order) => order.id !== id));
+    }, []);
+
     useEffect(() => {
-        void getPurchaseOrders();
-    }, [getPurchaseOrders]);
+        if (autoLoad) void getPurchaseOrders();
+    }, [autoLoad, getPurchaseOrders]);
 
     return {
         purchaseOrders,
+        hasLoaded,
+        upsertPurchaseOrder,
+        removePurchaseOrder,
         loading,
         error,
         refresh: getPurchaseOrders,

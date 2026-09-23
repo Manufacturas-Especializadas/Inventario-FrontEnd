@@ -11,6 +11,9 @@ import {
     useWarehouses,
 } from "../hooks/useWarehouses";
 
+import { PageHeader } from "../components/ui/PageHeader";
+import { CatalogLoadingSkeleton } from "../components/catalogs/CatalogLoadingSkeleton";
+
 export const InventoryPage = () => {
     const [
         warehouseId,
@@ -27,6 +30,8 @@ export const InventoryPage = () => {
         setOnlyLowStock,
     ] = useState(false);
 
+    const [hasRequested, setHasRequested] = useState(false);
+
     const selectedWarehouseId =
         warehouseId
             ? Number(warehouseId)
@@ -36,15 +41,22 @@ export const InventoryPage = () => {
         balances,
         loading,
         error,
+        hasLoaded,
         refresh,
+        invalidate,
     } = useInventory(
-        selectedWarehouseId
+        selectedWarehouseId,
+        { autoLoad: false }
     );
 
     const {
         warehouses,
         loading: loadingWarehouses,
+        error: warehousesError,
+        refresh: refreshWarehouses,
     } = useWarehouses();
+
+    const showResults = hasRequested && hasLoaded;
 
 
     const filteredBalances =
@@ -123,96 +135,102 @@ export const InventoryPage = () => {
         }, [balances]);
 
     return (
-        <div className="mx-auto max-w-7xl">
-            <div>
-                <p className="text-sm font-medium text-slate-500">
-                    Almacén
-                </p>
+        <div className="mx-auto max-w-7xl space-y-6">
+            <PageHeader
+                eyebrow="MESA · Almacén"
+                title="Inventario general"
+                description="Consulta existencias, cantidades reservadas y disponibilidad de los productos."
+            />
 
-                <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                    Inventario EPP
-                </h1>
+            {showResults && (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9" /></svg>
+                        <p className="text-sm font-medium text-slate-600">
+                            Productos
+                        </p>
 
-                <p className="mt-2 text-sm text-slate-600">
-                    Consulta existencias,
-                    cantidades reservadas y
-                    disponibilidad de los productos.
-                </p>
-            </div>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {summary.products}
+                        </p>
+                    </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-sm text-slate-500">
-                        Productos
-                    </p>
+                    <div className="min-w-0 rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-sky-50 p-2 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21V8l9-5 9 5v13M7 21V11h10v10M7 15h10M7 18h10" /></svg>
+                        <p className="text-sm font-medium text-slate-600">
+                            Existencia física
+                        </p>
 
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                        {summary.products}
-                    </p>
-                </div>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {summary.onHand}
+                        </p>
+                    </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-sm text-slate-500">
-                        Existencia física
-                    </p>
+                    <div className="min-w-0 rounded-2xl border border-sky-700 bg-sky-700 p-6 text-white shadow-sm">
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/15 p-2 text-sky-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>
+                        <p className="text-sm font-medium text-sky-100">
+                            Disponible
+                        </p>
 
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                        {summary.onHand}
-                    </p>
-                </div>
+                        <p className="mt-2 wrap-break-word text-3xl font-semibold tracking-tight text-white tabular-nums">
+                            {summary.available}
+                        </p>
+                    </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-sm text-slate-500">
-                        Disponible
-                    </p>
-
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                        {summary.available}
-                    </p>
-                </div>
-
-                <div
-                    className={`rounded-xl border p-5 shadow-sm ${summary.lowStock > 0
+                    <div
+                        className={`min-w-0 rounded-2xl border p-6 shadow-sm ${summary.lowStock > 0
                             ? "border-red-200 bg-red-50"
                             : "border-emerald-200 bg-emerald-50"
-                        }`}
-                >
-                    <p
-                        className={`text-sm ${summary.lowStock > 0
+                            }`}
+                    >
+                        <svg aria-hidden="true" className="mb-4 h-10 w-10 rounded-xl bg-white/70 p-2 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 20V10M12 20V4M20 20v-7" /></svg>
+                        <p
+                            className={`text-sm ${summary.lowStock > 0
                                 ? "text-red-600"
                                 : "text-emerald-600"
-                            }`}
-                    >
-                        {summary.lowStock > 0
-                            ? "Productos con stock bajo"
-                            : "Stock en buen estado"}
-                    </p>
+                                }`}
+                        >
+                            {summary.lowStock > 0
+                                ? "Productos con stock bajo"
+                                : "Stock en buen estado"}
+                        </p>
 
-                    <p
-                        className={`mt-2 text-2xl font-bold ${summary.lowStock > 0
+                        <p
+                            className={`mt-2 text-2xl font-bold ${summary.lowStock > 0
                                 ? "text-red-700"
                                 : "text-emerald-700"
-                            }`}
-                    >
-                        {summary.lowStock}
-                    </p>
+                                }`}
+                        >
+                            {summary.lowStock}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="grid gap-4 lg:grid-cols-[280px_1fr_auto]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <div className="mb-6 flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700"><svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" /></svg></span>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Consulta de inventario</h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Filtra por almacén, busca artículos o revisa los productos con stock bajo.</p>
+                    </div>
+                </div>
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] [&>div]:min-w-0">
+                    <div>
+                        <label htmlFor="inventory-warehouse" className="block text-sm font-medium text-slate-700">
                             Almacén
                         </label>
 
                         <select
+                            id="inventory-warehouse"
                             value={warehouseId}
-                            onChange={(event) =>
+                            onChange={(event) => {
                                 setWarehouseId(
                                     event.target.value
-                                )
-                            }
+                                );
+                                setHasRequested(false);
+                                invalidate();
+                            }}
                             disabled={
                                 loadingWarehouses
                             }
@@ -251,11 +269,12 @@ export const InventoryPage = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700">
+                        <label htmlFor="inventory-search" className="block text-sm font-medium text-slate-700">
                             Buscar
                         </label>
 
                         <input
+                            id="inventory-search"
                             type="text"
                             value={searchTerm}
                             onChange={(event) =>
@@ -269,8 +288,9 @@ export const InventoryPage = () => {
                     </div>
 
                     <div className="flex items-end">
-                        <label className="flex h-10.5 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700">
+                        <label className="flex min-h-12.5 w-full cursor-pointer items-center gap-3 rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3 text-sm font-medium text-sky-800 transition-colors hover:bg-sky-100/60 focus-within:ring-4 focus-within:ring-sky-100 motion-reduce:transition-none">
                             <input
+                                className="h-5 w-5 shrink-0 accent-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
                                 type="checkbox"
                                 checked={
                                     onlyLowStock
@@ -290,18 +310,45 @@ export const InventoryPage = () => {
                         </label>
                     </div>
                 </div>
+                {warehousesError && (
+                    <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        <p>{warehousesError}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refreshWarehouses()}
+                            disabled={loadingWarehouses}
+                            className="mt-3 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 disabled:opacity-50"
+                        >
+                            Reintentar almacenes
+                        </button>
+                    </div>
+                )}
+                <div className="mt-6 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHasRequested(true);
+                            void refresh();
+                        }}
+                        disabled={loading || loadingWarehouses}
+                        className="min-h-11 w-full rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:w-auto"
+                    >
+                        {loading
+                            ? hasLoaded ? "Actualizando..." : "Consultando..."
+                            : "Consultar inventario"}
+                    </button>
+                </div>
             </section>
 
-            <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <section aria-busy={loading} aria-label="Resultados de inventario" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-6 sm:px-8">
                     <div>
-                        <h2 className="font-semibold text-slate-900">
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                             Existencias
                         </h2>
 
-                        {!loading &&
-                            !error && (
-                                <p className="mt-1 text-xs text-slate-500">
+                        {showResults && (
+                                <p className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
                                     {
                                         filteredBalances.length
                                     }{" "}
@@ -315,30 +362,47 @@ export const InventoryPage = () => {
                         onClick={() =>
                             void refresh()
                         }
-                        disabled={loading}
+                        disabled={!hasRequested || loading}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
-                        Actualizar
+                        {loading
+                            ? hasLoaded ? "Actualizando..." : "Consultando..."
+                            : "Actualizar"}
                     </button>
                 </div>
 
-                {loading && (
-                    <div className="p-6 text-sm text-slate-500">
-                        Cargando inventario...
+                {!hasRequested && (
+                    <div role="status" className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
+                        Selecciona un almacén o todos los almacenes y pulsa Consultar inventario para ver las existencias.
                     </div>
                 )}
 
-                {!loading && error && (
-                    <div className="p-6 text-sm text-red-600">
-                        {error}
+                {hasRequested && loading && !hasLoaded && (
+                    <CatalogLoadingSkeleton label="Cargando inventario" />
+                )}
+
+                {hasRequested && !loading && error && (
+                    <div role="alert" className="m-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        {hasLoaded && (
+                            <p className="mb-2 font-medium">
+                                No fue posible actualizar el inventario. Se muestran los datos de la última consulta.
+                            </p>
+                        )}
+                        <p>{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => void refresh()}
+                            className="mt-4 min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 motion-reduce:transition-none"
+                        >
+                            Reintentar
+                        </button>
                     </div>
                 )}
 
-                {!loading &&
-                    !error &&
+                {showResults &&
                     filteredBalances.length ===
                     0 && (
-                        <div className="p-8 text-center text-sm text-slate-500">
+                        <div className="m-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-12 text-center text-sm leading-6 text-slate-600">
                             No existen registros
                             de inventario con
                             estos filtros.
@@ -346,13 +410,12 @@ export const InventoryPage = () => {
                     )}
 
 
-                {!loading &&
-                    !error &&
+                {showResults &&
                     filteredBalances.length >
                     0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                        <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600" tabIndex={0} role="region" aria-label="Existencias de inventario">
+                            <table className="w-full min-w-270 text-left text-sm">
+                                <thead className="border-b border-sky-100 bg-sky-50/80 text-xs uppercase tracking-wider text-sky-800">
                                     <tr>
                                         <th className="px-5 py-3">
                                             Almacén
@@ -392,14 +455,14 @@ export const InventoryPage = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-slate-200">
+                                <tbody className="divide-y divide-slate-100">
                                     {filteredBalances.map(
                                         (
                                             balance
                                         ) => (
                                             <tr
                                                 key={`${balance.warehouseId}-${balance.ppeProductId}`}
-                                                className="hover:bg-slate-50"
+                                                className="transition-colors duration-150 hover:bg-sky-50/50 motion-reduce:transition-none"
                                             >
                                                 <td className="px-5 py-4">
                                                     <p className="font-medium text-slate-900">
