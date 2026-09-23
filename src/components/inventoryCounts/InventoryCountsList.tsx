@@ -10,9 +10,12 @@ interface Props {
     error: string | null;
     onRefresh: () => void;
     onOpen: (count: InventoryCount) => void;
+    deletingFolio: string | null;
+    deleteError: string | null;
+    onDeleteDraft: (count: InventoryCount) => void;
 }
 
-export const InventoryCountsList = ({ counts, review, loading, hasLoaded, error, onRefresh, onOpen }: Props) => (
+export const InventoryCountsList = ({ counts, review, loading, hasLoaded, deletingFolio, deleteError, error, onRefresh, onOpen, onDeleteDraft }: Props) => (
     <div aria-busy={loading}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-6">
             <div>
@@ -23,6 +26,14 @@ export const InventoryCountsList = ({ counts, review, loading, hasLoaded, error,
                 {loading ? hasLoaded ? "Actualizando..." : "Cargando..." : hasLoaded ? "Actualizar" : "Consultar"}
             </button>
         </div>
+        {!review && deleteError && (
+            <div
+                role="alert"
+                className="mx-5 mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+            >
+                {deleteError}
+            </div>
+        )}
         {error && <div role="alert" className="mx-5 mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             {error} {hasLoaded && "Se muestran los últimos datos disponibles."}
             <button type="button" onClick={onRefresh} disabled={loading} className="ml-2 min-h-11 font-semibold underline disabled:opacity-50">Reintentar</button>
@@ -55,7 +66,47 @@ export const InventoryCountsList = ({ counts, review, loading, hasLoaded, error,
                         </td>
                         <td className="text-slate-500 md:px-6 md:py-5"><span className="mr-1 md:hidden">{review ? "Enviado:" : "Inicio:"}</span>{date ? new Date(date).toLocaleDateString("es-MX") : "—"}</td>
                         <td className="self-center md:px-6 md:py-5"><InventoryCountStatusBadge status={count.status} /></td>
-                        <td className="text-right md:px-6 md:py-5"><button type="button" onClick={() => onOpen(count)} aria-label={`${review ? "Revisar" : "Continuar"} ${count.folio}`} className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 font-semibold text-sky-800 hover:bg-sky-50 focus-visible:ring-4 focus-visible:ring-sky-100">{review ? "Revisar" : "Continuar"}</button></td>
+                        <td className="text-right md:px-6 md:py-5">
+                            <div className="flex flex-wrap justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        onOpen(count)
+                                    }
+                                    disabled={
+                                        deletingFolio ===
+                                        count.folio
+                                    }
+                                    aria-label={`${review ? "Revisar" : "Continuar"} ${count.folio}`}
+                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 font-semibold text-sky-800 hover:bg-sky-50 focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {review
+                                        ? "Revisar"
+                                        : "Continuar"}
+                                </button>
+
+                                {!review && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            onDeleteDraft(
+                                                count
+                                            )
+                                        }
+                                        disabled={
+                                            deletingFolio !== null
+                                        }
+                                        aria-label={`Eliminar ${count.folio}`}
+                                        className="min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2 font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-4 focus-visible:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {deletingFolio ===
+                                            count.folio
+                                            ? "Eliminando..."
+                                            : "Eliminar"}
+                                    </button>
+                                )}
+                            </div>
+                        </td>
                     </tr>;
                 })}
             </tbody>

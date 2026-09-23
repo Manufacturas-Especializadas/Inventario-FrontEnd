@@ -749,8 +749,14 @@ export interface InventoryCount {
 
     submittedAt: string | null;
     postedAt: string | null;
+    cancelledAt: string | null;
+    cancellationReason: string | null;
 
     items: InventoryCountItem[];
+}
+
+export interface CancelInventoryCountRequest {
+    reason: string;
 }
 
 export interface StartInventoryCountRequest {

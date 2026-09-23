@@ -5,6 +5,7 @@ import type {
     InventoryCount,
     InventoryCountItem,
     StartInventoryCountRequest,
+    CancelInventoryCountRequest,
 } from "../../types/types";
 
 
@@ -100,6 +101,32 @@ export const inventoryCountsService = {
         const response =
             await apiClient.get<InventoryCount[]>(
                 "/inventory-counts/drafts"
+            );
+
+        return response.data;
+    },
+
+    async deleteDraft(
+        folio: string
+    ): Promise<void> {
+        await apiClient.delete(
+            `/inventory-counts/${encodeURIComponent(
+                folio
+            )}`
+        );
+    },
+
+
+    async cancel(
+        folio: string,
+        request: CancelInventoryCountRequest
+    ): Promise<InventoryCount> {
+        const response =
+            await apiClient.post<InventoryCount>(
+                `/inventory-counts/${encodeURIComponent(
+                    folio
+                )}/cancel`,
+                request
             );
 
         return response.data;

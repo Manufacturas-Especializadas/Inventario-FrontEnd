@@ -17,6 +17,10 @@ export const useInventoryCounts = () => {
     const [submitting, setSubmitting] = useState(false);
     const [postingFolio, setPostingFolio] = useState<string | null>(null);
     const [postError, setPostError] = useState<string | null>(null);
+    const [deletingFolio, setDeletingFolio] = useState<string | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [cancellingFolio, setCancellingFolio] = useState<string | null>(null);
+    const [cancelError, setCancelError] = useState<string | null>(null);
     const [draftCounts, setDraftCounts] = useState<InventoryCount[]>([]);
     const [hasLoadedDrafts, setHasLoadedDrafts] = useState(false);
     const [loadingDrafts, setLoadingDrafts] = useState(false);
@@ -35,6 +39,8 @@ export const useInventoryCounts = () => {
     const postRequest = useRef<{ folio: string; promise: Promise<InventoryCount | null> } | null>(null);
     const captureRequests = useRef(new Map<string, Promise<InventoryCountItem | null>>());
     const reviewLoaded = useRef(false);
+    const deleteRequest = useRef<{ folio: string; promise: Promise<boolean>; } | null>(null);
+    const cancelRequest = useRef<{ folio: string; promise: Promise<InventoryCount | null>; } | null>(null);
     // Replay mutations completed during a GET so its older snapshot cannot undo them.
     const draftChanges = useRef<ListChange[]>([]);
     const reviewChanges = useRef<ListChange[]>([]);
@@ -231,6 +237,13 @@ export const useInventoryCounts = () => {
     }, [updateCount, updateDrafts, updateReview]);
 
     const postCount = useCallback((folio: string) => {
+
+        if (
+            cancelRequest.current?.folio === folio
+        ) {
+            return Promise.resolve(null);
+        }
+
         if (postRequest.current) {
             return postRequest.current.folio === folio ? postRequest.current.promise : Promise.resolve(null);
         }
@@ -268,10 +281,181 @@ export const useInventoryCounts = () => {
         setError(null);
     }, []);
 
+    const deleteDraft = useCallback(
+        (folio: string) => {
+            const key =
+                folio
+                    .trim()
+                    .toUpperCase();
+
+            if (deleteRequest.current) {
+                return deleteRequest.current.folio === key
+                    ? deleteRequest.current.promise
+                    : Promise.resolve(false);
+            }
+
+            if (
+                submitRequest.current ||
+                postRequest.current?.folio === key
+            ) {
+                return Promise.resolve(false);
+            }
+
+            setDeletingFolio(key);
+            setDeleteError(null);
+
+            const request = (async () => {
+                try {
+                    await inventoryCountsService
+                        .deleteDraft(key);
+
+                    updateDrafts((counts) =>
+                        counts.filter(
+                            (count) =>
+                                count.folio !== key
+                        )
+                    );
+
+                    // Si justamente estaba abierto,
+                    // ya no debe permanecer en pantalla.
+                    setInventoryCount((current) =>
+                        current?.folio === key
+                            ? null
+                            : current
+                    );
+
+                    return true;
+                } catch (error) {
+                    setDeleteError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible eliminar el conteo en curso."
+                        )
+                    );
+
+                    return false;
+                } finally {
+                    deleteRequest.current = null;
+                    setDeletingFolio(null);
+                }
+            })();
+
+            deleteRequest.current = {
+                folio: key,
+                promise: request,
+            };
+
+            return request;
+        },
+        [updateDrafts]
+    );
+
+    const cancelCount = useCallback(
+        (
+            folio: string,
+            reason: string
+        ) => {
+            const key =
+                folio
+                    .trim()
+                    .toUpperCase();
+
+            const trimmedReason =
+                reason.trim();
+
+            if (!trimmedReason) {
+                setCancelError(
+                    "Ingresa el motivo de cancelación."
+                );
+
+                return Promise.resolve(null);
+            }
+
+            if (trimmedReason.length > 500) {
+                setCancelError(
+                    "El motivo de cancelación no puede superar los 500 caracteres."
+                );
+
+                return Promise.resolve(null);
+            }
+
+            if (cancelRequest.current) {
+                return cancelRequest.current.folio === key
+                    ? cancelRequest.current.promise
+                    : Promise.resolve(null);
+            }
+
+            if (
+                postRequest.current?.folio === key
+            ) {
+                return Promise.resolve(null);
+            }
+
+            setCancellingFolio(key);
+            setCancelError(null);
+
+            const request = (async () => {
+                try {
+                    const data =
+                        await inventoryCountsService
+                            .cancel(
+                                key,
+                                {
+                                    reason:
+                                        trimmedReason,
+                                }
+                            );
+
+                    // Ya no pertenece a pendientes.
+                    updateReview((counts) =>
+                        counts.filter(
+                            (count) =>
+                                count.folio !==
+                                data.folio
+                        )
+                    );
+
+                    // Si está abierto, convertirlo
+                    // inmediatamente a Cancelled.
+                    updateCount(
+                        data.folio,
+                        () => data
+                    );
+
+                    return data;
+                } catch (error) {
+                    setCancelError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cancelar el conteo físico."
+                        )
+                    );
+
+                    return null;
+                } finally {
+                    cancelRequest.current = null;
+                    setCancellingFolio(null);
+                }
+            })();
+
+            cancelRequest.current = {
+                folio: key,
+                promise: request,
+            };
+
+            return request;
+        },
+        [
+            updateCount,
+            updateReview,
+        ]
+    );
+
     return {
         inventoryCount, loading, error, savingProductIds, submitting, postingFolio, postError,
         draftCounts, hasLoadedDrafts, loadingDrafts, draftsError, getDrafts,
         pendingReviewCounts, hasLoadedPendingReview, loadingPendingReview, reviewError, getPendingReview,
         getByFolio, startCount, captureItem, submitCount, postCount, clearCount, openCount,
+        deletingFolio, deleteError, deleteDraft, cancelCount, cancelError, cancellingFolio,
     };
 };

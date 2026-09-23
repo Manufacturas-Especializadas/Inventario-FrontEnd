@@ -31,6 +31,29 @@ export const InventoryCountsPage = () => {
     };
     const review = tab === "review" && isAdministrator;
 
+    const handleDeleteDraft = async (
+        count: typeof counts.draftCounts[number]
+    ) => {
+        const capturedItems =
+            count.items.filter(
+                (item) =>
+                    item.countedQuantity !== null
+            ).length;
+
+        const warning =
+            capturedItems > 0
+                ? `El conteo ${count.folio} tiene ${capturedItems} producto(s) capturado(s).\n\nSi lo eliminas, el conteo y las cantidades capturadas se borrarán permanentemente.`
+                : `¿Eliminar el conteo ${count.folio}?\n\nEl borrador se eliminará permanentemente.`;
+
+        if (!window.confirm(warning)) {
+            return;
+        }
+
+        await counts.deleteDraft(
+            count.folio
+        );
+    };
+
     return <div className="mx-auto max-w-7xl space-y-6">
         {counts.inventoryCount ? <InventoryCountWorkspace
             key={counts.inventoryCount.folio}
@@ -75,7 +98,11 @@ export const InventoryCountsPage = () => {
                         loading={review ? counts.loadingPendingReview : counts.loadingDrafts}
                         hasLoaded={review ? counts.hasLoadedPendingReview : counts.hasLoadedDrafts}
                         error={review ? counts.reviewError : counts.draftsError}
-                        onRefresh={() => { void (review ? counts.getPendingReview() : counts.getDrafts()); }} onOpen={counts.openCount} />
+                        onRefresh={() => { void (review ? counts.getPendingReview() : counts.getDrafts()); }}
+                        onOpen={counts.openCount}
+                        deletingFolio={counts.deletingFolio}
+                        deleteError={counts.deleteError}
+                        onDeleteDraft={handleDeleteDraft} />
                 </div>
             </section>
         </>}
