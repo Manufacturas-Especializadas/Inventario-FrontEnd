@@ -112,6 +112,31 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
     ] = useState<PPERequest[]>([]);
 
     const [
+        historyPageNumber,
+        setHistoryPageNumber,
+    ] = useState(1);
+
+    const [
+        historyTotalCount,
+        setHistoryTotalCount,
+    ] = useState(0);
+
+    const [
+        historyTotalPages,
+        setHistoryTotalPages,
+    ] = useState(0);
+
+    const [
+        historyHasPreviousPage,
+        setHistoryHasPreviousPage,
+    ] = useState(false);
+
+    const [
+        historyHasNextPage,
+        setHistoryHasNextPage,
+    ] = useState(false);
+
+    const [
         loadingHistory,
         setLoadingHistory,
     ] = useState(false);
@@ -126,9 +151,16 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
     const clearHistory =
         useCallback(() => {
             historyRequestId.current += 1;
+
             setLoadingHistory(false);
             setHistory([]);
             setHistoryError(null);
+
+            setHistoryPageNumber(1);
+            setHistoryTotalCount(0);
+            setHistoryTotalPages(0);
+            setHistoryHasPreviousPage(false);
+            setHistoryHasNextPage(false);
         }, []);
 
 
@@ -428,15 +460,24 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
     const getHistory =
         useCallback(
             async (
-                employeeNumber: string
+                employeeNumber: string,
+                pageNumber = 1
             ): Promise<PPERequest[]> => {
-                const currentRequestId = ++historyRequestId.current;
+                const currentRequestId =
+                    ++historyRequestId.current;
+
                 const normalizedEmployeeNumber =
                     employeeNumber.trim();
 
                 if (!normalizedEmployeeNumber) {
                     setLoadingHistory(false);
                     setHistory([]);
+
+                    setHistoryPageNumber(1);
+                    setHistoryTotalCount(0);
+                    setHistoryTotalPages(0);
+                    setHistoryHasPreviousPage(false);
+                    setHistoryHasNextPage(false);
 
                     setHistoryError(
                         "Ingresa un número de empleado."
@@ -452,15 +493,51 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                     const data =
                         await ppeRequestsService
                             .getHistory(
-                                normalizedEmployeeNumber
+                                normalizedEmployeeNumber,
+                                pageNumber,
+                                25
                             );
 
-                    if (currentRequestId !== historyRequestId.current) return [];
-                    setHistory(data);
+                    if (
+                        currentRequestId !==
+                        historyRequestId.current
+                    ) {
+                        return [];
+                    }
 
-                    return data;
+                    setHistory(
+                        data.items
+                    );
+
+                    setHistoryPageNumber(
+                        data.pageNumber
+                    );
+
+                    setHistoryTotalCount(
+                        data.totalCount
+                    );
+
+                    setHistoryTotalPages(
+                        data.totalPages
+                    );
+
+                    setHistoryHasPreviousPage(
+                        data.hasPreviousPage
+                    );
+
+                    setHistoryHasNextPage(
+                        data.hasNextPage
+                    );
+
+                    return data.items;
                 } catch (error) {
-                    if (currentRequestId !== historyRequestId.current) return [];
+                    if (
+                        currentRequestId !==
+                        historyRequestId.current
+                    ) {
+                        return [];
+                    }
+
                     setHistory([]);
 
                     setHistoryError(
@@ -472,7 +549,12 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
                     return [];
                 } finally {
-                    if (currentRequestId === historyRequestId.current) setLoadingHistory(false);
+                    if (
+                        currentRequestId ===
+                        historyRequestId.current
+                    ) {
+                        setLoadingHistory(false);
+                    }
                 }
             },
             []
@@ -505,5 +587,10 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
         historyError,
         getHistory,
         clearHistory,
+        historyPageNumber,
+        historyTotalCount,
+        historyTotalPages,
+        historyHasPreviousPage,
+        historyHasNextPage,
     };
 };

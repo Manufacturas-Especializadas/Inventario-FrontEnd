@@ -6,15 +6,29 @@ import type {
     CreatePurchaseOrderRequest,
     CancelPurchaseOrderRequest,
     PurchaseOrder,
+    PurchaseOrderStatus,
     UpdatePurchaseOrderRequest,
     Warehouse,
+    PagedResult,
 } from "../../types/types";
 
 export const purchaseOrdersService = {
-    async getAll(): Promise<PurchaseOrder[]> {
+
+    async getPage(
+        pageNumber = 1,
+        pageSize = 25,
+        status?: PurchaseOrderStatus
+    ): Promise<PagedResult<PurchaseOrder>> {
         const response =
-            await apiClient.get<PurchaseOrder[]>(
-                "/purchase-orders"
+            await apiClient.get<PagedResult<PurchaseOrder>>(
+                "/purchase-orders",
+                {
+                    params: {
+                        pageNumber,
+                        pageSize,
+                        status,
+                    },
+                }
             );
 
         return response.data;

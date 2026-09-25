@@ -37,7 +37,13 @@ export const ReceivingPage = () => {
         refresh: refreshOrders,
         hasLoaded,
         removePurchaseOrder,
-    } = usePurchaseOrders({ autoLoad: false });
+        pageNumber,
+        totalCount,
+        totalPages,
+        hasPreviousPage,
+        hasNextPage,
+        loadPage,
+    } = usePurchaseOrders({ autoLoad: false, status: 2 });
 
     const [
         receivingWarehouses,
@@ -96,14 +102,6 @@ export const ReceivingPage = () => {
         null
     );
 
-    const confirmedOrders =
-        useMemo(() => {
-            return purchaseOrders.filter(
-                (order) =>
-                    order.status === 2
-            );
-        }, [purchaseOrders]);
-
 
     const filteredOrders =
         useMemo(() => {
@@ -113,10 +111,10 @@ export const ReceivingPage = () => {
                     .toLowerCase();
 
             if (!term) {
-                return confirmedOrders;
+                return purchaseOrders;
             }
 
-            return confirmedOrders.filter(
+            return purchaseOrders.filter(
                 (order) =>
                     order.folio
                         .toLowerCase()
@@ -129,7 +127,7 @@ export const ReceivingPage = () => {
                         .includes(term)
             );
         }, [
-            confirmedOrders,
+            purchaseOrders,
             searchTerm,
         ]);
 
@@ -162,6 +160,29 @@ export const ReceivingPage = () => {
             else clearSelection();
         }
     };
+
+    const handleLoadOrdersPage =
+        async (
+            requestedPage: number
+        ) => {
+            if (
+                requestedPage < 1 ||
+                requestedPage > totalPages ||
+                requestedPage === pageNumber
+            ) {
+                return;
+            }
+
+            /*
+             * Si cambiamos de página, la orden seleccionada
+             * ya no debe permanecer abierta.
+             */
+            clearSelection();
+
+            await loadPage(
+                requestedPage
+            );
+        };
 
     const loadReceivingWarehouses = async (folio: string) => {
         const requestId = ++receivingWarehousesRequestId.current;
@@ -414,6 +435,64 @@ export const ReceivingPage = () => {
                         )
                     )}
                 </div>
+                {hasLoaded &&
+                    !loadingOrders &&
+                    !ordersError &&
+                    totalPages > 0 && (
+                        <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-slate-600">
+                                Página{" "}
+                                <span className="font-semibold text-slate-900">
+                                    {pageNumber}
+                                </span>{" "}
+                                de{" "}
+                                <span className="font-semibold text-slate-900">
+                                    {totalPages}
+                                </span>
+                                {" · "}
+                                <span className="font-semibold text-slate-900">
+                                    {totalCount}
+                                </span>{" "}
+                                órdenes confirmadas
+                            </p>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={
+                                        loadingOrders ||
+                                        isSubmitting ||
+                                        !hasPreviousPage
+                                    }
+                                    onClick={() =>
+                                        void handleLoadOrdersPage(
+                                            pageNumber - 1
+                                        )
+                                    }
+                                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Anterior
+                                </button>
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        loadingOrders ||
+                                        isSubmitting ||
+                                        !hasNextPage
+                                    }
+                                    onClick={() =>
+                                        void handleLoadOrdersPage(
+                                            pageNumber + 1
+                                        )
+                                    }
+                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
             </section>
 
             {selectedOrder && (

@@ -8,6 +8,7 @@ import type {
     DeliverPPERequestRequest,
     DeliverPPERequestResult,
     PPERequest,
+    PagedResult,
 } from "../../types/types";
 
 export const ppeRequestsService = {
@@ -85,14 +86,20 @@ export const ppeRequestsService = {
     },
 
     async getHistory(
-        employeeNumber: string
-    ): Promise<PPERequest[]> {
+        employeeNumber: string,
+        pageNumber = 1,
+        pageSize = 25
+    ): Promise<PagedResult<PPERequest>> {
         const response =
-            await apiClient.get<PPERequest[]>(
+            await apiClient.get<
+                PagedResult<PPERequest>
+            >(
                 "/ppe-requests/history",
                 {
                     params: {
                         employeeNumber,
+                        pageNumber,
+                        pageSize,
                     },
                 }
             );
