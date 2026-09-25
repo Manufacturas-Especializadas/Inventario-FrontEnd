@@ -234,6 +234,12 @@ export const PPERequestsPage = () => {
         cancelRequest,
 
         clearHistory,
+
+        historyPageNumber,
+        historyTotalCount,
+        historyTotalPages,
+        historyHasPreviousPage,
+        historyHasNextPage,
     } = usePPERequests({ autoLoadPending: false });
 
     const [showForm, setShowForm] = useState(false);
@@ -1533,821 +1539,879 @@ export const PPERequestsPage = () => {
                 )}
             </section>
 
-                {/* Solicitante */}
+            {/* Solicitante */}
 
-                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                    <div>
-                        <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>01</p>
+            <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                <div>
+                    <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>01</p>
 
-                        <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                            Empleado e historial
-                        </h2>
+                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                        Empleado e historial
+                    </h2>
 
-                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                            Busca al empleado que está
-                            realizando físicamente la
-                            solicitud.
-                        </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                        Busca al empleado que está
+                        realizando físicamente la
+                        solicitud.
+                    </p>
+                </div>
+
+
+                <div className="mt-6 max-w-2xl">
+                    <label htmlFor="request-employee-number" className="block text-sm font-medium text-slate-700">
+                        Número de empleado
+                    </label>
+
+                    <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                        <input
+                            id="request-employee-number"
+                            type="text"
+                            value={
+                                employeeNumber
+                            }
+                            onChange={(
+                                event
+                            ) =>
+                                handleEmployeeNumberChange(
+                                    event.target
+                                        .value
+                                )
+                            }
+                            disabled={
+                                loadingEmployee ||
+                                loadingRequest
+                            }
+                            placeholder="Ej. 1234"
+                            className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                        />
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void handleEmployeeLookup()
+                            }
+                            disabled={
+                                loadingEmployee ||
+                                !employeeNumber.trim()
+                            }
+                            className="shrink-0 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                        >
+                            {loadingEmployee
+                                ? "Buscando..."
+                                : "Buscar"}
+                        </button>
                     </div>
 
 
-                    <div className="mt-6 max-w-2xl">
-                        <label htmlFor="request-employee-number" className="block text-sm font-medium text-slate-700">
-                            Número de empleado
-                        </label>
+                    {employeeError && (
+                        <p className="mt-2 text-sm text-red-600">
+                            {
+                                employeeError
+                            }
+                        </p>
+                    )}
 
-                        <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-                            <input
-                                id="request-employee-number"
-                                type="text"
-                                value={
-                                    employeeNumber
+
+                    {employee && (
+                        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                            <p className="text-sm font-semibold text-emerald-800">
+                                Empleado encontrado
+                            </p>
+
+                            <p className="mt-1 text-sm text-emerald-700">
+                                {
+                                    employee.employeeNumber
                                 }
-                                onChange={(
-                                    event
-                                ) =>
-                                    handleEmployeeNumberChange(
-                                        event.target
-                                            .value
-                                    )
+                                {" — "}
+                                {
+                                    employee.name
                                 }
-                                disabled={
-                                    loadingEmployee ||
-                                    loadingRequest
-                                }
-                                placeholder="Ej. 1234"
-                                className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                            />
+                            </p>
 
                             <button
                                 type="button"
-                                onClick={() =>
-                                    void handleEmployeeLookup()
-                                }
+                                onClick={async () => {
+                                    setHistoryWasSearched(
+                                        true
+                                    );
+
+                                    await getHistory(
+                                        employee.employeeNumber
+                                    );
+                                }}
                                 disabled={
-                                    loadingEmployee ||
-                                    !employeeNumber.trim()
+                                    loadingHistory
                                 }
-                                className="shrink-0 rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                                className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                             >
-                                {loadingEmployee
-                                    ? "Buscando..."
-                                    : "Buscar"}
+                                {loadingHistory
+                                    ? "Consultando..."
+                                    : "Consultar historial"}
                             </button>
                         </div>
+                    )}
+
+                    {historyError && (
+                        <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {historyError}
+                        </div>
+                    )}
 
 
-                        {employeeError && (
-                            <p className="mt-2 text-sm text-red-600">
-                                {
-                                    employeeError
-                                }
-                            </p>
-                        )}
-
-
-                        {employee && (
-                            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                                <p className="text-sm font-semibold text-emerald-800">
-                                    Empleado encontrado
-                                </p>
-
-                                <p className="mt-1 text-sm text-emerald-700">
-                                    {
-                                        employee.employeeNumber
-                                    }
-                                    {" — "}
-                                    {
-                                        employee.name
-                                    }
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        setHistoryWasSearched(
-                                            true
-                                        );
-
-                                        await getHistory(
-                                            employee.employeeNumber
-                                        );
-                                    }}
-                                    disabled={
-                                        loadingHistory
-                                    }
-                                    className="mt-4 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                                >
-                                    {loadingHistory
-                                        ? "Consultando..."
-                                        : "Consultar historial"}
-                                </button>
-                            </div>
-                        )}
-
-                        {historyError && (
-                            <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {historyError}
-                            </div>
-                        )}
-
-
-                        {employee &&
-                            !loadingHistory &&
-                            history.length > 0 && (
-                                <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50/50 p-4 sm:p-6">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                            Historial
-                                        </p>
-
-                                        <h3 className="mt-1 text-base font-semibold text-slate-900">
-                                            Solicitudes anteriores de{" "}
-                                            {employee.name}
-                                        </h3>
-
-                                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                                            {history.length}{" "}
-                                            {history.length === 1
-                                                ? "solicitud encontrada"
-                                                : "solicitudes encontradas"}
-                                        </p>
-                                    </div>
-
-
-                                    <div className="mt-5 space-y-4">
-                                        {history.map(
-                                            (historyRequest) => {
-                                                const status =
-                                                    getRequestStatusConfig(
-                                                        historyRequest.status
-                                                    );
-
-                                                return (
-                                                    <div
-                                                        key={
-                                                            historyRequest.id
-                                                        }
-                                                        className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm"
-                                                    >
-                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                            <div>
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <p className="font-semibold text-slate-900">
-                                                                        {
-                                                                            historyRequest.folio
-                                                                        }
-                                                                    </p>
-
-                                                                    <span
-                                                                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-current/15 ${status.className}`}
-                                                                    >
-                                                                        {
-                                                                            status.label
-                                                                        }
-                                                                    </span>
-                                                                </div>
-
-                                                                <p className="mt-2 text-xs text-slate-500">
-                                                                    Creada{" "}
-                                                                    {formatDateTime(
-                                                                        historyRequest.createdAt
-                                                                    )}
-                                                                </p>
-                                                            </div>
-
-
-                                                            <div className="text-left sm:text-right">
-                                                                <p className="text-xs text-slate-500">
-                                                                    Almacén
-                                                                </p>
-
-                                                                <p className="text-sm font-medium text-slate-700">
-                                                                    {
-                                                                        historyRequest.warehouseName
-                                                                    }
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-
-                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                                            <div>
-                                                                <p className="text-xs text-slate-500">
-                                                                    Unidad destino
-                                                                </p>
-
-                                                                <p className="mt-1 text-sm font-medium text-slate-700">
-                                                                    {historyRequest.requestedForOrganizationalUnitName ??
-                                                                        "Sin unidad"}
-                                                                </p>
-                                                            </div>
-
-                                                            <div>
-                                                                <p className="text-xs text-slate-500">
-                                                                    Motivo
-                                                                </p>
-
-                                                                <p className="mt-1 text-sm font-medium text-slate-700">
-                                                                    {
-                                                                        historyRequest.requestReason
-                                                                    }
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-
-                                                        <div className="mt-4 border-t border-slate-100 pt-4">
-                                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                                Equipo
-                                                            </p>
-
-                                                            <div className="mt-2 space-y-2">
-                                                                {historyRequest.items.map(
-                                                                    (
-                                                                        item
-                                                                    ) => (
-                                                                        <div
-                                                                            key={
-                                                                                item.ppeProductId
-                                                                            }
-                                                                            className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                                                                        >
-                                                                            <div>
-                                                                                <p className="text-sm font-medium text-slate-800">
-                                                                                    {
-                                                                                        item.productName
-                                                                                    }
-                                                                                </p>
-
-                                                                                <p className="text-xs text-slate-500">
-                                                                                    {
-                                                                                        item.sku
-                                                                                    }
-                                                                                </p>
-                                                                            </div>
-
-                                                                            <p className="text-sm font-semibold text-slate-700">
-                                                                                Cantidad:{" "}
-                                                                                {
-                                                                                    item.quantity
-                                                                                }
-                                                                            </p>
-                                                                        </div>
-                                                                    )
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-
-                                                        {historyRequest.status ===
-                                                            2 &&
-                                                            historyRequest.deliveredAt && (
-                                                                <div className="mt-4 border-t border-slate-100 pt-3">
-                                                                    <p className="text-xs text-emerald-700">
-                                                                        Entregada{" "}
-                                                                        {formatDateTime(
-                                                                            historyRequest.deliveredAt
-                                                                        )}
-                                                                    </p>
-                                                                </div>
-                                                            )}
-
-
-                                                        {historyRequest.status ===
-                                                            3 && (
-                                                                <div className="mt-4 border-t border-slate-100 pt-3">
-                                                                    {historyRequest.cancelledAt && (
-                                                                        <p className="text-xs text-red-700">
-                                                                            Cancelada{" "}
-                                                                            {formatDateTime(
-                                                                                historyRequest.cancelledAt
-                                                                            )}
-                                                                        </p>
-                                                                    )}
-
-                                                                    {historyRequest.cancellationReason && (
-                                                                        <p className="mt-1 text-sm text-red-700">
-                                                                            Motivo:{" "}
-                                                                            {
-                                                                                historyRequest.cancellationReason
-                                                                            }
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                        {employee &&
-                                                            historyWasSearched &&
-                                                            !loadingHistory &&
-                                                            !historyError &&
-                                                            history.length === 0 && (
-                                                                <div className="mt-6 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-8 text-center">
-                                                                    <p className="text-sm font-medium text-slate-700">
-                                                                        Este empleado todavía no tiene
-                                                                        solicitudes de artículos.
-                                                                    </p>
-                                                                </div>
-                                                            )}
-                                                    </div>
-                                                );
-                                            }
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                    </div>
-                </section>
-
-
-
-            {showForm && (
-            <form ref={formRef} id="new-request-form" tabIndex={-1} aria-labelledby="new-request-title" onSubmit={handleSubmit} className="space-y-6 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 id="new-request-title" className="text-lg font-semibold text-slate-900">Nueva solicitud</h2>
-                    <button type="button" onClick={() => setShowForm(false)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">Ocultar nueva solicitud</button>
-                </div>
-                {loadingCatalogs && <p role="status" className="text-sm text-slate-600">Cargando catálogos de la solicitud...</p>}
-                {!employee && <p className="text-sm text-slate-600">Busca y confirma al empleado en la sección Empleado e historial para continuar.</p>}
-                {employee && (
-                    <>
-                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                            <div>
-                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
-
-                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                                    Información de la solicitud
-                                </h2>
-                            </div>
-
-
-                            <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
+                    {employee &&
+                        !loadingHistory &&
+                        history.length > 0 && (
+                            <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50/50 p-4 sm:p-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Unidad organizacional
-                                    </label>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                        Historial
+                                    </p>
 
-                                    <select
-                                        value={
-                                            requestedForOrganizationalUnitId
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            setRequestedForOrganizationalUnitId(
-                                                event
-                                                    .target
-                                                    .value
-                                            )
-                                        }
-                                        disabled={
-                                            loadingOrganizationalUnits ||
-                                            loadingRequest
-                                        }
-                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                    >
-                                        <option value="">
-                                            Selecciona una unidad
-                                        </option>
+                                    <h3 className="mt-1 text-base font-semibold text-slate-900">
+                                        Solicitudes anteriores de{" "}
+                                        {employee.name}
+                                    </h3>
 
-                                        {organizationalUnits
-                                            .filter(
-                                                (unit) =>
-                                                    unit.isActive
-                                            )
-                                            .map(
-                                                (unit) => (
-                                                    <option
-                                                        key={
-                                                            unit.id
-                                                        }
-                                                        value={
-                                                            unit.id
-                                                        }
-                                                    >
-                                                        {
-                                                            unit.name
-                                                        }
-                                                        {" — "}
-                                                        {getOrganizationalUnitTypeLabel(
-                                                            unit.type
-                                                        )}
-                                                        {unit.parentName
-                                                            ? ` / ${unit.parentName}`
-                                                            : ""}
-                                                    </option>
-                                                )
-                                            )}
-                                    </select>
-
-                                    <p className="mt-2 text-xs text-slate-500">
-                                        Esta unidad es la que
-                                        consumirá el cupo de los artículos.
+                                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                                        Mostrando{" "}
+                                        <span className="font-semibold text-slate-700">
+                                            {history.length}
+                                        </span>{" "}
+                                        de{" "}
+                                        <span className="font-semibold text-slate-700">
+                                            {historyTotalCount}
+                                        </span>{" "}
+                                        solicitudes
                                     </p>
                                 </div>
 
 
+                                <div className="mt-5 space-y-4">
+                                    {history.map(
+                                        (historyRequest) => {
+                                            const status =
+                                                getRequestStatusConfig(
+                                                    historyRequest.status
+                                                );
+
+                                            return (
+                                                <div
+                                                    key={
+                                                        historyRequest.id
+                                                    }
+                                                    className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm"
+                                                >
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <p className="font-semibold text-slate-900">
+                                                                    {
+                                                                        historyRequest.folio
+                                                                    }
+                                                                </p>
+
+                                                                <span
+                                                                    className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ring-current/15 ${status.className}`}
+                                                                >
+                                                                    {
+                                                                        status.label
+                                                                    }
+                                                                </span>
+                                                            </div>
+
+                                                            <p className="mt-2 text-xs text-slate-500">
+                                                                Creada{" "}
+                                                                {formatDateTime(
+                                                                    historyRequest.createdAt
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+
+                                                        <div className="text-left sm:text-right">
+                                                            <p className="text-xs text-slate-500">
+                                                                Almacén
+                                                            </p>
+
+                                                            <p className="text-sm font-medium text-slate-700">
+                                                                {
+                                                                    historyRequest.warehouseName
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+
+                                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                        <div>
+                                                            <p className="text-xs text-slate-500">
+                                                                Unidad destino
+                                                            </p>
+
+                                                            <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                {historyRequest.requestedForOrganizationalUnitName ??
+                                                                    "Sin unidad"}
+                                                            </p>
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-xs text-slate-500">
+                                                                Motivo
+                                                            </p>
+
+                                                            <p className="mt-1 text-sm font-medium text-slate-700">
+                                                                {
+                                                                    historyRequest.requestReason
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+
+                                                    <div className="mt-4 border-t border-slate-100 pt-4">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                                                            Equipo
+                                                        </p>
+
+                                                        <div className="mt-2 space-y-2">
+                                                            {historyRequest.items.map(
+                                                                (
+                                                                    item
+                                                                ) => (
+                                                                    <div
+                                                                        key={
+                                                                            item.ppeProductId
+                                                                        }
+                                                                        className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                                                    >
+                                                                        <div>
+                                                                            <p className="text-sm font-medium text-slate-800">
+                                                                                {
+                                                                                    item.productName
+                                                                                }
+                                                                            </p>
+
+                                                                            <p className="text-xs text-slate-500">
+                                                                                {
+                                                                                    item.sku
+                                                                                }
+                                                                            </p>
+                                                                        </div>
+
+                                                                        <p className="text-sm font-semibold text-slate-700">
+                                                                            Cantidad:{" "}
+                                                                            {
+                                                                                item.quantity
+                                                                            }
+                                                                        </p>
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+
+                                                    {historyRequest.status ===
+                                                        2 &&
+                                                        historyRequest.deliveredAt && (
+                                                            <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                <p className="text-xs text-emerald-700">
+                                                                    Entregada{" "}
+                                                                    {formatDateTime(
+                                                                        historyRequest.deliveredAt
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+
+                                                    {historyRequest.status ===
+                                                        3 && (
+                                                            <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                {historyRequest.cancelledAt && (
+                                                                    <p className="text-xs text-red-700">
+                                                                        Cancelada{" "}
+                                                                        {formatDateTime(
+                                                                            historyRequest.cancelledAt
+                                                                        )}
+                                                                    </p>
+                                                                )}
+
+                                                                {historyRequest.cancellationReason && (
+                                                                    <p className="mt-1 text-sm text-red-700">
+                                                                        Motivo:{" "}
+                                                                        {
+                                                                            historyRequest.cancellationReason
+                                                                        }
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+
+                                                </div>
+                                            );
+                                        }
+                                    )}
+
+                                    {historyTotalPages > 0 && (
+                                        <div className="mt-6 flex flex-col gap-3 border-t border-sky-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                                            <p className="text-sm text-slate-600">
+                                                Página{" "}
+                                                <span className="font-semibold text-slate-900">
+                                                    {historyPageNumber}
+                                                </span>{" "}
+                                                de{" "}
+                                                <span className="font-semibold text-slate-900">
+                                                    {historyTotalPages}
+                                                </span>
+                                            </p>
+
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        loadingHistory ||
+                                                        !historyHasPreviousPage
+                                                    }
+                                                    onClick={() =>
+                                                        void getHistory(
+                                                            employee.employeeNumber,
+                                                            historyPageNumber - 1
+                                                        )
+                                                    }
+                                                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                                >
+                                                    Anterior
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        loadingHistory ||
+                                                        !historyHasNextPage
+                                                    }
+                                                    onClick={() =>
+                                                        void getHistory(
+                                                            employee.employeeNumber,
+                                                            historyPageNumber + 1
+                                                        )
+                                                    }
+                                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                                >
+                                                    Siguiente
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                    {employee &&
+                        historyWasSearched &&
+                        !loadingHistory &&
+                        !historyError &&
+                        history.length === 0 && (
+                            <div className="mt-6 rounded-xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-8 text-center">
+                                <p className="text-sm font-medium text-slate-700">
+                                    Este empleado todavía no tiene
+                                    solicitudes de artículos.
+                                </p>
+                            </div>
+                        )}
+                </div>
+            </section>
+
+
+
+            {showForm && (
+                <form ref={formRef} id="new-request-form" tabIndex={-1} aria-labelledby="new-request-title" onSubmit={handleSubmit} className="space-y-6 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h2 id="new-request-title" className="text-lg font-semibold text-slate-900">Nueva solicitud</h2>
+                        <button type="button" onClick={() => setShowForm(false)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100">Ocultar nueva solicitud</button>
+                    </div>
+                    {loadingCatalogs && <p role="status" className="text-sm text-slate-600">Cargando catálogos de la solicitud...</p>}
+                    {!employee && <p className="text-sm text-slate-600">Busca y confirma al empleado en la sección Empleado e historial para continuar.</p>}
+                    {employee && (
+                        <>
+                            <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
                                 <div>
+                                    <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>02</p>
+
+                                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                        Información de la solicitud
+                                    </h2>
+                                </div>
+
+
+                                <div className="mt-6 grid gap-6 xl:grid-cols-3 [&>div]:min-w-0">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700">
-                                            Motivo
+                                            Unidad organizacional
                                         </label>
 
                                         <select
                                             value={
-                                                requestReasonId
+                                                requestedForOrganizationalUnitId
                                             }
                                             onChange={(
                                                 event
                                             ) =>
-                                                setRequestReasonId(
-                                                    event.target
+                                                setRequestedForOrganizationalUnitId(
+                                                    event
+                                                        .target
                                                         .value
                                                 )
                                             }
                                             disabled={
-                                                loadingRequestReasons ||
+                                                loadingOrganizationalUnits ||
                                                 loadingRequest
                                             }
                                             className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                                         >
                                             <option value="">
-                                                Selecciona un motivo
+                                                Selecciona una unidad
                                             </option>
 
-                                            {requestReasons.map(
-                                                (reason) => (
-                                                    <option
-                                                        key={
-                                                            reason.id
-                                                        }
-                                                        value={
-                                                            reason.id
-                                                        }
-                                                    >
-                                                        {
-                                                            reason.name
-                                                        }
-                                                    </option>
+                                            {organizationalUnits
+                                                .filter(
+                                                    (unit) =>
+                                                        unit.isActive
                                                 )
-                                            )}
+                                                .map(
+                                                    (unit) => (
+                                                        <option
+                                                            key={
+                                                                unit.id
+                                                            }
+                                                            value={
+                                                                unit.id
+                                                            }
+                                                        >
+                                                            {
+                                                                unit.name
+                                                            }
+                                                            {" — "}
+                                                            {getOrganizationalUnitTypeLabel(
+                                                                unit.type
+                                                            )}
+                                                            {unit.parentName
+                                                                ? ` / ${unit.parentName}`
+                                                                : ""}
+                                                        </option>
+                                                    )
+                                                )}
                                         </select>
-                                    </div>
-                                    <label className="block text-sm font-medium text-slate-700">
-                                        Almacén
-                                    </label>
 
-                                    <select
-                                        value={
-                                            warehouseId
-                                        }
-                                        onChange={(event) => {
-                                            warehouseProductsVersion.current += 1;
-                                            warehouseProductsPending.current = false;
-                                            setLoadingWarehouseProducts(false);
-                                            setWarehouseId(
-                                                event.target.value
-                                            );
-
-                                            setWarehouseProducts(
-                                                []
-                                            );
-
-                                            setLoadedWarehouseId(
-                                                null
-                                            );
-
-                                            setWarehouseProductsError(
-                                                null
-                                            );
-
-                                            setItems([
-                                                createEmptyItem(),
-                                            ]);
-                                        }}
-                                        disabled={
-                                            loadingWarehouses ||
-                                            loadingRequest
-                                        }
-                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                    >
-                                        <option value="">
-                                            Selecciona un almacén
-                                        </option>
-
-                                        {warehouses
-                                            .filter(
-                                                (warehouse) =>
-                                                    warehouse.isActive
-                                            )
-                                            .map(
-                                                (
-                                                    warehouse
-                                                ) => (
-                                                    <option
-                                                        key={
-                                                            warehouse.id
-                                                        }
-                                                        value={
-                                                            warehouse.id
-                                                        }
-                                                    >
-                                                        {
-                                                            warehouse.code
-                                                        }
-                                                        {" — "}
-                                                        {
-                                                            warehouse.name
-                                                        }
-                                                    </option>
-                                                )
-                                            )}
-                                    </select>
-
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            void handleLoadWarehouseProducts()
-                                        }
-                                        disabled={
-                                            !warehouseId ||
-                                            loadingWarehouseProducts ||
-                                            loadingRequest
-                                        }
-                                        className="mt-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        {loadingWarehouseProducts
-                                            ? "Obteniendo productos..."
-                                            : "Obtener productos"}
-                                    </button>
-
-                                    {warehouseProductsError && (
-                                        <p className="mt-2 text-sm text-red-700">
-                                            {warehouseProductsError}
+                                        <p className="mt-2 text-xs text-slate-500">
+                                            Esta unidad es la que
+                                            consumirá el cupo de los artículos.
                                         </p>
-                                    )}
-
-                                    {loadedWarehouseId !== null &&
-                                        !loadingWarehouseProducts && (
-                                            <p className="mt-2 text-sm text-emerald-700">
-                                                {
-                                                    warehouseProducts.length
-                                                }{" "}
-                                                productos encontrados en el almacén.
-                                            </p>
-                                        )}
-                                </div>
+                                    </div>
 
 
-
-                            </div>
-                        </section>
-
-
-
-
-                        {loadedWarehouseId === Number(warehouseId) &&
-                            !loadingWarehouseProducts &&
-                            warehouseProducts.length > 0 && (
-                                <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
                                         <div>
-                                            <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
+                                            <label className="block text-sm font-medium text-slate-700">
+                                                Motivo
+                                            </label>
 
-                                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                                                Artículos solicitados
-                                            </h2>
+                                            <select
+                                                value={
+                                                    requestReasonId
+                                                }
+                                                onChange={(
+                                                    event
+                                                ) =>
+                                                    setRequestReasonId(
+                                                        event.target
+                                                            .value
+                                                    )
+                                                }
+                                                disabled={
+                                                    loadingRequestReasons ||
+                                                    loadingRequest
+                                                }
+                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                            >
+                                                <option value="">
+                                                    Selecciona un motivo
+                                                </option>
 
-                                            <p className="mt-2 text-sm leading-6 text-slate-500">
-                                                Agrega uno o varios
-                                                productos y la cantidad
-                                                requerida.
-                                            </p>
+                                                {requestReasons.map(
+                                                    (reason) => (
+                                                        <option
+                                                            key={
+                                                                reason.id
+                                                            }
+                                                            value={
+                                                                reason.id
+                                                            }
+                                                        >
+                                                            {
+                                                                reason.name
+                                                            }
+                                                        </option>
+                                                    )
+                                                )}
+                                            </select>
                                         </div>
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Almacén
+                                        </label>
+
+                                        <select
+                                            value={
+                                                warehouseId
+                                            }
+                                            onChange={(event) => {
+                                                warehouseProductsVersion.current += 1;
+                                                warehouseProductsPending.current = false;
+                                                setLoadingWarehouseProducts(false);
+                                                setWarehouseId(
+                                                    event.target.value
+                                                );
+
+                                                setWarehouseProducts(
+                                                    []
+                                                );
+
+                                                setLoadedWarehouseId(
+                                                    null
+                                                );
+
+                                                setWarehouseProductsError(
+                                                    null
+                                                );
+
+                                                setItems([
+                                                    createEmptyItem(),
+                                                ]);
+                                            }}
+                                            disabled={
+                                                loadingWarehouses ||
+                                                loadingRequest
+                                            }
+                                            className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                        >
+                                            <option value="">
+                                                Selecciona un almacén
+                                            </option>
+
+                                            {warehouses
+                                                .filter(
+                                                    (warehouse) =>
+                                                        warehouse.isActive
+                                                )
+                                                .map(
+                                                    (
+                                                        warehouse
+                                                    ) => (
+                                                        <option
+                                                            key={
+                                                                warehouse.id
+                                                            }
+                                                            value={
+                                                                warehouse.id
+                                                            }
+                                                        >
+                                                            {
+                                                                warehouse.code
+                                                            }
+                                                            {" — "}
+                                                            {
+                                                                warehouse.name
+                                                            }
+                                                        </option>
+                                                    )
+                                                )}
+                                        </select>
 
                                         <button
                                             type="button"
-                                            onClick={addItem}
+                                            onClick={() =>
+                                                void handleLoadWarehouseProducts()
+                                            }
                                             disabled={
                                                 !warehouseId ||
-                                                loadedWarehouseId !==
-                                                Number(warehouseId) ||
                                                 loadingWarehouseProducts ||
                                                 loadingRequest
                                             }
-                                            className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                            className="mt-3 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                            Agregar producto
+                                            {loadingWarehouseProducts
+                                                ? "Obteniendo productos..."
+                                                : "Obtener productos"}
                                         </button>
-                                    </div>
 
-
-                                    <div className="mt-6 space-y-4">
-                                        {items.map(
-                                            (
-                                                item,
-                                                index
-                                            ) => (
-                                                <div
-                                                    key={
-                                                        item.key
-                                                    }
-                                                    className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
-                                                >
-                                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-slate-700">
-                                                                Producto
-                                                            </label>
-
-                                                            <select
-                                                                value={
-                                                                    item.ppeProductId
-                                                                }
-                                                                onChange={(
-                                                                    event
-                                                                ) =>
-                                                                    updateItem(
-                                                                        item.key,
-                                                                        "ppeProductId",
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    !warehouseId ||
-                                                                    loadedWarehouseId !==
-                                                                    Number(warehouseId) ||
-                                                                    loadingWarehouseProducts ||
-                                                                    loadingRequest
-                                                                }
-                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                                            >
-                                                                <option value="">
-                                                                    {!warehouseId
-                                                                        ? "Selecciona primero un almacén"
-                                                                        : loadingWarehouseProducts
-                                                                            ? "Cargando productos..."
-                                                                            : loadedWarehouseId !==
-                                                                                Number(warehouseId)
-                                                                                ? "Haz clic en Obtener productos"
-                                                                                : warehouseProducts.length === 0
-                                                                                    ? "El almacén no tiene productos"
-                                                                                    : "Selecciona un producto"}
-                                                                </option>
-
-                                                                {warehouseProducts.map(
-                                                                    (product) => (
-                                                                        <option
-                                                                            key={
-                                                                                product.ppeProductId
-                                                                            }
-                                                                            value={
-                                                                                product.ppeProductId
-                                                                            }
-                                                                            disabled={
-                                                                                product.availableQuantity <=
-                                                                                0
-                                                                            }
-                                                                        >
-                                                                            {product.sku}
-                                                                            {" - "}
-                                                                            {product.productName}
-                                                                            {" · "}
-
-                                                                            {product.availableQuantity > 0
-                                                                                ? `Disponibles: ${product.availableQuantity}`
-                                                                                : "Sin existencia"}
-                                                                        </option>
-                                                                    )
-                                                                )}
-                                                            </select>
-                                                        </div>
-
-
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-slate-700">
-                                                                Cantidad
-                                                            </label>
-
-                                                            <input
-                                                                type="number"
-                                                                min="1"
-                                                                step="1"
-                                                                value={
-                                                                    item.quantity
-                                                                }
-                                                                onChange={(
-                                                                    event
-                                                                ) =>
-                                                                    updateItem(
-                                                                        item.key,
-                                                                        "quantity",
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    loadingRequest
-                                                                }
-                                                                className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                                            />
-                                                        </div>
-
-
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                removeItem(
-                                                                    item.key
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                items.length ===
-                                                                1 ||
-                                                                loadingRequest
-                                                            }
-                                                            className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
-                                                        >
-                                                            Quitar
-                                                        </button>
-                                                    </div>
-
-                                                    <p className="mt-3 text-xs text-slate-500">
-                                                        Producto{" "}
-                                                        {index + 1}
-                                                    </p>
-                                                </div>
-                                            )
+                                        {warehouseProductsError && (
+                                            <p className="mt-2 text-sm text-red-700">
+                                                {warehouseProductsError}
+                                            </p>
                                         )}
+
+                                        {loadedWarehouseId !== null &&
+                                            !loadingWarehouseProducts && (
+                                                <p className="mt-2 text-sm text-emerald-700">
+                                                    {
+                                                        warehouseProducts.length
+                                                    }{" "}
+                                                    productos encontrados en el almacén.
+                                                </p>
+                                            )}
                                     </div>
-                                </section>
-                            )}
 
 
-                        {/* Observaciones */}
 
-                        <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
-                            <div>
-                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
-
-                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                                    Observaciones
-                                </h2>
-                            </div>
+                                </div>
+                            </section>
 
 
-                            <div className="mt-6">
-                                <label className="block text-sm font-medium text-slate-700">
-                                    Notas
-                                </label>
 
-                                <textarea
-                                    value={notes}
-                                    onChange={(event) =>
-                                        setNotes(
-                                            event.target
-                                                .value
-                                        )
-                                    }
+
+                            {loadedWarehouseId === Number(warehouseId) &&
+                                !loadingWarehouseProducts &&
+                                warehouseProducts.length > 0 && (
+                                    <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>03</p>
+
+                                                <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                                    Artículos solicitados
+                                                </h2>
+
+                                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                                    Agrega uno o varios
+                                                    productos y la cantidad
+                                                    requerida.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={addItem}
+                                                disabled={
+                                                    !warehouseId ||
+                                                    loadedWarehouseId !==
+                                                    Number(warehouseId) ||
+                                                    loadingWarehouseProducts ||
+                                                    loadingRequest
+                                                }
+                                                className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition duration-200 enabled:hover:border-sky-400 enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                            >
+                                                Agregar producto
+                                            </button>
+                                        </div>
+
+
+                                        <div className="mt-6 space-y-4">
+                                            {items.map(
+                                                (
+                                                    item,
+                                                    index
+                                                ) => (
+                                                    <div
+                                                        key={
+                                                            item.key
+                                                        }
+                                                        className="rounded-2xl border border-sky-100 bg-sky-50/50 p-5"
+                                                    >
+                                                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px_auto] xl:items-end [&>div]:min-w-0">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700">
+                                                                    Producto
+                                                                </label>
+
+                                                                <select
+                                                                    value={
+                                                                        item.ppeProductId
+                                                                    }
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        updateItem(
+                                                                            item.key,
+                                                                            "ppeProductId",
+                                                                            event
+                                                                                .target
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        !warehouseId ||
+                                                                        loadedWarehouseId !==
+                                                                        Number(warehouseId) ||
+                                                                        loadingWarehouseProducts ||
+                                                                        loadingRequest
+                                                                    }
+                                                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                                >
+                                                                    <option value="">
+                                                                        {!warehouseId
+                                                                            ? "Selecciona primero un almacén"
+                                                                            : loadingWarehouseProducts
+                                                                                ? "Cargando productos..."
+                                                                                : loadedWarehouseId !==
+                                                                                    Number(warehouseId)
+                                                                                    ? "Haz clic en Obtener productos"
+                                                                                    : warehouseProducts.length === 0
+                                                                                        ? "El almacén no tiene productos"
+                                                                                        : "Selecciona un producto"}
+                                                                    </option>
+
+                                                                    {warehouseProducts.map(
+                                                                        (product) => (
+                                                                            <option
+                                                                                key={
+                                                                                    product.ppeProductId
+                                                                                }
+                                                                                value={
+                                                                                    product.ppeProductId
+                                                                                }
+                                                                                disabled={
+                                                                                    product.availableQuantity <=
+                                                                                    0
+                                                                                }
+                                                                            >
+                                                                                {product.sku}
+                                                                                {" - "}
+                                                                                {product.productName}
+                                                                                {" · "}
+
+                                                                                {product.availableQuantity > 0
+                                                                                    ? `Disponibles: ${product.availableQuantity}`
+                                                                                    : "Sin existencia"}
+                                                                            </option>
+                                                                        )
+                                                                    )}
+                                                                </select>
+                                                            </div>
+
+
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700">
+                                                                    Cantidad
+                                                                </label>
+
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    step="1"
+                                                                    value={
+                                                                        item.quantity
+                                                                    }
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        updateItem(
+                                                                            item.key,
+                                                                            "quantity",
+                                                                            event
+                                                                                .target
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        loadingRequest
+                                                                    }
+                                                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                                                />
+                                                            </div>
+
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    removeItem(
+                                                                        item.key
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    items.length ===
+                                                                    1 ||
+                                                                    loadingRequest
+                                                                }
+                                                                className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            >
+                                                                Quitar
+                                                            </button>
+                                                        </div>
+
+                                                        <p className="mt-3 text-xs text-slate-500">
+                                                            Producto{" "}
+                                                            {index + 1}
+                                                        </p>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    </section>
+                                )}
+
+
+                            {/* Observaciones */}
+
+                            <section className="rounded-2xl border border-sky-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+                                <div>
+                                    <p className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sm font-semibold text-sky-700"><span className="sr-only">Paso </span>04</p>
+
+                                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
+                                        Observaciones
+                                    </h2>
+                                </div>
+
+
+                                <div className="mt-6">
+                                    <label className="block text-sm font-medium text-slate-700">
+                                        Notas
+                                    </label>
+
+                                    <textarea
+                                        value={notes}
+                                        onChange={(event) =>
+                                            setNotes(
+                                                event.target
+                                                    .value
+                                            )
+                                        }
+                                        disabled={
+                                            loadingRequest
+                                        }
+                                        rows={4}
+                                        placeholder="Agrega información adicional sobre la solicitud..."
+                                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                                    />
+
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        Algunos motivos excepcionales
+                                        pueden requerir una
+                                        explicación.
+                                    </p>
+                                </div>
+                            </section>
+
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
                                     disabled={
-                                        loadingRequest
+                                        loadingRequest ||
+                                        loadingCatalogs ||
+                                        !formCatalogsReady ||
+                                        loadingWarehouseProducts
                                     }
-                                    rows={4}
-                                    placeholder="Agrega información adicional sobre la solicitud..."
-                                    className="mt-2 w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50/70 px-4 py-3 text-base text-slate-900 outline-none transition duration-200 placeholder:text-slate-500 hover:border-sky-400 focus:border-sky-600 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-                                />
-
-                                <p className="mt-2 text-xs text-slate-500">
-                                    Algunos motivos excepcionales
-                                    pueden requerir una
-                                    explicación.
-                                </p>
+                                    className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+                                >
+                                    {loadingRequest
+                                        ? "Creando solicitud..."
+                                        : "Crear solicitud"}
+                                </button>
                             </div>
-                        </section>
-
-
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={
-                                    loadingRequest ||
-                                    loadingCatalogs ||
-                                    !formCatalogsReady ||
-                                    loadingWarehouseProducts
-                                }
-                                className="w-full sm:w-auto rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:bg-sky-800 enabled:hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
-                            >
-                                {loadingRequest
-                                    ? "Creando solicitud..."
-                                    : "Crear solicitud"}
-                            </button>
-                        </div>
-                    </>
-                )}
-            </form>
+                        </>
+                    )}
+                </form>
             )}
         </div>
     );

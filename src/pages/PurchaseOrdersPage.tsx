@@ -98,6 +98,12 @@ export const PurchaseOrdersPage = () => {
         refresh,
         hasLoaded,
         upsertPurchaseOrder,
+        pageNumber,
+        totalCount,
+        totalPages,
+        hasPreviousPage,
+        hasNextPage,
+        loadPage,
     } = usePurchaseOrders({ autoLoad: false });
 
     const clearOrderFilters = () => {
@@ -865,7 +871,11 @@ export const PurchaseOrdersPage = () => {
                                     <span className="font-semibold text-slate-800">
                                         {purchaseOrders.length}
                                     </span>{" "}
-                                    órdenes
+                                    en esta página ·{" "}
+                                    <span className="font-semibold text-slate-800">
+                                        {totalCount}
+                                    </span>{" "}
+                                    en total
                                 </p>
                             )}
                         </div>
@@ -1242,6 +1252,59 @@ export const PurchaseOrdersPage = () => {
                             </table>
                         </div>
                     )}
+
+                {hasLoaded &&
+                    !loading &&
+                    !error &&
+                    totalPages > 0 && (
+                        <div className="flex flex-col gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                            <p className="text-sm text-slate-600">
+                                Página{" "}
+                                <span className="font-semibold text-slate-900">
+                                    {pageNumber}
+                                </span>{" "}
+                                de{" "}
+                                <span className="font-semibold text-slate-900">
+                                    {totalPages}
+                                </span>
+                            </p>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={
+                                        loading ||
+                                        !hasPreviousPage
+                                    }
+                                    onClick={() =>
+                                        void loadPage(
+                                            pageNumber - 1
+                                        )
+                                    }
+                                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Anterior
+                                </button>
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        loading ||
+                                        !hasNextPage
+                                    }
+                                    onClick={() =>
+                                        void loadPage(
+                                            pageNumber + 1
+                                        )
+                                    }
+                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
             </section>
             {showForm && (
                 <section ref={formPanelRef} id="purchase-order-form-panel" tabIndex={-1} aria-label={editingOrder ? "Editar orden" : "Nueva orden"} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
