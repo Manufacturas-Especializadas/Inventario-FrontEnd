@@ -581,11 +581,11 @@ export const UsersPage = () => {
 
 
             if (
-                password.length < 8 ||
+                password.length < 4 ||
                 password.length > 64
             ) {
                 setFormError(
-                    "La contraseña debe tener entre 8 y 64 caracteres."
+                    "La contraseña debe tener entre 4 y 64 caracteres."
                 );
 
                 return;
@@ -789,12 +789,12 @@ export const UsersPage = () => {
 
             if (
                 newPassword.length <
-                8 ||
+                4 ||
                 newPassword.length >
                 64
             ) {
                 setFormError(
-                    "La contraseña debe tener entre 8 y 64 caracteres."
+                    "La contraseña debe tener entre 4 y 64 caracteres."
                 );
 
                 return;
@@ -1034,167 +1034,167 @@ export const UsersPage = () => {
                             className="mt-6 border-t border-slate-100 pt-6"
                         >
                             <fieldset disabled={!canCreate || mutationBusy} className="min-w-0">
-                            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 [&>div]:min-w-0">
-                                <div>
-                                    <label htmlFor="user-employee" className="block text-sm font-medium text-slate-700">
-                                        Empleado
-                                    </label>
+                                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 [&>div]:min-w-0">
+                                    <div>
+                                        <label htmlFor="user-employee" className="block text-sm font-medium text-slate-700">
+                                            Empleado
+                                        </label>
 
-                                    <select
-                                        id="user-employee"
-                                        value={
-                                            employeeNumber
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            setEmployeeNumber(
+                                        <select
+                                            id="user-employee"
+                                            value={
+                                                employeeNumber
+                                            }
+                                            onChange={(
                                                 event
-                                                    .target
-                                                    .value
-                                            )
-                                        }
-                                        disabled={
-                                            creating
-                                        }
-                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
-                                    >
-                                        <option value="">
-                                            Selecciona
-                                            un empleado
-                                        </option>
+                                            ) =>
+                                                setEmployeeNumber(
+                                                    event
+                                                        .target
+                                                        .value
+                                                )
+                                            }
+                                            disabled={
+                                                creating
+                                            }
+                                            className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                        >
+                                            <option value="">
+                                                Selecciona
+                                                un empleado
+                                            </option>
 
-                                        {(createCatalogsReady ? availableEmployees : []).map(
-                                            (
-                                                employee
-                                            ) => (
-                                                <option
+                                            {(createCatalogsReady ? availableEmployees : []).map(
+                                                (
+                                                    employee
+                                                ) => (
+                                                    <option
+                                                        key={
+                                                            employee.id
+                                                        }
+                                                        value={
+                                                            employee.employeeNumber
+                                                        }
+                                                    >
+                                                        {
+                                                            employee.employeeNumber
+                                                        }
+                                                        {" — "}
+                                                        {
+                                                            employee.name
+                                                        }
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+                                    </div>
+
+
+                                    <div>
+                                        <label htmlFor="user-username" className="block text-sm font-medium text-slate-700">
+                                            Usuario
+                                        </label>
+
+                                        <input
+                                            type="text"
+                                            id="user-username"
+                                            value={
+                                                username
+                                            }
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                setUsername(
+                                                    event
+                                                        .target
+                                                        .value
+                                                )
+                                            }
+                                            maxLength={
+                                                100
+                                            }
+                                            disabled={
+                                                creating
+                                            }
+                                            placeholder="Ej. jperez"
+                                            autoComplete="off"
+                                            className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                        />
+                                    </div>
+
+
+                                    <div>
+                                        <label htmlFor="user-password" className="block text-sm font-medium text-slate-700">
+                                            Contraseña
+                                            inicial
+                                        </label>
+
+                                        <input
+                                            type="password"
+                                            id="user-password"
+                                            value={
+                                                password
+                                            }
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                setPassword(
+                                                    event
+                                                        .target
+                                                        .value
+                                                )
+                                            }
+                                            minLength={
+                                                4
+                                            }
+                                            maxLength={
+                                                64
+                                            }
+                                            disabled={
+                                                creating
+                                            }
+                                            autoComplete="new-password"
+                                            className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
+                                        />
+                                    </div>
+                                </div>
+
+
+                                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                                    <p className="text-sm font-medium text-slate-700">
+                                        Roles
+                                    </p>
+
+                                    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        {availableRoles.map(
+                                            (role) => (
+                                                <label
                                                     key={
-                                                        employee.id
+                                                        role
                                                     }
-                                                    value={
-                                                        employee.employeeNumber
-                                                    }
+                                                    className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition-colors hover:border-sky-300 has-checked:border-sky-300 has-checked:bg-sky-50 has-checked:text-sky-900 has-checked:shadow-sm has-disabled:cursor-not-allowed has-disabled:opacity-60 has-focus-visible:ring-4 has-focus-visible:ring-sky-100 motion-reduce:transition-none"
                                                 >
-                                                    {
-                                                        employee.employeeNumber
-                                                    }
-                                                    {" — "}
-                                                    {
-                                                        employee.name
-                                                    }
-                                                </option>
-                                            )
-                                        )}
-                                    </select>
-                                </div>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4 shrink-0 accent-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+                                                        checked={selectedRoles.includes(
+                                                            role
+                                                        )}
+                                                        onChange={() =>
+                                                            toggleRole(
+                                                                role
+                                                            )
+                                                        }
+                                                    />
 
-
-                                <div>
-                                    <label htmlFor="user-username" className="block text-sm font-medium text-slate-700">
-                                        Usuario
-                                    </label>
-
-                                    <input
-                                        type="text"
-                                        id="user-username"
-                                        value={
-                                            username
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            setUsername(
-                                                event
-                                                    .target
-                                                    .value
-                                            )
-                                        }
-                                        maxLength={
-                                            100
-                                        }
-                                        disabled={
-                                            creating
-                                        }
-                                        placeholder="Ej. jperez"
-                                        autoComplete="off"
-                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
-                                    />
-                                </div>
-
-
-                                <div>
-                                    <label htmlFor="user-password" className="block text-sm font-medium text-slate-700">
-                                        Contraseña
-                                        inicial
-                                    </label>
-
-                                    <input
-                                        type="password"
-                                        id="user-password"
-                                        value={
-                                            password
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            setPassword(
-                                                event
-                                                    .target
-                                                    .value
-                                            )
-                                        }
-                                        minLength={
-                                            8
-                                        }
-                                        maxLength={
-                                            64
-                                        }
-                                        disabled={
-                                            creating
-                                        }
-                                        autoComplete="new-password"
-                                        className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
-                                    />
-                                </div>
-                            </div>
-
-
-                            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-                                <p className="text-sm font-medium text-slate-700">
-                                    Roles
-                                </p>
-
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                    {availableRoles.map(
-                                        (role) => (
-                                            <label
-                                                key={
-                                                    role
-                                                }
-                                                className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition-colors hover:border-sky-300 has-checked:border-sky-300 has-checked:bg-sky-50 has-checked:text-sky-900 has-checked:shadow-sm has-disabled:cursor-not-allowed has-disabled:opacity-60 has-focus-visible:ring-4 has-focus-visible:ring-sky-100 motion-reduce:transition-none"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    className="h-4 w-4 shrink-0 accent-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
-                                                    checked={selectedRoles.includes(
+                                                    {getRoleLabel(
                                                         role
                                                     )}
-                                                    onChange={() =>
-                                                        toggleRole(
-                                                            role
-                                                        )
-                                                    }
-                                                />
-
-                                                {getRoleLabel(
-                                                    role
-                                                )}
-                                            </label>
-                                        )
-                                    )}
+                                                </label>
+                                            )
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
 
 
                             </fieldset>
@@ -1462,7 +1462,7 @@ export const UsersPage = () => {
                                             )
                                         }
                                         minLength={
-                                            8
+                                            4
                                         }
                                         maxLength={
                                             64
@@ -1495,7 +1495,7 @@ export const UsersPage = () => {
                                             )
                                         }
                                         minLength={
-                                            8
+                                            4
                                         }
                                         maxLength={
                                             64
@@ -1695,9 +1695,9 @@ export const UsersPage = () => {
                                 </svg>
                             </span>
                             <p className="font-semibold text-slate-700">
-                            No se
-                            encontraron
-                            usuarios.
+                                No se
+                                encontraron
+                                usuarios.
                             </p>
                             <p className="text-sm leading-6 text-slate-500">Revisa la búsqueda y el estado de cuenta seleccionado.</p>
                         </div>
