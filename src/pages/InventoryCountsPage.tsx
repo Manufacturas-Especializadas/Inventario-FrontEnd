@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useInventoryCounts } from "../hooks/useInventoryCounts";
 import { useWarehouses } from "../hooks/useWarehouses";
 import { useAuth } from "../hooks/useAuth";
@@ -15,6 +16,9 @@ export const InventoryCountsPage = () => {
     const isAdministrator = hasRole("Administrator");
     const [tab, setTab] = useState<"drafts" | "review">("drafts");
     const [showStart, setShowStart] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const action = searchParams.get("action");
+    const startActionHandled = useRef(false);
     const [searchFolio, setSearchFolio] = useState("");
 
     useEffect(() => { void getDrafts(); }, [getDrafts]);
@@ -29,6 +33,24 @@ export const InventoryCountsPage = () => {
         setShowStart(true);
         if (!warehouses.hasLoaded) void warehouses.refresh();
     };
+
+    const handleNewCountAction = useEffectEvent(() => {
+        openStart();
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("action");
+        setSearchParams(nextParams, { replace: true });
+    });
+
+    useEffect(() => {
+        if (action !== "new") {
+            startActionHandled.current = false;
+            return;
+        }
+        if (startActionHandled.current) return;
+        startActionHandled.current = true;
+        handleNewCountAction();
+    }, [action]);
+
     const review = tab === "review" && isAdministrator;
 
     const handleDeleteDraft = async (

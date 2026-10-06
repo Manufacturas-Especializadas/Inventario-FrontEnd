@@ -3,8 +3,11 @@ import {
     useMemo,
     useRef,
     useEffect,
+    useEffectEvent,
     type FormEvent,
 } from "react";
+
+import { useSearchParams } from "react-router";
 
 import {
     useEmployeeLookup,
@@ -243,6 +246,9 @@ export const PPERequestsPage = () => {
     } = usePPERequests({ autoLoadPending: false });
 
     const [showForm, setShowForm] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const action = searchParams.get("action");
+    const createActionHandled = useRef(false);
     const formRef = useRef<HTMLFormElement>(null);
     const formCatalogRequest = useRef<Promise<unknown[]> | null>(null);
     const formCatalogsReady = organizationalUnitsLoaded && warehousesLoaded && requestReasonsLoaded;
@@ -258,6 +264,28 @@ export const PPERequestsPage = () => {
         void request.finally(() => { formCatalogRequest.current = null; });
         return request;
     };
+
+    const openCreateForm = () => {
+        setShowForm(true);
+        void loadFormCatalogs();
+    };
+
+    const handleNewRequestAction = useEffectEvent(() => {
+        openCreateForm();
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("action");
+        setSearchParams(nextParams, { replace: true });
+    });
+
+    useEffect(() => {
+        if (action !== "new") {
+            createActionHandled.current = false;
+            return;
+        }
+        if (createActionHandled.current) return;
+        createActionHandled.current = true;
+        handleNewRequestAction();
+    }, [action]);
 
     useEffect(() => {
         if (showForm) {
@@ -998,8 +1026,8 @@ export const PPERequestsPage = () => {
 
             <div className="flex flex-wrap gap-3">
                 <button type="button" aria-expanded={showForm} aria-controls="new-request-form" onClick={() => {
-                    setShowForm(!showForm);
-                    if (!showForm) void loadFormCatalogs();
+                    if (showForm) setShowForm(false);
+                    else openCreateForm();
                 }} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200">
                     {showForm ? "Ocultar nueva solicitud" : "Nueva solicitud"}
                 </button>

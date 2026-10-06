@@ -21,7 +21,7 @@ const quickActions: QuickAction[] = [
     {
         label: "Registrar solicitud",
         description: "Crear y consultar solicitudes de EPP.",
-        path: "/ppe-requests",
+        path: "/ppe-requests?action=new",
         roles: ["Administrator", "Production"],
     },
     {
@@ -39,7 +39,7 @@ const quickActions: QuickAction[] = [
     {
         label: "Nuevo conteo físico",
         description: "Iniciar o continuar conteos de inventario.",
-        path: "/inventory-counts",
+        path: "/inventory-counts?action=new",
         roles: ["Administrator", "Warehouse"],
     },
     {
