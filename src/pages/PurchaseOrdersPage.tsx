@@ -1,10 +1,13 @@
 import {
     useEffect,
+    useEffectEvent,
     useState,
     useMemo,
     useRef,
     type FormEvent,
 } from "react";
+
+import { useSearchParams } from "react-router";
 
 import {
     purchaseOrdersService,
@@ -121,6 +124,9 @@ export const PurchaseOrdersPage = () => {
         refresh: loadSuppliers,
     } = useSuppliers({ autoLoad: false });
     const [showForm, setShowForm] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const action = searchParams.get("action");
+    const createActionHandled = useRef(false);
     const formPanelRef = useRef<HTMLElement>(null);
     const detailVersion = useRef(0);
     const detailRequests = useRef(new Map<string, { promise: Promise<PurchaseOrder>; latest?: PurchaseOrder }>());
@@ -552,6 +558,29 @@ export const PurchaseOrdersPage = () => {
         ]);
     };
 
+    const openCreateForm = () => {
+        resetForm();
+        setShowForm(true);
+        if (!suppliersLoaded) void loadSuppliers();
+    };
+
+    const handleNewOrderAction = useEffectEvent(() => {
+        openCreateForm();
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("action");
+        setSearchParams(nextParams, { replace: true });
+    });
+
+    useEffect(() => {
+        if (action !== "new") {
+            createActionHandled.current = false;
+            return;
+        }
+        if (createActionHandled.current) return;
+        createActionHandled.current = true;
+        handleNewOrderAction();
+    }, [action]);
+
     const handleSubmit =
         async (
             event: FormEvent<HTMLFormElement>
@@ -834,11 +863,7 @@ export const PurchaseOrdersPage = () => {
             />
 
             <div className="flex flex-wrap gap-3">
-                <button type="button" disabled={isSubmitting} aria-controls="purchase-order-form-panel" aria-expanded={showForm} onClick={() => {
-                    resetForm();
-                    setShowForm(true);
-                    if (!suppliersLoaded) void loadSuppliers();
-                }} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">Nueva orden</button>
+                <button type="button" disabled={isSubmitting} aria-controls="purchase-order-form-panel" aria-expanded={showForm} onClick={openCreateForm} className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">Nueva orden</button>
                 {!showForm && editingOrder && <button type="button" onClick={() => setShowForm(true)} className="min-h-11 rounded-xl border border-sky-200 px-4 py-2 text-sm text-sky-800">Continuar edición</button>}
             </div>
             {formError && (
