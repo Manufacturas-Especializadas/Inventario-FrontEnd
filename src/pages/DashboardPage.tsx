@@ -10,6 +10,9 @@ import type {
     UserRole,
 } from "../types/types";
 
+import { navigationItems } from "../config/navigation";
+import { getRecentModules } from "../utils/recentModules";
+
 interface QuickAction {
     label: string;
     description: string;
@@ -73,6 +76,13 @@ export const DashboardPage = () => {
                 !action.roles ||
                 hasAnyRole(action.roles)
         );
+
+    const recentModules = user
+        ? getRecentModules(user.userId).flatMap((recent) => {
+            const item = navigationItems.find((item) => item.path === recent.path && item.path !== "/");
+            return item && (!item.roles || hasAnyRole(item.roles)) ? [item] : [];
+        })
+        : [];
 
     return (
         <div className="mx-auto max-w-7xl space-y-8">
@@ -141,6 +151,32 @@ export const DashboardPage = () => {
                 )}
                 </div>
             </section>
+
+            {recentModules.length > 0 && (
+                <section aria-labelledby="dashboard-recent-heading">
+                    <div className="mb-5">
+                        <h2 id="dashboard-recent-heading" className="text-lg font-semibold tracking-tight text-slate-900">Continuar trabajando</h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Vuelve rápidamente a los módulos que utilizaste recientemente.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {recentModules.map((item) => (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                className="group flex min-w-0 flex-col justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-sky-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                            >
+                                <h3 className="wrap-break-word text-sm font-semibold text-slate-900 group-hover:text-sky-800">{item.label}</h3>
+                                <span className="flex items-center justify-between gap-3 text-sm font-semibold text-sky-800">
+                                    Continuar
+                                    <svg aria-hidden="true" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M5 12h14m-6-6 6 6-6 6" />
+                                    </svg>
+                                </span>
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             <section aria-labelledby="dashboard-session-heading" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)]">
                 <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5 sm:px-8">
