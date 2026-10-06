@@ -3,12 +3,63 @@ import {
 } from "react-router";
 
 import {
-    navigationItems,
-} from "../config/navigation";
-
-import {
     useAuth,
 } from "../hooks/useAuth";
+
+import type {
+    UserRole,
+} from "../types/types";
+
+interface QuickAction {
+    label: string;
+    description: string;
+    path: string;
+    roles?: UserRole[];
+}
+
+const quickActions: QuickAction[] = [
+    {
+        label: "Registrar solicitud",
+        description: "Crear y consultar solicitudes de EPP.",
+        path: "/ppe-requests",
+        roles: ["Administrator", "Production"],
+    },
+    {
+        label: "Recibir material",
+        description: "Registrar la recepción de una orden de compra.",
+        path: "/receiving",
+        roles: ["Administrator", "Warehouse"],
+    },
+    {
+        label: "Entregar EPP",
+        description: "Atender solicitudes listas para entrega.",
+        path: "/deliveries",
+        roles: ["Administrator", "Warehouse"],
+    },
+    {
+        label: "Nuevo conteo físico",
+        description: "Iniciar o continuar conteos de inventario.",
+        path: "/inventory-counts",
+        roles: ["Administrator", "Warehouse"],
+    },
+    {
+        label: "Registrar ajuste",
+        description: "Registrar correcciones manuales de inventario.",
+        path: "/inventory-adjustments",
+        roles: ["Administrator"],
+    },
+    {
+        label: "Órdenes de compra",
+        description: "Crear y administrar órdenes de compra.",
+        path: "/purchase-orders",
+        roles: ["Administrator", "Production"],
+    },
+    {
+        label: "Consultar inventario",
+        description: "Consultar existencias y disponibilidad por almacén.",
+        path: "/inventory",
+    },
+];
 
 export const DashboardPage = () => {
     const {
@@ -16,16 +67,11 @@ export const DashboardPage = () => {
         hasAnyRole,
     } = useAuth();
 
-    const availableModules =
-        navigationItems.filter(
-            (item) =>
-                item.path !== "/" &&
-                (
-                    !item.roles ||
-                    hasAnyRole(
-                        item.roles
-                    )
-                )
+    const availableActions =
+        quickActions.filter(
+            (action) =>
+                !action.roles ||
+                hasAnyRole(action.roles)
         );
 
     return (
@@ -41,7 +87,7 @@ export const DashboardPage = () => {
                 </h1>
 
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                    Selecciona uno de los módulos disponibles para comenzar.
+                    Accede rápidamente a las tareas más frecuentes de tu operación.
                 </p>
             </section>
 
@@ -56,34 +102,34 @@ export const DashboardPage = () => {
                         </svg>
                     </span>
                     <div>
-                        <h2 id="dashboard-modules-heading" className="text-lg font-semibold tracking-tight text-slate-900">Módulos disponibles</h2>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">Accede a las herramientas de tu operación diaria.</p>
+                        <h2 id="dashboard-modules-heading" className="text-lg font-semibold tracking-tight text-slate-900">Acciones rápidas</h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">Atajos a las tareas más frecuentes según tus permisos.</p>
                     </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {availableModules.map(
-                    (module) => (
+                {availableActions.map(
+                    (action) => (
                         <Link
                             key={
-                                module.path
+                                action.path
                             }
                             to={
-                                module.path
+                                action.path
                             }
                             className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] transition duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 active:translate-y-0 motion-reduce:transform-none motion-reduce:transition-none"
                         >
                             <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-sky-100 transition-colors group-hover:bg-sky-500 group-focus-visible:bg-sky-500 motion-reduce:transition-none" />
                             <h3 className="wrap-break-word text-base font-semibold tracking-tight text-slate-900 transition-colors group-hover:text-sky-800 motion-reduce:transition-none">
-                                {module.label}
+                                {action.label}
                             </h3>
 
                             <p className="mt-2 flex-1 text-sm leading-6 text-slate-500">
-                                Ir al módulo
+                                {action.description}
                             </p>
 
                             <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm font-semibold text-sky-800">
-                                <span>Abrir módulo</span>
+                                <span>Abrir</span>
                                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700 transition-colors group-hover:bg-sky-700 group-hover:text-white group-focus-visible:bg-sky-700 group-focus-visible:text-white motion-reduce:transition-none">
                                     <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M5 12h14m-6-6 6 6-6 6" />
