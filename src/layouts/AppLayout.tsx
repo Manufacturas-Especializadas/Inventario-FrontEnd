@@ -1,10 +1,12 @@
 import {
     Suspense,
+    useEffect,
     useState,
 } from "react";
 
 import {
     Outlet,
+    useLocation,
 } from "react-router";
 
 import {
@@ -15,11 +17,26 @@ import {
     Sidebar,
 } from "../components/layout/Sidebar";
 
+import { useAuth } from "../hooks/useAuth";
+import { navigationItems } from "../config/navigation";
+import { addRecentModule } from "../utils/recentModules";
+
 export const AppLayout = () => {
+    const { pathname } = useLocation();
+    const { user, hasAnyRole } = useAuth();
+    const userId = user?.userId;
+
     const [
         isSidebarOpen,
         setIsSidebarOpen,
     ] = useState(false);
+
+    useEffect(() => {
+        if (userId === undefined || pathname === "/") return;
+        const item = navigationItems.find((item) => item.path === pathname);
+        if (!item || (item.roles && !hasAnyRole(item.roles))) return;
+        addRecentModule(userId, { path: item.path, label: item.label });
+    }, [pathname, userId, hasAnyRole]);
 
     return (
         <div className="min-h-screen bg-slate-100">
