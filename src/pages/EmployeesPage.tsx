@@ -305,7 +305,7 @@ export const EmployeesPage = () => {
 
         setOrganizationalUnitId(
             employee
-                .organizationalUnitId
+                .organizationalUnitId !== null
                 ? String(
                     employee
                         .organizationalUnitId
@@ -340,7 +340,7 @@ export const EmployeesPage = () => {
                 FormEvent<HTMLFormElement>
         ) => {
             event.preventDefault();
-            if (saving || !unitsReady || activeUnits.length === 0 || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))) return;
+            if (saving || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))) return;
 
             setFormError(
                 null
@@ -360,9 +360,9 @@ export const EmployeesPage = () => {
                 name.trim();
 
             const parsedUnitId =
-                Number(
-                    organizationalUnitId
-                );
+                organizationalUnitId === ""
+                    ? null
+                    : Number(organizationalUnitId);
 
 
             if (
@@ -409,17 +409,26 @@ export const EmployeesPage = () => {
             }
 
 
-            if (
-                !Number.isInteger(
-                    parsedUnitId
-                ) ||
-                parsedUnitId <= 0
-            ) {
-                setFormError(
-                    "Selecciona una unidad organizacional."
-                );
+            if (parsedUnitId !== null) {
+                if (!unitsReady) {
+                    setFormError(
+                        "Espera a que las unidades organizacionales estén disponibles o selecciona Sin unidad organizacional."
+                    );
 
-                return;
+                    return;
+                }
+
+                if (
+                    !Number.isInteger(parsedUnitId) ||
+                    parsedUnitId <= 0 ||
+                    !activeUnits.some((unit) => unit.id === parsedUnitId)
+                ) {
+                    setFormError(
+                        "Selecciona una unidad organizacional activa disponible."
+                    );
+
+                    return;
+                }
             }
 
 
@@ -721,22 +730,20 @@ export const EmployeesPage = () => {
                                         )
                                     }
                                     disabled={
-                                        saving ||
-                                        !unitsReady
+                                        saving
                                     }
                                     className="mt-2 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 enabled:hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 motion-reduce:transition-none"
                                 >
                                     <option value="">
-                                        Selecciona
-                                        una unidad
+                                        Sin unidad organizacional
                                     </option>
 
-                                    {!unitsReady && organizationalUnitId && (
+                                    {organizationalUnitId && (!unitsReady || !activeUnits.some((unit) => String(unit.id) === organizationalUnitId)) && (
                                         <option value={organizationalUnitId} disabled>
                                             {employees.find((employee) => employee.id === editingEmployeeId)?.organizationalUnitName ?? "Unidad actual"}
                                         </option>
                                     )}
-                                    {activeUnits.map(
+                                    {unitsReady && activeUnits.map(
                                         (
                                             unit
                                         ) => (
@@ -780,7 +787,7 @@ export const EmployeesPage = () => {
                             <button
                                 type="submit"
                                 disabled={
-                                    saving || !unitsReady || activeUnits.length === 0 || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))
+                                    saving || (editingEmployeeId !== null && changingStatusIds.has(editingEmployeeId))
                                 }
                                 className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                             >
