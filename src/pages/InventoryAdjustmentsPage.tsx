@@ -1,8 +1,12 @@
 import {
     useState,
     useRef,
+    useEffect,
+    useEffectEvent,
     type FormEvent,
 } from "react";
+
+import { useSearchParams } from "react-router";
 
 import {
     useInventoryAdjustments,
@@ -84,6 +88,9 @@ export const InventoryAdjustmentsPage = () => {
         refresh: loadWarehouses,
     } = useWarehouses({ autoLoad: false });
     const [showForm, setShowForm] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const action = searchParams.get("action");
+    const createActionHandled = useRef(false);
     const [showLookup, setShowLookup] = useState(false);
     const [historyScope, setHistoryScope] = useState<"all" | "warehouse">("all");
     const [historyFilters, setHistoryFilters] = useState<InventoryAdjustmentFilters>({});
@@ -130,10 +137,32 @@ export const InventoryAdjustmentsPage = () => {
         void getAdjustments(historyFilters);
     };
 
-    const toggleForm = () => {
+    const openCreateForm = () => {
         if (!showForm) void loadFormCatalogs();
-        setShowForm(!showForm);
+        setShowForm(true);
     };
+
+    const toggleForm = () => {
+        if (showForm) setShowForm(false);
+        else openCreateForm();
+    };
+
+    const handleNewAdjustmentAction = useEffectEvent(() => {
+        openCreateForm();
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("action");
+        setSearchParams(nextParams, { replace: true });
+    });
+
+    useEffect(() => {
+        if (action !== "new") {
+            createActionHandled.current = false;
+            return;
+        }
+        if (createActionHandled.current) return;
+        createActionHandled.current = true;
+        handleNewAdjustmentAction();
+    }, [action]);
 
 
     const [

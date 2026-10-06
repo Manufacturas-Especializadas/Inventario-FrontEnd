@@ -45,13 +45,13 @@ const quickActions: QuickAction[] = [
     {
         label: "Registrar ajuste",
         description: "Registrar correcciones manuales de inventario.",
-        path: "/inventory-adjustments",
+        path: "/inventory-adjustments?action=new",
         roles: ["Administrator"],
     },
     {
         label: "Órdenes de compra",
         description: "Crear y administrar órdenes de compra.",
-        path: "/purchase-orders",
+        path: "/purchase-orders?action=new",
         roles: ["Administrator", "Production"],
     },
     {
