@@ -511,14 +511,14 @@ export interface Employee {
 export interface CreateEmployeeRequest {
     employeeNumber: string;
     name: string;
-    organizationalUnitId: number;
+    organizationalUnitId: number | null;
 }
 
 export interface UpdateEmployeeRequest {
     id: number;
     employeeNumber: string;
     name: string;
-    organizationalUnitId: number;
+    organizationalUnitId: number | null;
 }
 
 export interface SetEmployeeStatusRequest {
