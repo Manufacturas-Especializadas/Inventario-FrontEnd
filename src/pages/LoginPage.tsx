@@ -17,6 +17,8 @@ import {
     getApiErrorMessage,
 } from "../utils/utils";
 
+import mesaLogo from "../assets/branding/logomesa-1.png";
+
 export const LoginPage = () => {
     const [username, setUsername] =
         useState("");
@@ -130,7 +132,7 @@ export const LoginPage = () => {
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,#087eae,transparent_65%)]" />
                     <div aria-hidden="true" className="pointer-events-none absolute -right-32 bottom-0 -z-10 h-96 w-96 rounded-full border border-sky-300/15 shadow-[0_0_0_48px_rgba(125,211,252,0.04),0_0_0_96px_rgba(125,211,252,0.03)]" />
                     <div className="flex items-center gap-4">
-                        <span className="text-3xl font-black tracking-[0.12em]">MESA<span className="text-sky-300">.</span></span>
+                        <img src={mesaLogo} alt="MESA" className="h-9 w-auto max-w-24 shrink-0 object-contain sm:h-10" />
                         <span className="h-9 w-px bg-sky-200/30" aria-hidden="true" />
                         <p className="max-w-40 text-xs leading-relaxed text-sky-100">Manufacturas Especializadas S.A.</p>
                     </div>

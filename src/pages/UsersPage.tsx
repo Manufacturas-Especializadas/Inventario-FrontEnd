@@ -20,6 +20,7 @@ import type {
     AdminUser,
     UserRole,
 } from "../types/types";
+import { getRoleLabel } from "../utils/roleLabels";
 
 
 type StatusFilter =
@@ -43,25 +44,6 @@ const availableRoles:
         "Warehouse",
         "Viewer",
     ];
-
-
-const getRoleLabel = (
-    role: UserRole
-) => {
-    switch (role) {
-        case "Administrator":
-            return "Administrador";
-
-        case "Production":
-            return "Producción";
-
-        case "Warehouse":
-            return "Almacén";
-
-        case "Viewer":
-            return "Consulta";
-    }
-};
 
 
 const formatDate = (
@@ -322,7 +304,7 @@ export const UsersPage = () => {
                             ) ||
                         user.roles.some(
                             (role) =>
-                                role
+                                getRoleLabel(role).toLocaleLowerCase("es").includes(normalizedSearch) || role
                                     .toLocaleLowerCase()
                                     .includes(
                                         normalizedSearch

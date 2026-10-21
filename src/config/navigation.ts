@@ -1,6 +1,7 @@
 import type {
     UserRole,
 } from "../types/types";
+import { isProductionOnly } from "../utils/userRoles";
 
 export type NavigationGroupId =
     | "catalog"
@@ -25,14 +26,15 @@ export const navigationGroups: {
 export interface NavigationItem {
     label: string;
     path: string;
-    roles?: UserRole[];
+    roles: UserRole[];
     group?: NavigationGroupId;
 }
 
 export const navigationItems: NavigationItem[] = [
     {
-        label: "Dashboard",
+        label: "Inicio",
         path: "/",
+        roles: ["Administrator", "Production", "Warehouse", "Viewer"],
     },
 
     {
@@ -104,7 +106,6 @@ export const navigationItems: NavigationItem[] = [
         group: "purchasing",
         roles: [
             "Administrator",
-            "Production",
         ],
     },
 
@@ -142,6 +143,7 @@ export const navigationItems: NavigationItem[] = [
         label: "Inventario",
         path: "/inventory",
         group: "inventory",
+        roles: ["Administrator", "Warehouse", "Viewer"],
     },
 
     {
@@ -196,7 +198,6 @@ export const navigationItems: NavigationItem[] = [
         group: "people",
         roles: [
             "Administrator",
-            "Production",
         ],
     },
 
@@ -218,3 +219,13 @@ export const navigationItems: NavigationItem[] = [
         ],
     },
 ];
+
+export const getVisibleNavigationItems = (roles: readonly UserRole[]): NavigationItem[] => {
+    const productionOnly = isProductionOnly(roles);
+    return navigationItems
+        .filter((item) => item.roles.some((role) => roles.includes(role)) &&
+            (!productionOnly || item.path === "/" || item.path === "/ppe-requests"))
+        .map((item) => productionOnly && item.path === "/ppe-requests"
+            ? { ...item, label: "Solicitar EPP", group: undefined }
+            : item);
+};

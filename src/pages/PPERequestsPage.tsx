@@ -30,6 +30,11 @@ import {
 } from "../hooks/usePPERequests";
 
 import { PageHeader } from "../components/ui/PageHeader";
+import { ProductionPPERequestForm } from "../components/ppe-requests/ProductionPPERequestForm";
+import { useAuth } from "../hooks/useAuth";
+import { getRequestStatusConfig } from "../utils/ppeRequestStatus";
+import { getRequestReasonLabel } from "../utils/requestReasonLabels";
+import { isProductionOnly } from "../utils/userRoles";
 
 import { inventoryService } from "../api/services/InventoryService";
 
@@ -81,40 +86,6 @@ const formatDateTime = (
     );
 };
 
-const getRequestStatusConfig = (
-    status: number
-) => {
-    switch (status) {
-        case 1:
-            return {
-                label: "Pendiente",
-                className:
-                    "bg-amber-50 text-amber-700",
-            };
-
-        case 2:
-            return {
-                label: "Entregada",
-                className:
-                    "bg-emerald-50 text-emerald-700",
-            };
-
-        case 3:
-            return {
-                label: "Cancelada",
-                className:
-                    "bg-red-50 text-red-700",
-            };
-
-        default:
-            return {
-                label: "Desconocido",
-                className:
-                    "bg-slate-100 text-slate-600",
-            };
-    }
-};
-
 const getOrganizationalUnitTypeLabel = (
     type: number
 ) => {
@@ -158,6 +129,19 @@ const normalizeText = (
 };
 
 export const PPERequestsPage = () => {
+    const { user, isLoading } = useAuth();
+
+    if (isLoading || !user) return null;
+
+    // Only mount the relevant flow: Production must never load administrative catalogs.
+    if (isProductionOnly(user.roles)) {
+        return <ProductionPPERequestForm key={user.userId} user={user} />;
+    }
+
+    return <AdministrativePPERequestsPage />;
+};
+
+const AdministrativePPERequestsPage = () => {
     const {
         employee,
         loading: loadingEmployee,
@@ -411,6 +395,7 @@ export const PPERequestsPage = () => {
                                 .requestedForOrganizationalUnitName,
                             request.warehouseName,
                             request.requestReason,
+                            getRequestReasonLabel(request.requestReason, request.requestReasonCode),
                             request.notes,
                         ].some((value) =>
                             normalizeText(
@@ -1391,7 +1376,7 @@ export const PPERequestsPage = () => {
 
                                             <p className="mt-1 text-sm font-medium text-slate-800">
                                                 {
-                                                    request.requestReason
+                                                    getRequestReasonLabel(request.requestReason, request.requestReasonCode)
                                                 }
                                             </p>
                                         </div>
@@ -1789,7 +1774,7 @@ export const PPERequestsPage = () => {
 
                                                             <p className="mt-1 text-sm font-medium text-slate-700">
                                                                 {
-                                                                    historyRequest.requestReason
+                                                                    getRequestReasonLabel(historyRequest.requestReason, historyRequest.requestReasonCode)
                                                                 }
                                                             </p>
                                                         </div>
@@ -2078,7 +2063,7 @@ export const PPERequestsPage = () => {
                                                             }
                                                         >
                                                             {
-                                                                reason.name
+                                                                getRequestReasonLabel(reason.name, reason.code)
                                                             }
                                                         </option>
                                                     )

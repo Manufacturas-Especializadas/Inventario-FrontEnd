@@ -21,6 +21,9 @@ export interface AuthUser {
     name: string;
     username: string;
     roles: UserRole[];
+    organizationalUnitId: number | null;
+    organizationalUnitName: string | null;
+    organizationalUnitType: OrganizationalUnitType | null;
 }
 
 // ADMINISTRACIÓN DE USUARIOS
@@ -574,7 +577,38 @@ export interface RequestReason {
 export type PPERequestStatus =
     | 1 // Pending
     | 2 // Delivered
-    | 3; // Cancelled
+    | 3 // Cancelled
+    | 4 // PendingApproval
+    | 5; // Rejected
+
+export interface PPERequestWarehouse {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface PPERequestFormOptions {
+    warehouses: PPERequestWarehouse[];
+    requestReasons: {
+        id: number;
+        code: string;
+        name: string;
+        description: string | null;
+    }[];
+}
+
+export interface RequestablePPEProduct {
+    ppeProductId: number;
+    sku: string;
+    name: string;
+    availableQuantity: number;
+    size: string | null;
+    color: string | null;
+    model: string | null;
+    specification: string | null;
+    stockUnit: string;
+    stockUnitSymbol: string | null;
+}
 
 export interface PPERequestItem {
     ppeProductId: number;
@@ -601,6 +635,7 @@ export interface PPERequest {
 
     requestReasonId: number;
     requestReason: string;
+    requestReasonCode?: string | null;
 
     notes: string | null;
 
@@ -621,8 +656,8 @@ export interface CreatePPERequestItemRequest {
 }
 
 export interface CreatePPERequestRequest {
-    employeeNumber: string;
-    requestedForOrganizationalUnitId: number;
+    employeeNumber?: string;
+    requestedForOrganizationalUnitId?: number;
     warehouseId: number;
     requestReasonId: number;
     notes?: string | null;
@@ -645,6 +680,54 @@ export interface PPERequestWarning {
 export interface CreatePPERequestResult {
     request: PPERequest;
     warnings: PPERequestWarning[];
+}
+
+export interface PendingApprovalPPERequestItem {
+    ppeProductId: number;
+    sku: string;
+    productName: string;
+    quantity: number;
+}
+
+export interface PendingApprovalPPERequest {
+    id: number;
+    folio: string;
+    status: Extract<PPERequestStatus, 4>;
+    employeeId: number;
+    employeeNumber: string;
+    employeeName: string;
+    requestedForOrganizationalUnitId: number | null;
+    requestedForOrganizationalUnitName: string | null;
+    warehouseId: number;
+    warehouseName: string;
+    requestReasonId: number;
+    requestReason: string;
+    requestReasonCode: string;
+    notes: string | null;
+    createdByUserId: number;
+    createdAt: string;
+    items: PendingApprovalPPERequestItem[];
+}
+
+export interface ApprovePPERequestResult {
+    id: number;
+    folio: string;
+    status: Extract<PPERequestStatus, 1>;
+    approvedByUserId: number;
+    approvedAt: string;
+}
+
+export interface RejectPPERequestRequest {
+    rejectionReason: string;
+}
+
+export interface RejectPPERequestResult {
+    id: number;
+    folio: string;
+    status: Extract<PPERequestStatus, 5>;
+    rejectedByUserId: number;
+    rejectedAt: string;
+    rejectionReason: string;
 }
 
 export interface CancelPPERequestRequest {

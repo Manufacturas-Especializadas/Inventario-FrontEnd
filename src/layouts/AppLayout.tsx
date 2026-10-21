@@ -18,12 +18,12 @@ import {
 } from "../components/layout/Sidebar";
 
 import { useAuth } from "../hooks/useAuth";
-import { navigationItems } from "../config/navigation";
+import { getVisibleNavigationItems } from "../config/navigation";
 import { addRecentModule } from "../utils/recentModules";
 
 export const AppLayout = () => {
     const { pathname } = useLocation();
-    const { user, hasAnyRole } = useAuth();
+    const { user } = useAuth();
     const userId = user?.userId;
 
     const [
@@ -33,10 +33,10 @@ export const AppLayout = () => {
 
     useEffect(() => {
         if (userId === undefined || pathname === "/") return;
-        const item = navigationItems.find((item) => item.path === pathname);
-        if (!item || (item.roles && !hasAnyRole(item.roles))) return;
+        const item = getVisibleNavigationItems(user?.roles ?? []).find((item) => item.path === pathname);
+        if (!item) return;
         addRecentModule(userId, { path: item.path, label: item.label });
-    }, [pathname, userId, hasAnyRole]);
+    }, [pathname, userId, user]);
 
     return (
         <div className="min-h-screen bg-slate-100">
