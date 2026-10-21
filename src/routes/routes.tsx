@@ -207,26 +207,9 @@ export const AppRoutes = () => {
                         }
                     />
 
-                    <Route
-                        path="ppe-categories"
-                        element={
-                            <PPECategoriesPage />
-                        }
-                    />
-
-                    <Route
-                        path="ppe-products"
-                        element={
-                            <PPEProductsPage />
-                        }
-                    />
-
-                    <Route
-                        path="inventory"
-                        element={
-                            <InventoryPage />
-                        }
-                    />
+                    <Route element={<ProtectedRoute allowedRoles={["Administrator", "Warehouse", "Viewer"]} />}>
+                        <Route path="inventory" element={<InventoryPage />} />
+                    </Route>
 
                     {/* Production */}
                     <Route
@@ -240,25 +223,12 @@ export const AppRoutes = () => {
                         }
                     >
                         <Route
-                            path="purchase-orders"
-                            element={
-                                <PurchaseOrdersPage />
-                            }
-                        />
-
-                        <Route
                             path="ppe-requests"
                             element={
                                 <PPERequestsPage />
                             }
                         />
 
-                        <Route
-                            path="employees"
-                            element={
-                                <EmployeesPage />
-                            }
-                        />
                     </Route>
 
                     {/* Warehouse */}
@@ -304,6 +274,10 @@ export const AppRoutes = () => {
                             />
                         }
                     >
+                        <Route path="ppe-categories" element={<PPECategoriesPage />} />
+                        <Route path="ppe-products" element={<PPEProductsPage />} />
+                        <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                        <Route path="employees" element={<EmployeesPage />} />
                         <Route
                             path="product-suppliers"
                             element={

@@ -12,6 +12,8 @@ import type {
 
 import { navigationItems } from "../config/navigation";
 import { getRecentModules } from "../utils/recentModules";
+import { getRoleLabel } from "../utils/roleLabels";
+import { isProductionOnly } from "../utils/userRoles";
 
 interface QuickAction {
     label: string;
@@ -55,12 +57,13 @@ const quickActions: QuickAction[] = [
         label: "Órdenes de compra",
         description: "Crear y administrar órdenes de compra.",
         path: "/purchase-orders?action=new",
-        roles: ["Administrator", "Production"],
+        roles: ["Administrator"],
     },
     {
         label: "Consultar inventario",
         description: "Consultar existencias y disponibilidad por almacén.",
         path: "/inventory",
+        roles: ["Administrator", "Warehouse", "Viewer"],
     },
 ];
 
@@ -69,6 +72,26 @@ export const DashboardPage = () => {
         user,
         hasAnyRole,
     } = useAuth();
+
+    if (user && isProductionOnly(user.roles)) {
+        return (
+            <div className="mx-auto max-w-7xl space-y-6">
+                <section className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">MESA · Inicio</p>
+                    <h1 className="mt-3 wrap-break-word text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Hola, {user.name}</h1>
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">Desde aquí puedes solicitar el equipo de protección personal necesario para tu área.</p>
+                    <Link to="/ppe-requests?action=new" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 focus-visible:ring-offset-2">Solicitar EPP</Link>
+                </section>
+                <section aria-label="Datos del solicitante" className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+                    <dl className="grid gap-5 text-sm sm:grid-cols-3 [&>div]:min-w-0 [&_dd]:wrap-break-word">
+                        <div><dt className="text-slate-500">Nombre</dt><dd className="mt-1 font-medium text-slate-900">{user.name}</dd></div>
+                        <div><dt className="text-slate-500">Número de nómina</dt><dd className="mt-1 font-medium text-slate-900">{user.employeeNumber}</dd></div>
+                        <div><dt className="text-slate-500">Unidad organizacional</dt><dd className="mt-1 font-medium text-slate-900">{user.organizationalUnitName ?? "Sin unidad asignada"}</dd></div>
+                    </dl>
+                </section>
+            </div>
+        );
+    }
 
     const availableActions =
         quickActions.filter(
@@ -89,7 +112,7 @@ export const DashboardPage = () => {
             <section className="relative isolate overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:p-8">
                 <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full border-32 border-white/50" />
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                    MESA · Dashboard
+                    MESA · Inicio
                 </p>
 
                 <h1 className="mt-3 wrap-break-word text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
@@ -230,7 +253,7 @@ export const DashboardPage = () => {
                         </dt>
 
                         <dd className="mt-2 wrap-break-word text-sm font-medium leading-6 text-sky-800">
-                            {user?.roles.join(
+                            {user?.roles.map(getRoleLabel).join(
                                 ", "
                             )}
                         </dd>

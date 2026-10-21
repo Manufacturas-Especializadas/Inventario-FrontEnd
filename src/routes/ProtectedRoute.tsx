@@ -11,6 +11,7 @@ import {
 import type {
     UserRole,
 } from "../types/types";
+import { isProductionOnly } from "../utils/userRoles";
 
 interface ProtectedRouteProps {
     allowedRoles?: UserRole[];
@@ -23,6 +24,7 @@ export const ProtectedRoute = ({
         isAuthenticated,
         isLoading,
         hasAnyRole,
+        user,
     } = useAuth();
 
     const location =
@@ -51,8 +53,8 @@ export const ProtectedRoute = ({
     }
 
     if (
-        allowedRoles &&
-        !hasAnyRole(allowedRoles)
+        (isProductionOnly(user?.roles ?? []) && !["/", "/ppe-requests"].includes(location.pathname.replace(/\/+$/, "") || "/")) ||
+        (allowedRoles && !hasAnyRole(allowedRoles))
     ) {
         return (
             <Navigate

@@ -9,9 +9,52 @@ import type {
     DeliverPPERequestResult,
     PPERequest,
     PagedResult,
+    PPERequestFormOptions,
+    RequestablePPEProduct,
+    PendingApprovalPPERequest,
+    ApprovePPERequestResult,
+    RejectPPERequestRequest,
+    RejectPPERequestResult,
 } from "../../types/types";
 
 export const ppeRequestsService = {
+    async getPendingApproval(pageNumber = 1, pageSize = 25): Promise<PagedResult<PendingApprovalPPERequest>> {
+        const response = await apiClient.get<PagedResult<PendingApprovalPPERequest>>(
+            "/ppe-requests/pending-approval",
+            { params: { pageNumber, pageSize } }
+        );
+        return response.data;
+    },
+
+    async approve(folio: string): Promise<ApprovePPERequestResult> {
+        const response = await apiClient.post<ApprovePPERequestResult>(
+            `/ppe-requests/${encodeURIComponent(folio)}/approve`
+        );
+        return response.data;
+    },
+
+    async reject(folio: string, rejectionReason: string): Promise<RejectPPERequestResult> {
+        const request: RejectPPERequestRequest = { rejectionReason };
+        const response = await apiClient.post<RejectPPERequestResult>(
+            `/ppe-requests/${encodeURIComponent(folio)}/reject`,
+            request
+        );
+        return response.data;
+    },
+
+    async getFormOptions(): Promise<PPERequestFormOptions> {
+        const response = await apiClient.get<PPERequestFormOptions>("/ppe-requests/form-options");
+        return response.data;
+    },
+
+    async getRequestableProducts(warehouseId: number): Promise<RequestablePPEProduct[]> {
+        const response = await apiClient.get<RequestablePPEProduct[]>(
+            "/ppe-requests/requestable-products",
+            { params: { warehouseId } }
+        );
+        return response.data;
+    },
+
     async getByFolio(
         folio: string
     ): Promise<PPERequest> {

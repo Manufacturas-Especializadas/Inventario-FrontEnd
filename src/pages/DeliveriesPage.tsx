@@ -18,6 +18,9 @@ import type {
 } from "../types/types";
 
 import { PageHeader } from "../components/ui/PageHeader";
+import { PPERequestApprovalsSection } from "../components/ppe-requests/PPERequestApprovalsSection";
+import { useAuth } from "../hooks/useAuth";
+import { getRequestReasonLabel } from "../utils/requestReasonLabels";
 
 
 const formatDateTime = (
@@ -55,6 +58,7 @@ const normalizeText = (
 };
 
 export const DeliveriesPage = () => {
+    const { user, hasRole } = useAuth();
     const {
         pendingRequests,
         pendingHasLoaded,
@@ -243,6 +247,7 @@ export const DeliveriesPage = () => {
                             request
                                 .requestedForOrganizationalUnitName,
                             request.requestReason,
+                            getRequestReasonLabel(request.requestReason, request.requestReasonCode),
                             request.warehouseName,
                         ].some((value) =>
                             normalizeText(
@@ -493,6 +498,8 @@ export const DeliveriesPage = () => {
                 description="Consulta solicitudes pendientes y confirma la entrega física de los artículos al empleado correspondiente."
             />
 
+
+            {hasRole("Administrator") && <PPERequestApprovalsSection key={user?.userId} />}
 
             {/* Filtro */}
 
@@ -1149,7 +1156,7 @@ export const DeliveriesPage = () => {
 
                                                     <p className="mt-1 text-sm font-medium text-slate-800">
                                                         {
-                                                            request.requestReason
+                                                            getRequestReasonLabel(request.requestReason, request.requestReasonCode)
                                                         }
                                                     </p>
                                                 </div>

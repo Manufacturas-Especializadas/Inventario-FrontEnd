@@ -9,7 +9,7 @@ import {
 } from "react-router";
 
 import {
-    navigationItems,
+    getVisibleNavigationItems,
     navigationGroups,
     type NavigationGroupId,
 } from "../../config/navigation";
@@ -17,6 +17,8 @@ import {
 import {
     useAuth,
 } from "../../hooks/useAuth";
+
+import mesaLogo from "../../assets/branding/logomesa-1.png";
 
 interface SidebarProps {
     isOpen: boolean;
@@ -37,17 +39,12 @@ export const Sidebar = ({
     onClose,
 }: SidebarProps) => {
     const {
-        hasAnyRole,
+        user,
     } = useAuth();
 
     const { pathname } = useLocation();
 
-    const visibleItems =
-        navigationItems.filter(
-            (item) =>
-                !item.roles ||
-                hasAnyRole(item.roles)
-        );
+    const visibleItems = getVisibleNavigationItems(user?.roles ?? []);
 
     const visibleGroups = navigationGroups
         .map((group) => ({
@@ -101,15 +98,8 @@ export const Sidebar = ({
         `}
             >
                 <div className="flex min-h-20 shrink-0 items-center gap-3 border-b border-sky-100 px-5 py-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-700 text-white shadow-sm">
-                        <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3ZM4 7.5l8 4.5 8-4.5M12 12v9M8 5.25l8 4.5" />
-                        </svg>
-                    </span>
                     <div className="min-w-0 flex-1">
-                        <p className="text-lg font-semibold tracking-[0.16em] text-slate-900">
-                            MESA
-                        </p>
+                        <img src={mesaLogo} alt="MESA" className="h-8 w-auto max-w-full object-contain" />
                         <p className="mt-0.5 text-xs text-slate-500">Sistema de inventario</p>
                     </div>
                     <button type="button" onClick={onClose} aria-label="Cerrar menú de navegación" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 motion-reduce:transition-none lg:hidden">
@@ -151,7 +141,7 @@ export const Sidebar = ({
                         )}
                     </div>
 
-                    <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                    {visibleGroups.length > 0 && <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
                         {visibleGroups.map((group) => {
                             const expanded = openGroupId === group.id;
                             const active = activeGroupId === group.id;
@@ -204,7 +194,7 @@ export const Sidebar = ({
                                 </div>
                             );
                         })}
-                    </div>
+                    </div>}
                 </nav>
 
                 <div className="shrink-0 border-t border-sky-100 bg-sky-50/60 px-6 py-5">

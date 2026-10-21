@@ -5,6 +5,7 @@ import {
 import {
     useAuth,
 } from "../../hooks/useAuth";
+import { getRoleLabel } from "../../utils/roleLabels";
 
 interface HeaderProps {
     onOpenSidebar: () => void;
@@ -71,7 +72,7 @@ export const Header = ({
                         </p>
 
                         <p className="mt-1 wrap-break-word text-xs leading-5 text-sky-800">
-                            {user?.roles.join(
+                            {user?.roles.map(getRoleLabel).join(
                                 ", "
                             )}
                         </p>
