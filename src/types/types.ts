@@ -615,6 +615,11 @@ export interface PPERequestItem {
     sku: string;
     productName: string;
     quantity: number;
+
+    stockUnitId: number;
+    stockUnitName: string;
+    stockUnitSymbol: string | null;
+
     replacementIntervalDays: number | null;
 }
 
@@ -640,11 +645,50 @@ export interface PPERequest {
     notes: string | null;
 
     createdAt: string;
+    approvedByUserId: number | null;
+    approvedByUserName: string | null;
+    approvedAt: string | null;
     deliveredAt: string | null;
     cancelledAt: string | null;
     cancellationReason: string | null;
 
     items: PPERequestItem[];
+}
+
+export interface PendingPPERequest {
+    id: number;
+    folio: string;
+    createdAt: string;
+
+    employeeId: number;
+    employeeNumber: string;
+    employeeName: string;
+
+    requestedForOrganizationalUnitId: number | null;
+    requestedForOrganizationalUnitName: string | null;
+
+    warehouseId: number;
+    warehouseName: string;
+
+    requestReasonId: number;
+    requestReason: string;
+    requestReasonCode: string;
+
+    itemCount: number;
+
+    status: Extract<PPERequestStatus, 1>;
+
+    approvedAt: string | null;
+}
+
+export interface GetPendingPPERequestsParams {
+    warehouseId?: number | null;
+    search?: string | null;
+    requestedForOrganizationalUnitId?: number | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+    pageNumber?: number;
+    pageSize?: number;
 }
 
 

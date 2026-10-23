@@ -15,6 +15,8 @@ import type {
     ApprovePPERequestResult,
     RejectPPERequestRequest,
     RejectPPERequestResult,
+    PendingPPERequest,
+    GetPendingPPERequestsParams,
 } from "../../types/types";
 
 export const ppeRequestsService = {
@@ -82,16 +84,15 @@ export const ppeRequestsService = {
 
 
     async getPending(
-        warehouseId?: number | null
-    ): Promise<PPERequest[]> {
+        params: GetPendingPPERequestsParams = {}
+    ): Promise<PagedResult<PendingPPERequest>> {
         const response =
-            await apiClient.get<PPERequest[]>(
+            await apiClient.get<
+                PagedResult<PendingPPERequest>
+            >(
                 "/ppe-requests/pending",
                 {
-                    params:
-                        warehouseId
-                            ? { warehouseId }
-                            : undefined,
+                    params,
                 }
             );
 
