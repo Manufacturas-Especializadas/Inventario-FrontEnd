@@ -44,7 +44,8 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
     const createActionHandled = useRef(false);
 
     const selectedReason = options?.requestReasons.find((reason) => reason.id === Number(requestReasonId));
-    const notesRequired = Boolean(selectedReason && ["DAMAGE", "LOST", "OTHER"].includes(selectedReason.code));
+    const requiresApproval = Boolean(selectedReason && ["DAMAGE", "LOST", "OTHER"].includes(selectedReason.code));
+    const notesRequired = requiresApproval;
     const productsReady = loadedWarehouseId !== null && loadedWarehouseId === Number(warehouseId) && !loadingProducts;
     const managedUnits = options?.managedOrganizationalUnits ?? [];
     const canSubmit = Boolean(managedUnits.some((unit) => unit.id === Number(consumptionUnitId)) &&
@@ -162,11 +163,52 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
             </button>
 
             {createResult && status && (
-                <div role="status" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                    <p>Solicitud creada correctamente. Folio: {createResult.request.folio}</p>
-                    <p><span className={`inline-block rounded-lg px-3 py-1 font-semibold ${status.className}`}>{status.label}</span></p>
+                <div
+                    role="status"
+                    className={
+                        createResult.request.status === 4
+                            ? "space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+                            : "space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+                    }
+                >
+                    {createResult.request.status === 4 ? (
+                        <>
+                            <p className="font-semibold">
+                                Solicitud enviada.
+                            </p>
+
+                            <p>
+                                Tu solicitud fue registrada correctamente con el folio{" "}
+                                <strong>{createResult.request.folio}</strong>, pero requiere
+                                aprobación.
+                            </p>
+
+                            <p>
+                                Ponte en contacto con el departamento de seguridad.
+                            </p>
+                        </>
+                    ) : (
+                        <p>
+                            Solicitud creada correctamente. Folio:{" "}
+                            {createResult.request.folio}
+                        </p>
+                    )}
+
+                    <p>
+                        <span
+                            className={`inline-block rounded-lg px-3 py-1 font-semibold ${status.className}`}
+                        >
+                            {status.label}
+                        </span>
+                    </p>
+
                     {createResult.warnings.map((warning, index) => (
-                        <p key={`${warning.code}-${warning.ppeProductId}-${index}`} className="text-amber-800">{warning.message}</p>
+                        <p
+                            key={`${warning.code}-${warning.ppeProductId}-${index}`}
+                            className="text-amber-800"
+                        >
+                            {warning.message}
+                        </p>
                     ))}
                 </div>
             )}
@@ -234,6 +276,23 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
                                         {options.requestReasons.map((reason) => <option key={reason.id} value={reason.id}>{getRequestReasonLabel(reason.name, reason.code)}</option>)}
                                     </select>
                                     {selectedReason?.description && <p className="mt-2 text-sm text-slate-500">{selectedReason.description}</p>}
+                                    {requiresApproval && (
+                                        <div
+                                            role="status"
+                                            className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+                                        >
+                                            <p className="font-semibold">
+                                                Esta solicitud requiere autorización.
+                                            </p>
+
+                                            <p className="mt-1">
+                                                Antes de que Almacén pueda entregar el EPP, un administrador deberá
+                                                revisar y autorizar la solicitud. Ponte en contacto con el
+                                                administrador para informarle lo sucedido y dar seguimiento a la
+                                                autorización.
+                                            </p>
+                                        </div>
+                                    )}
                                     {options.requestReasons.length === 0 && <p role="status" className="mt-2 text-sm text-amber-800">No hay motivos de solicitud disponibles.</p>}
                                 </div>
                             </section>
