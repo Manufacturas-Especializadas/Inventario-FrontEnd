@@ -138,9 +138,9 @@ export const LoginPage = () => {
                     </div>
 
                     <div className="my-10 lg:my-16">
-                        <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em] text-sky-200">Gestión de inventarios</p>
-                        <h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">Cada recurso.<br /><span className="text-sky-300">Todo en su lugar.</span></h2>
-                        <p className="mt-6 hidden max-w-xs text-sm leading-7 text-sky-100/90 sm:block">Organización y control de los recursos que hacen posible cada operación.</p>
+                        <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em] text-sky-200">Cada recurso Todo en su lugar</p>
+                        <h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">Gestión de equipo<br /><span className="text-sky-300">de protección personal</span></h2>
+                        <p className="mt-6 hidden max-w-xs text-sm leading-7 text-sky-100/90 sm:block"></p>
                     </div>
 
                     <div className="flex items-center gap-2 text-xs tracking-wide text-sky-200">
@@ -244,7 +244,7 @@ export const LoginPage = () => {
                                     : "Iniciar sesión"}
                             </button>
                         </form>
-                        <p className="mt-9 border-t border-slate-100 pt-6 text-center text-xs leading-5 text-slate-500">MESA · Gestión de inventarios</p>
+                        <p className="mt-9 border-t border-slate-100 pt-6 text-center text-xs leading-5 text-slate-500">MESA · Gestión de EPP</p>
                     </div>
                 </section>
             </div>

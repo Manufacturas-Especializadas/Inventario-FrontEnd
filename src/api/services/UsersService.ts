@@ -4,6 +4,7 @@ import {
 
 import type {
     AdminUser,
+    ManagedOrganizationalUnit,
     CreateUserRequest,
     CreateUserResponse,
     ResetUserPasswordRequest,
@@ -14,6 +15,15 @@ import type {
 
 
 export const usersService = {
+    async getManagedOrganizationalUnits(id: number): Promise<ManagedOrganizationalUnit[]> {
+        const response = await apiClient.get<ManagedOrganizationalUnit[]>(`/users/${id}/managed-organizational-units`);
+        return response.data;
+    },
+
+    async setManagedOrganizationalUnits(id: number, organizationalUnitIds: number[]): Promise<void> {
+        await apiClient.put(`/users/${id}/managed-organizational-units`, { organizationalUnitIds });
+    },
+
     async getAll():
         Promise<AdminUser[]> {
         const response =

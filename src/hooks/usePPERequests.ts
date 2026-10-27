@@ -15,6 +15,8 @@ import type {
     CreatePPERequestResult,
     DeliverPPERequestResult,
     PPERequest,
+    PendingPPERequest,
+    GetPendingPPERequestsParams,
 } from "../types/types";
 
 import {
@@ -28,24 +30,57 @@ interface UsePPERequestsOptions {
 
 export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions = {}) => {
     const pendingRequestId = useRef(0);
-    const pendingLoad = useRef<{ warehouseId: number | null; promise: Promise<PPERequest[]> } | null>(null);
-    const pendingScope = useRef<number | null>(null);
-    const pendingLoaded = useRef(false);
-    const pendingMutations = useRef(new Map<string, PPERequest | null>());
+
+    const pendingLoad = useRef<{
+        key: string;
+        promise: Promise<PendingPPERequest[]>;
+    } | null>(null);
+
+    const pendingMutations =
+        useRef(
+            new Map<
+                string,
+                PendingPPERequest | null
+            >()
+        );
+
     const [pendingHasLoaded, setPendingHasLoaded] = useState(false);
     const historyRequestId = useRef(0);
 
     const [
-        request,
-        setRequest,
-    ] = useState<PPERequest | null>(
-        null
-    );
+        pendingPageNumber,
+        setPendingPageNumber,
+    ] = useState(1);
+
+    const [
+        pendingPageSize,
+        setPendingPageSize,
+    ] = useState(25);
+
+    const [
+        pendingTotalCount,
+        setPendingTotalCount,
+    ] = useState(0);
+
+    const [
+        pendingTotalPages,
+        setPendingTotalPages,
+    ] = useState(0);
+
+    const [
+        pendingHasPreviousPage,
+        setPendingHasPreviousPage,
+    ] = useState(false);
+
+    const [
+        pendingHasNextPage,
+        setPendingHasNextPage,
+    ] = useState(false);
 
     const [
         pendingRequests,
         setPendingRequests,
-    ] = useState<PPERequest[]>([]);
+    ] = useState<PendingPPERequest[]>([]);
 
     const [
         createResult,
@@ -168,74 +203,208 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
         pendingRequestId.current += 1;
         pendingLoad.current = null;
         pendingMutations.current.clear();
-        pendingLoaded.current = false;
+
         setPendingHasLoaded(false);
         setPendingRequests([]);
         setPendingError(null);
         setLoadingPending(false);
+
+        setPendingPageNumber(1);
+        setPendingPageSize(25);
+        setPendingTotalCount(0);
+        setPendingTotalPages(0);
+        setPendingHasPreviousPage(false);
+        setPendingHasNextPage(false);
     }, []);
 
-    const getPending = useCallback((warehouseId?: number | null): Promise<PPERequest[]> => {
-        const scope = warehouseId ?? null;
-        if (pendingLoad.current?.warehouseId === scope) return pendingLoad.current.promise;
-        if (scope !== pendingScope.current) {
-            pendingLoaded.current = false;
-            setPendingHasLoaded(false);
-            setPendingRequests([]);
-        }
-        pendingScope.current = scope;
-        const currentRequestId = ++pendingRequestId.current;
-        pendingMutations.current.clear();
-        setLoadingPending(true);
-        setPendingError(null);
+    const getPending = useCallback(
+        (
+            params:
+                GetPendingPPERequestsParams = {}
+        ): Promise<PendingPPERequest[]> => {
+            const normalizedParams = {
+                warehouseId:
+                    params.warehouseId ?? null,
 
-        const promise = (async () => {
-            try {
-                const data = await ppeRequestsService.getPending(warehouseId);
-                if (currentRequestId !== pendingRequestId.current) return [];
+                search:
+                    params.search?.trim() ||
+                    null,
 
-                // An older GET must not undo a successful create, cancel or delivery.
-                const merged = new Map(data.map((entry) => [entry.folio, entry]));
-                pendingMutations.current.forEach((entry, folio) => {
-                    if (entry) merged.set(folio, entry);
-                    else merged.delete(folio);
-                });
-                const pending = Array.from(merged.values());
-                setPendingRequests(pending);
-                pendingLoaded.current = true;
-                setPendingHasLoaded(true);
-                return pending;
-            } catch (error) {
-                if (currentRequestId !== pendingRequestId.current) return [];
-                setPendingError(getApiErrorMessage(error, "No fue posible cargar las solicitudes pendientes."));
-                return [];
-            } finally {
-                if (currentRequestId === pendingRequestId.current) {
-                    setLoadingPending(false);
-                    pendingLoad.current = null;
-                    pendingMutations.current.clear();
-                }
+                requestedForOrganizationalUnitId:
+                    params.requestedForOrganizationalUnitId ??
+                    null,
+
+                dateFrom:
+                    params.dateFrom || null,
+
+                dateTo:
+                    params.dateTo || null,
+
+                pageNumber:
+                    params.pageNumber ?? 1,
+
+                pageSize:
+                    params.pageSize ?? 25,
+            };
+
+            const key =
+                JSON.stringify(
+                    normalizedParams
+                );
+
+            if (
+                pendingLoad.current?.key ===
+                key
+            ) {
+                return pendingLoad.current
+                    .promise;
             }
-        })();
-        pendingLoad.current = { warehouseId: scope, promise };
-        return promise;
-    }, []);
+
+            const currentRequestId =
+                ++pendingRequestId.current;
+
+            pendingMutations.current.clear();
+
+            setLoadingPending(true);
+            setPendingError(null);
+
+            const promise = (async () => {
+                try {
+                    const data =
+                        await ppeRequestsService
+                            .getPending(
+                                normalizedParams
+                            );
+
+                    if (
+                        currentRequestId !==
+                        pendingRequestId.current
+                    ) {
+                        return [];
+                    }
+
+                    /*
+                     * Una operación local de entrega o cancelación
+                     * no debe ser revertida por una consulta que
+                     * comenzó antes de dicha operación.
+                     */
+                    const merged =
+                        new Map(
+                            data.items.map(
+                                (entry) => [
+                                    entry.folio,
+                                    entry,
+                                ]
+                            )
+                        );
+
+                    pendingMutations.current
+                        .forEach(
+                            (
+                                entry,
+                                folio
+                            ) => {
+                                if (entry) {
+                                    merged.set(
+                                        folio,
+                                        entry
+                                    );
+                                } else {
+                                    merged.delete(
+                                        folio
+                                    );
+                                }
+                            }
+                        );
+
+                    const pending =
+                        Array.from(
+                            merged.values()
+                        );
+
+                    setPendingRequests(
+                        pending
+                    );
+
+                    setPendingPageNumber(
+                        data.pageNumber
+                    );
+
+                    setPendingPageSize(
+                        data.pageSize
+                    );
+
+                    setPendingTotalCount(
+                        data.totalCount
+                    );
+
+                    setPendingTotalPages(
+                        data.totalPages
+                    );
+
+                    setPendingHasPreviousPage(
+                        data.hasPreviousPage
+                    );
+
+                    setPendingHasNextPage(
+                        data.hasNextPage
+                    );
+
+                    setPendingHasLoaded(
+                        true
+                    );
+
+                    return pending;
+                } catch (error) {
+                    if (
+                        currentRequestId !==
+                        pendingRequestId.current
+                    ) {
+                        return [];
+                    }
+
+                    setPendingError(
+                        getApiErrorMessage(
+                            error,
+                            "No fue posible cargar las solicitudes pendientes."
+                        )
+                    );
+
+                    return [];
+                } finally {
+                    if (
+                        currentRequestId ===
+                        pendingRequestId.current
+                    ) {
+                        setLoadingPending(
+                            false
+                        );
+
+                        pendingLoad.current =
+                            null;
+
+                        pendingMutations.current
+                            .clear();
+                    }
+                }
+            })();
+
+            pendingLoad.current = {
+                key,
+                promise,
+            };
+
+            return promise;
+        },
+        []
+    );
 
     const removePending = useCallback((folio: string) => {
         if (pendingLoad.current) pendingMutations.current.set(folio, null);
         setPendingRequests((current) => current.filter((entry) => entry.folio !== folio));
     }, []);
 
-    const upsertPending = useCallback((entry: PPERequest) => {
-        if (entry.status !== 1 || (pendingScope.current !== null && entry.warehouseId !== pendingScope.current)) return;
-        if (pendingLoad.current) pendingMutations.current.set(entry.folio, entry);
-        // A single mutation is not a complete pending list.
-        if (pendingLoaded.current) {
-            setPendingRequests((current) => current.some((item) => item.folio === entry.folio)
-                ? current.map((item) => item.folio === entry.folio ? entry : item)
-                : [...current, entry]);
-        }
-    }, []);
+
 
     const getByFolio =
         useCallback(
@@ -252,12 +421,8 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                                 folio
                             );
 
-                    setRequest(data);
-
                     return data;
                 } catch (error) {
-                    setRequest(null);
-
                     setError(
                         getApiErrorMessage(
                             error,
@@ -292,11 +457,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                             );
 
                     setCreateResult(data);
-                    upsertPending(data.request);
-
-                    setRequest(
-                        data.request
-                    );
 
                     return data;
                 } catch (error) {
@@ -312,7 +472,7 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                     setLoading(false);
                 }
             },
-            [upsertPending]
+            []
         );
 
     const cancelRequest =
@@ -383,8 +543,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
     const clearRequest =
         useCallback(() => {
-            setRequest(null);
-
             setCreateResult(null);
 
             setError(null);
@@ -562,31 +720,46 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
 
     return {
-        request,
         pendingRequests,
         pendingHasLoaded,
+
+        pendingPageNumber,
+        pendingPageSize,
+        pendingTotalCount,
+        pendingTotalPages,
+        pendingHasPreviousPage,
+        pendingHasNextPage,
+
         createResult,
+
         loading,
         loadingPending,
+
         error,
-        clearDeliverError,
         pendingError,
+
         getByFolio,
         getPending,
         clearPending,
+
         createRequest,
         clearRequest,
+
         cancellingFolio,
         cancelError,
         cancelRequest,
+
         deliveringFolio,
         deliverError,
+        clearDeliverError,
         deliverRequest,
+
         history,
         loadingHistory,
         historyError,
         getHistory,
         clearHistory,
+
         historyPageNumber,
         historyTotalCount,
         historyTotalPages,

@@ -1,6 +1,5 @@
 import {
     useState,
-    useMemo,
     useRef,
     useEffect,
     useEffectEvent,
@@ -110,24 +109,6 @@ const getOrganizationalUnitTypeLabel = (
     }
 };
 
-type PendingRequestsSort =
-    | "newest"
-    | "oldest";
-
-
-const normalizeText = (
-    value: string | null | undefined
-) => {
-    return (value ?? "")
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .trim()
-        .toLocaleLowerCase("es");
-};
-
 export const PPERequestsPage = () => {
     const { user, isLoading } = useAuth();
 
@@ -201,6 +182,14 @@ const AdministrativePPERequestsPage = () => {
     const {
         pendingRequests,
         pendingHasLoaded,
+
+        pendingPageNumber,
+        pendingPageSize,
+        pendingTotalCount,
+        pendingTotalPages,
+        pendingHasPreviousPage,
+        pendingHasNextPage,
+
         history,
         createResult,
 
@@ -354,13 +343,6 @@ const AdministrativePPERequestsPage = () => {
         setPendingSearch,
     ] = useState("");
 
-    const [
-        pendingSort,
-        setPendingSort,
-    ] =
-        useState<PendingRequestsSort>(
-            "newest"
-        );
 
     const loadingCatalogs =
         loadingOrganizationalUnits ||
@@ -373,101 +355,38 @@ const AdministrativePPERequestsPage = () => {
         warehousesError ||
         requestReasonsError;
 
-    const filteredPendingRequests =
-        useMemo(() => {
-            const normalizedSearch =
-                normalizeText(
-                    pendingSearch
-                );
 
-            return pendingRequests
-                .filter((request) => {
-                    if (!normalizedSearch) {
-                        return true;
-                    }
+    const loadPendingRequests =
+        async (
+            pageNumber = 1
+        ) => {
+            return getPending({
+                search:
+                    pendingSearch.trim() ||
+                    null,
 
-                    const matchesRequest =
-                        [
-                            request.folio,
-                            request.employeeNumber,
-                            request.employeeName,
-                            request
-                                .requestedForOrganizationalUnitName,
-                            request.warehouseName,
-                            request.requestReason,
-                            getRequestReasonLabel(request.requestReason, request.requestReasonCode),
-                            request.notes,
-                        ].some((value) =>
-                            normalizeText(
-                                value
-                            ).includes(
-                                normalizedSearch
-                            )
-                        );
+                pageNumber,
 
-                    const matchesProduct =
-                        request.items.some(
-                            (item) =>
-                                normalizeText(
-                                    item.sku
-                                ).includes(
-                                    normalizedSearch
-                                ) ||
-                                normalizeText(
-                                    item.productName
-                                ).includes(
-                                    normalizedSearch
-                                )
-                        );
-
-                    return (
-                        matchesRequest ||
-                        matchesProduct
-                    );
-                })
-                .sort((first, second) => {
-                    const firstDate =
-                        new Date(
-                            first.createdAt
-                        ).getTime();
-
-                    const secondDate =
-                        new Date(
-                            second.createdAt
-                        ).getTime();
-
-                    if (
-                        pendingSort ===
-                        "oldest"
-                    ) {
-                        return (
-                            firstDate -
-                            secondDate
-                        );
-                    }
-
-                    return (
-                        secondDate -
-                        firstDate
-                    );
-                });
-        }, [
-            pendingRequests,
-            pendingSearch,
-            pendingSort,
-        ]);
+                pageSize:
+                    pendingPageSize,
+            });
+        };
 
 
     const hasPendingFilters =
         Boolean(
-            pendingSearch.trim() ||
-            pendingSort !== "newest"
+            pendingSearch.trim()
         );
 
 
     const clearPendingFilters = () => {
         setPendingSearch("");
-        setPendingSort("newest");
+
+        void getPending({
+            search: null,
+            pageNumber: 1,
+            pageSize: pendingPageSize,
+        });
     };
 
 
@@ -853,11 +772,26 @@ const AdministrativePPERequestsPage = () => {
                 `Solicitud ${result.folio} cancelada correctamente.`
             );
 
-            setCancelFolio(
-                null
-            );
-
+            setCancelFolio(null);
             setCancellationReason("");
+
+            const nextPage =
+                pendingRequests.length === 1 &&
+                    pendingPageNumber > 1
+                    ? pendingPageNumber - 1
+                    : pendingPageNumber;
+
+            await getPending({
+                search:
+                    pendingSearch.trim() ||
+                    null,
+
+                pageNumber:
+                    nextPage,
+
+                pageSize:
+                    pendingPageSize,
+            });
         };
 
     const handleLoadWarehouseProducts =
@@ -1088,16 +1022,14 @@ const AdministrativePPERequestsPage = () => {
                         </h2>
 
                         <p className="mt-2 text-sm leading-6 text-slate-500">
-                            Solicitudes creadas que todavía
-                            no han sido entregadas ni
-                            canceladas.
+                            Solicitudes creadas que todavía no han sido entregadas ni canceladas.
                         </p>
                     </div>
 
                     <button
                         type="button"
                         onClick={() =>
-                            void getPending()
+                            void loadPendingRequests(1)
                         }
                         disabled={
                             loadingPending
@@ -1106,13 +1038,15 @@ const AdministrativePPERequestsPage = () => {
                     >
                         {loadingPending
                             ? "Cargando solicitudes..."
-                            : pendingHasLoaded ? "Actualizar" : "Cargar solicitudes"}
+                            : pendingHasLoaded
+                                ? "Actualizar"
+                                : "Cargar solicitudes"}
                     </button>
                 </div>
-                {pendingHasLoaded && pendingRequests.length > 0 && (
-                    <div className="mt-6 border-t border-slate-100 pt-6">
-                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px_auto] lg:items-end">
 
+                {pendingHasLoaded && (
+                    <div className="mt-6 border-t border-slate-100 pt-6">
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                             <div>
                                 <label
                                     htmlFor="pending-request-search"
@@ -1129,77 +1063,62 @@ const AdministrativePPERequestsPage = () => {
                                     }
                                     onChange={(event) =>
                                         setPendingSearch(
-                                            event.target
-                                                .value
+                                            event.target.value
                                         )
                                     }
-                                    placeholder="Folio, nómina, empleado, SKU o producto..."
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            void loadPendingRequests(1);
+                                        }
+                                    }}
+                                    placeholder="Folio, nómina o empleado..."
                                     autoComplete="off"
                                     className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
                                 />
                             </div>
 
-
-                            <div>
-                                <label
-                                    htmlFor="pending-request-sort"
-                                    className="block text-sm font-medium text-slate-700"
-                                >
-                                    Ordenar
-                                </label>
-
-                                <select
-                                    id="pending-request-sort"
-                                    value={
-                                        pendingSort
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void loadPendingRequests(1)
                                     }
-                                    onChange={(event) =>
-                                        setPendingSort(
-                                            event.target
-                                                .value as PendingRequestsSort
-                                        )
+                                    disabled={
+                                        loadingPending
                                     }
-                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 hover:border-sky-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 motion-reduce:transition-none"
+                                    className="min-h-11 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <option value="newest">
-                                        Más recientes
-                                    </option>
+                                    Buscar
+                                </button>
 
-                                    <option value="oldest">
-                                        Más antiguas
-                                    </option>
-                                </select>
+                                <button
+                                    type="button"
+                                    onClick={
+                                        clearPendingFilters
+                                    }
+                                    disabled={
+                                        !hasPendingFilters ||
+                                        loadingPending
+                                    }
+                                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                                >
+                                    Limpiar filtros
+                                </button>
                             </div>
-
-
-                            <button
-                                type="button"
-                                onClick={
-                                    clearPendingFilters
-                                }
-                                disabled={
-                                    !hasPendingFilters
-                                }
-                                className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
-                            >
-                                Limpiar filtros
-                            </button>
                         </div>
-
 
                         <p className="mt-4 text-sm text-slate-500">
                             Mostrando{" "}
                             <span className="font-semibold text-slate-800">
-                                {
-                                    filteredPendingRequests.length
-                                }
+                                {pendingRequests.length}
                             </span>
                             {" de "}
-                            {
-                                pendingRequests.length
-                            }
+                            <span className="font-semibold text-slate-800">
+                                {pendingTotalCount}
+                            </span>
                             {" "}
-                            {pendingRequests.length === 1
+                            {pendingTotalCount === 1
                                 ? "solicitud"
                                 : "solicitudes"}
                         </p>
@@ -1212,23 +1131,28 @@ const AdministrativePPERequestsPage = () => {
                     </div>
                 )}
 
-
                 {loadingPending &&
                     pendingRequests.length === 0 && (
                         <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
                             <p className="text-sm text-slate-500">
-                                Cargando solicitudes
-                                pendientes...
+                                Cargando solicitudes pendientes...
                             </p>
                         </div>
                     )}
 
-                {!pendingHasLoaded && !loadingPending && !pendingError && (
-                    <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
-                        <p className="text-sm font-medium text-slate-700">Las solicitudes todavía no se han cargado.</p>
-                        <p className="mt-2 text-sm text-slate-500">Pulsa Cargar solicitudes para consultar los pendientes.</p>
-                    </div>
-                )}
+                {!pendingHasLoaded &&
+                    !loadingPending &&
+                    !pendingError && (
+                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
+                            <p className="text-sm font-medium text-slate-700">
+                                Las solicitudes todavía no se han cargado.
+                            </p>
+
+                            <p className="mt-2 text-sm text-slate-500">
+                                Pulsa Cargar solicitudes para consultar los pendientes.
+                            </p>
+                        </div>
+                    )}
 
                 {!loadingPending &&
                     pendingHasLoaded &&
@@ -1236,45 +1160,18 @@ const AdministrativePPERequestsPage = () => {
                     pendingRequests.length === 0 && (
                         <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
                             <p className="text-sm font-medium text-slate-700">
-                                No hay solicitudes
-                                pendientes.
+                                No hay solicitudes pendientes que coincidan con la consulta.
                             </p>
 
                             <p className="mt-2 text-sm leading-6 text-slate-500">
-                                Las nuevas solicitudes
-                                aparecerán aquí.
+                                Modifica la búsqueda o actualiza la bandeja.
                             </p>
                         </div>
                     )}
 
-                {!loadingPending &&
-                    !pendingError &&
-                    pendingRequests.length > 0 &&
-                    filteredPendingRequests.length === 0 && (
-                        <div className="mt-6 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 px-6 py-10 text-center">
-                            <p className="text-sm font-semibold text-slate-700">
-                                No encontramos solicitudes
-                            </p>
-
-                            <p className="mt-2 text-sm leading-6 text-slate-500">
-                                Ninguna solicitud pendiente coincide con la búsqueda actual.
-                            </p>
-
-                            <button
-                                type="button"
-                                onClick={
-                                    clearPendingFilters
-                                }
-                                className="mt-5 min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
-                            >
-                                Limpiar filtros
-                            </button>
-                        </div>
-                    )}
-
-                {filteredPendingRequests.length > 0 && (
+                {pendingRequests.length > 0 && (
                     <div className="mt-6 space-y-4">
-                        {filteredPendingRequests.map(
+                        {pendingRequests.map(
                             (request) => (
                                 <article
                                     key={
@@ -1286,9 +1183,7 @@ const AdministrativePPERequestsPage = () => {
                                         <div>
                                             <div className="flex flex-wrap items-center gap-3">
                                                 <h3 className="text-base font-semibold text-slate-900">
-                                                    {
-                                                        request.folio
-                                                    }
+                                                    {request.folio}
                                                 </h3>
 
                                                 <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
@@ -1304,7 +1199,6 @@ const AdministrativePPERequestsPage = () => {
                                             </p>
                                         </div>
 
-
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -1316,12 +1210,11 @@ const AdministrativePPERequestsPage = () => {
                                                 cancellingFolio ===
                                                 request.folio
                                             }
-                                            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none min-h-11 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors enabled:hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             Cancelar solicitud
                                         </button>
                                     </div>
-
 
                                     <div className="mt-5 grid gap-5 rounded-xl bg-sky-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 [&>div]:min-w-0 [&>div]:wrap-break-word">
                                         <div>
@@ -1330,19 +1223,14 @@ const AdministrativePPERequestsPage = () => {
                                             </p>
 
                                             <p className="mt-1 text-sm font-medium text-slate-800">
-                                                {
-                                                    request.employeeName
-                                                }
+                                                {request.employeeName}
                                             </p>
 
                                             <p className="text-xs text-slate-500">
                                                 Nómina{" "}
-                                                {
-                                                    request.employeeNumber
-                                                }
+                                                {request.employeeNumber}
                                             </p>
                                         </div>
-
 
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
@@ -1355,19 +1243,15 @@ const AdministrativePPERequestsPage = () => {
                                             </p>
                                         </div>
 
-
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                                 Almacén
                                             </p>
 
                                             <p className="mt-1 text-sm font-medium text-slate-800">
-                                                {
-                                                    request.warehouseName
-                                                }
+                                                {request.warehouseName}
                                             </p>
                                         </div>
-
 
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
@@ -1375,70 +1259,25 @@ const AdministrativePPERequestsPage = () => {
                                             </p>
 
                                             <p className="mt-1 text-sm font-medium text-slate-800">
-                                                {
-                                                    getRequestReasonLabel(request.requestReason, request.requestReasonCode)
-                                                }
+                                                {getRequestReasonLabel(
+                                                    request.requestReason,
+                                                    request.requestReasonCode
+                                                )}
                                             </p>
                                         </div>
                                     </div>
-
 
                                     <div className="mt-5 border-t border-slate-100 pt-5">
                                         <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
                                             Artículos solicitados
                                         </p>
 
-                                        <div className="mt-3 space-y-2">
-                                            {request.items.map(
-                                                (
-                                                    item
-                                                ) => (
-                                                    <div
-                                                        key={
-                                                            item.ppeProductId
-                                                        }
-                                                        className="flex flex-col gap-2 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                                                    >
-                                                        <div>
-                                                            <p className="text-sm font-medium text-slate-800">
-                                                                {
-                                                                    item.productName
-                                                                }
-                                                            </p>
-
-                                                            <p className="text-xs text-slate-500">
-                                                                {
-                                                                    item.sku
-                                                                }
-                                                            </p>
-                                                        </div>
-
-                                                        <p className="text-sm font-semibold text-slate-700">
-                                                            Cantidad:{" "}
-                                                            {
-                                                                item.quantity
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                )
-                                            )}
-                                        </div>
+                                        <p className="mt-2 text-sm font-medium text-slate-700">
+                                            {request.itemCount === 1
+                                                ? "1 artículo"
+                                                : `${request.itemCount} artículos`}
+                                        </p>
                                     </div>
-
-
-                                    {request.notes && (
-                                        <div className="mt-5 border-t border-slate-100 pt-5">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                                                Observaciones
-                                            </p>
-
-                                            <p className="mt-2 text-sm text-slate-600">
-                                                {
-                                                    request.notes
-                                                }
-                                            </p>
-                                        </div>
-                                    )}
 
                                     {cancelFolio ===
                                         request.folio && (
@@ -1449,11 +1288,8 @@ const AdministrativePPERequestsPage = () => {
                                                     </h4>
 
                                                     <p className="mt-1 text-sm text-red-700">
-                                                        La solicitud dejará de estar
-                                                        pendiente y el inventario
-                                                        reservado será liberado.
+                                                        La solicitud dejará de estar pendiente y el inventario reservado será liberado.
                                                     </p>
-
 
                                                     <div className="mt-4">
                                                         <label className="block text-sm font-medium text-red-800">
@@ -1468,8 +1304,7 @@ const AdministrativePPERequestsPage = () => {
                                                                 event
                                                             ) =>
                                                                 setCancellationReason(
-                                                                    event.target
-                                                                        .value
+                                                                    event.target.value
                                                                 )
                                                             }
                                                             maxLength={500}
@@ -1484,28 +1319,20 @@ const AdministrativePPERequestsPage = () => {
 
                                                         <div className="mt-1 flex justify-between">
                                                             <p className="text-xs text-red-600">
-                                                                El motivo es
-                                                                obligatorio.
+                                                                El motivo es obligatorio.
                                                             </p>
 
                                                             <p className="text-xs text-slate-500">
-                                                                {
-                                                                    cancellationReason.length
-                                                                }
-                                                                /500
+                                                                {cancellationReason.length}/500
                                                             </p>
                                                         </div>
                                                     </div>
 
-
                                                     {cancelError && (
                                                         <div className="mt-4 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
-                                                            {
-                                                                cancelError
-                                                            }
+                                                            {cancelError}
                                                         </div>
                                                     )}
-
 
                                                     <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                                                         <button
@@ -1550,6 +1377,56 @@ const AdministrativePPERequestsPage = () => {
                         )}
                     </div>
                 )}
+
+                {pendingHasLoaded &&
+                    pendingTotalPages > 1 && (
+                        <div className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-slate-500">
+                                Página{" "}
+                                <span className="font-semibold text-slate-800">
+                                    {pendingPageNumber}
+                                </span>
+                                {" de "}
+                                <span className="font-semibold text-slate-800">
+                                    {pendingTotalPages}
+                                </span>
+                            </p>
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void loadPendingRequests(
+                                            pendingPageNumber - 1
+                                        )
+                                    }
+                                    disabled={
+                                        !pendingHasPreviousPage ||
+                                        loadingPending
+                                    }
+                                    className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Anterior
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void loadPendingRequests(
+                                            pendingPageNumber + 1
+                                        )
+                                    }
+                                    disabled={
+                                        !pendingHasNextPage ||
+                                        loadingPending
+                                    }
+                                    className="min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
             </section>
 
             {/* Solicitante */}

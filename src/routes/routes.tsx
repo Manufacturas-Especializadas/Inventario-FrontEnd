@@ -101,6 +101,12 @@ const DeliveriesPage = lazy(() =>
     }))
 );
 
+const DeliveryHistoryPage = lazy(() =>
+    import("../pages/DeliveryHistoryPage").then((module) => ({
+        default: module.DeliveryHistoryPage,
+    }))
+);
+
 const InventoryCountsPage = lazy(() =>
     import("../pages/InventoryCountsPage").then((module) => ({
         default: module.InventoryCountsPage,
@@ -254,6 +260,11 @@ export const AppRoutes = () => {
                             element={
                                 <DeliveriesPage />
                             }
+                        />
+
+                        <Route
+                            path="delivery-history"
+                            element={<DeliveryHistoryPage />}
                         />
 
                         <Route

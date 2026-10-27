@@ -15,9 +15,21 @@ import type {
     ApprovePPERequestResult,
     RejectPPERequestRequest,
     RejectPPERequestResult,
+    PendingPPERequest,
+    GetPendingPPERequestsParams,
+    DeliveryHistoryPPERequest,
+    GetDeliveryHistoryParams,
 } from "../../types/types";
 
 export const ppeRequestsService = {
+    async getDeliveryHistory(params: GetDeliveryHistoryParams): Promise<PagedResult<DeliveryHistoryPPERequest>> {
+        const response = await apiClient.get<PagedResult<DeliveryHistoryPPERequest>>(
+            "/ppe-requests/delivery-history",
+            { params }
+        );
+        return response.data;
+    },
+
     async getPendingApproval(pageNumber = 1, pageSize = 25): Promise<PagedResult<PendingApprovalPPERequest>> {
         const response = await apiClient.get<PagedResult<PendingApprovalPPERequest>>(
             "/ppe-requests/pending-approval",
@@ -82,16 +94,15 @@ export const ppeRequestsService = {
 
 
     async getPending(
-        warehouseId?: number | null
-    ): Promise<PPERequest[]> {
+        params: GetPendingPPERequestsParams = {}
+    ): Promise<PagedResult<PendingPPERequest>> {
         const response =
-            await apiClient.get<PPERequest[]>(
+            await apiClient.get<
+                PagedResult<PendingPPERequest>
+            >(
                 "/ppe-requests/pending",
                 {
-                    params:
-                        warehouseId
-                            ? { warehouseId }
-                            : undefined,
+                    params,
                 }
             );
 

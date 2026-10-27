@@ -2,7 +2,6 @@ import { apiClient } from "../client";
 
 import type {
     InventoryBalance,
-    LowStock,
 } from "../../types/types";
 
 export const inventoryService = {
@@ -23,19 +22,4 @@ export const inventoryService = {
         return response.data;
     },
 
-    async getLowStock(
-        warehouseId: number
-    ): Promise<LowStock[]> {
-        const response =
-            await apiClient.get<LowStock[]>(
-                "/inventory/low-stock",
-                {
-                    params: {
-                        warehouseId,
-                    },
-                }
-            );
-
-        return response.data;
-    },
 };

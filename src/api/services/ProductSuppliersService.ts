@@ -9,17 +9,6 @@ import type {
 } from "../../types/types";
 
 export const productSuppliersService = {
-    async getByProduct(
-        ppeProductId: number
-    ): Promise<ProductSupplier[]> {
-        const response =
-            await apiClient.get<ProductSupplier[]>(
-                `/product-suppliers/${ppeProductId}`
-            );
-
-        return response.data;
-    },
-
     async getBySupplier(
         supplierId: number
     ): Promise<ProductSupplier[]> {

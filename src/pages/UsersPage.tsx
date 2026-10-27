@@ -21,6 +21,7 @@ import type {
     UserRole,
 } from "../types/types";
 import { getRoleLabel } from "../utils/roleLabels";
+import { UserManagedOrganizationalUnitsModal } from "../components/users/UserManagedOrganizationalUnitsModal";
 
 
 type StatusFilter =
@@ -66,6 +67,7 @@ const formatDate = (
 
 
 export const UsersPage = () => {
+    const [managedUnitsUser, setManagedUnitsUser] = useState<AdminUser | null>(null);
     const {
         user:
         authenticatedUser,
@@ -904,6 +906,11 @@ export const UsersPage = () => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
+            {managedUnitsUser && <UserManagedOrganizationalUnitsModal key={managedUnitsUser.id} user={managedUnitsUser}
+                onClose={() => setManagedUnitsUser(null)} onSaved={() => {
+                    setSuccessMessage(`Unidades administradas de "${managedUnitsUser.username}" actualizadas correctamente.`);
+                    setManagedUnitsUser(null);
+                }} />}
             {/* Header */}
 
             <div className="relative isolate flex flex-col gap-6 overflow-hidden rounded-3xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-sky-100 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
@@ -1826,6 +1833,13 @@ export const UsersPage = () => {
 
                                                     <td className="px-6 py-4">
                                                         <div className="ml-auto grid w-52 grid-cols-2 gap-2">
+                                                            {authenticatedUser?.roles.includes("Administrator") && user.roles.includes("Production") && (
+                                                                <button type="button" disabled={mutationBusy} aria-controls="user-managed-units"
+                                                                    onClick={() => setManagedUnitsUser(user)}
+                                                                    className="col-span-2 min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-sky-50 disabled:opacity-40">
+                                                                    Líneas / áreas
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 disabled={mutationBusy}
                                                                 type="button"
