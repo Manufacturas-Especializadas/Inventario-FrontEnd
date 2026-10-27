@@ -1125,3 +1125,8 @@ export interface UpdateProductColorRequest {
 export interface SetProductColorStatusRequest {
     isActive: boolean;
 }
+
+export interface DashboardSummary {
+    pendingDeliveries: number | null;
+    pendingApprovals: number | null;
+}
