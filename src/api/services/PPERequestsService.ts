@@ -17,9 +17,19 @@ import type {
     RejectPPERequestResult,
     PendingPPERequest,
     GetPendingPPERequestsParams,
+    DeliveryHistoryPPERequest,
+    GetDeliveryHistoryParams,
 } from "../../types/types";
 
 export const ppeRequestsService = {
+    async getDeliveryHistory(params: GetDeliveryHistoryParams): Promise<PagedResult<DeliveryHistoryPPERequest>> {
+        const response = await apiClient.get<PagedResult<DeliveryHistoryPPERequest>>(
+            "/ppe-requests/delivery-history",
+            { params }
+        );
+        return response.data;
+    },
+
     async getPendingApproval(pageNumber = 1, pageSize = 25): Promise<PagedResult<PendingApprovalPPERequest>> {
         const response = await apiClient.get<PagedResult<PendingApprovalPPERequest>>(
             "/ppe-requests/pending-approval",

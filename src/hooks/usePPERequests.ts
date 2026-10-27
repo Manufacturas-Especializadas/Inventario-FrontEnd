@@ -36,11 +36,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
         promise: Promise<PendingPPERequest[]>;
     } | null>(null);
 
-    const pendingFilters =
-        useRef<GetPendingPPERequestsParams>({});
-
-    const pendingLoaded = useRef(false);
-
     const pendingMutations =
         useRef(
             new Map<
@@ -81,13 +76,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
         pendingHasNextPage,
         setPendingHasNextPage,
     ] = useState(false);
-
-    const [
-        request,
-        setRequest,
-    ] = useState<PPERequest | null>(
-        null
-    );
 
     const [
         pendingRequests,
@@ -215,8 +203,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
         pendingRequestId.current += 1;
         pendingLoad.current = null;
         pendingMutations.current.clear();
-        pendingFilters.current = {};
-        pendingLoaded.current = false;
 
         setPendingHasLoaded(false);
         setPendingRequests([]);
@@ -273,9 +259,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                 return pendingLoad.current
                     .promise;
             }
-
-            pendingFilters.current =
-                normalizedParams;
 
             const currentRequestId =
                 ++pendingRequestId.current;
@@ -367,9 +350,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                         data.hasNextPage
                     );
 
-                    pendingLoaded.current =
-                        true;
-
                     setPendingHasLoaded(
                         true
                     );
@@ -441,12 +421,8 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                                 folio
                             );
 
-                    setRequest(data);
-
                     return data;
                 } catch (error) {
-                    setRequest(null);
-
                     setError(
                         getApiErrorMessage(
                             error,
@@ -481,10 +457,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
                             );
 
                     setCreateResult(data);
-
-                    setRequest(
-                        data.request
-                    );
 
                     return data;
                 } catch (error) {
@@ -571,8 +543,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
     const clearRequest =
         useCallback(() => {
-            setRequest(null);
-
             setCreateResult(null);
 
             setError(null);
@@ -750,8 +720,6 @@ export const usePPERequests = ({ autoLoadPending = true }: UsePPERequestsOptions
 
 
     return {
-        request,
-
         pendingRequests,
         pendingHasLoaded,
 

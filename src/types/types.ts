@@ -316,11 +316,6 @@ export interface BulkAssignWarehouseProductsResult {
     totalProcessed: number;
 }
 
-export interface CreateWarehouseProductRequest {
-    warehouseId: number;
-    ppeProductId: number;
-}
-
 export interface SetWarehouseProductStatusRequest {
     isActive: boolean;
 }
@@ -472,24 +467,6 @@ export interface InventoryBalance {
     isLowStock: boolean;
 }
 
-export interface LowStock {
-    warehouseId: number;
-    warehouseCode: string;
-    warehouseName: string;
-
-    ppeProductId: number;
-    sku: string;
-    productName: string;
-    categoryName: string;
-
-    onHandQuantity: number;
-    reservedQuantity: number;
-    availableQuantity: number;
-
-    minimumStock: number;
-    shortageQuantity: number;
-}
-
 // EMPLEADOS
 
 export interface Employee {
@@ -587,7 +564,14 @@ export interface PPERequestWarehouse {
     name: string;
 }
 
+export interface ManagedOrganizationalUnit {
+    id: number;
+    name: string;
+    isActive: boolean;
+}
+
 export interface PPERequestFormOptions {
+    managedOrganizationalUnits: ManagedOrganizationalUnit[];
     warehouses: PPERequestWarehouse[];
     requestReasons: {
         id: number;
@@ -649,6 +633,8 @@ export interface PPERequest {
     approvedByUserName: string | null;
     approvedAt: string | null;
     deliveredAt: string | null;
+    deliveredByUserId: number | null;
+    deliveredByUserName: string | null;
     cancelledAt: string | null;
     cancellationReason: string | null;
 
@@ -687,6 +673,38 @@ export interface GetPendingPPERequestsParams {
     requestedForOrganizationalUnitId?: number | null;
     dateFrom?: string | null;
     dateTo?: string | null;
+    pageNumber?: number;
+    pageSize?: number;
+}
+
+export interface DeliveryHistoryPPERequest {
+    id: number;
+    folio: string;
+    createdAt: string;
+    deliveredAt: string;
+    employeeId: number;
+    employeeNumber: string;
+    employeeName: string;
+    requestedForOrganizationalUnitId: number | null;
+    requestedForOrganizationalUnitName: string | null;
+    warehouseId: number;
+    warehouseName: string;
+    requestReasonId: number;
+    requestReason: string;
+    requestReasonCode: string;
+    itemCount: number;
+    status: PPERequestStatus;
+    deliveredByUserId: number | null;
+    deliveredByUserName: string | null;
+}
+
+export interface GetDeliveryHistoryParams {
+    deliveredFrom: string;
+    deliveredTo: string;
+    employeeNumber?: string;
+    search?: string;
+    warehouseId?: number;
+    requestedForOrganizationalUnitId?: number;
     pageNumber?: number;
     pageSize?: number;
 }

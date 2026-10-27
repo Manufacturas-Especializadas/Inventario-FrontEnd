@@ -32,6 +32,7 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
     } = usePPERequestFormOptions();
     const { createRequest, createResult, loading, error, clearRequest } = usePPERequests({ autoLoadPending: false });
     const [showForm, setShowForm] = useState(false);
+    const [consumptionUnitId, setConsumptionUnitId] = useState("");
     const [requestReasonId, setRequestReasonId] = useState("");
     const [notes, setNotes] = useState("");
     const [items, setItems] = useState<FormItem[]>([createEmptyItem()]);
@@ -45,11 +46,20 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
     const selectedReason = options?.requestReasons.find((reason) => reason.id === Number(requestReasonId));
     const notesRequired = Boolean(selectedReason && ["DAMAGE", "LOST", "OTHER"].includes(selectedReason.code));
     const productsReady = loadedWarehouseId !== null && loadedWarehouseId === Number(warehouseId) && !loadingProducts;
-    const canSubmit = Boolean(options?.warehouses.length && selectedReason && productsReady && products.length && !loading);
-
+    const managedUnits = options?.managedOrganizationalUnits ?? [];
+    const canSubmit = Boolean(managedUnits.some((unit) => unit.id === Number(consumptionUnitId)) &&
+        options?.warehouses.length && selectedReason && productsReady && products.length && !loading && !loadingOptions);
     const openCreateForm = async () => {
         setShowForm(true);
         const data = await loadOptions();
+        if (data) {
+            const units = data.managedOrganizationalUnits;
+            setConsumptionUnitId((current) => {
+                if (units.some((unit) => unit.id === Number(current))) return current;
+                if (units.some((unit) => unit.id === user.organizationalUnitId)) return String(user.organizationalUnitId);
+                return units.length === 1 ? String(units[0].id) : "";
+            });
+        }
         if (data?.warehouses.length === 1) {
             void selectWarehouse(String(data.warehouses[0].id));
         }
@@ -119,6 +129,8 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
         submitting.current = true;
         try {
             const result = await createRequest({
+                employeeNumber: user.employeeNumber,
+                requestedForOrganizationalUnitId: Number(consumptionUnitId),
                 warehouseId: Number(warehouseId),
                 requestReasonId: Number(requestReasonId),
                 notes: notes.trim() || null,
@@ -128,6 +140,7 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
 
             // The POST contains the result. Fetch fresh stock only when opening another request.
             setShowForm(false);
+            setConsumptionUnitId("");
             setRequestReasonId("");
             setNotes("");
             setItems([createEmptyItem()]);
@@ -141,7 +154,7 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
 
     return (
         <div className="mx-auto max-w-7xl space-y-6">
-            <PageHeader eyebrow="MESA · Solicitante EPP" title="Solicitar EPP" description="Solicita el equipo de protección personal para tu unidad organizacional." />
+            <PageHeader eyebrow="MESA · Solicitante EPP" title="Solicitar EPP" description="Solicita equipo de protección personal con cargo a las líneas o áreas que administras." />
             <button type="button" aria-expanded={showForm} aria-controls="new-request-form" disabled={loading}
                 onClick={() => { if (showForm) setShowForm(false); else void openCreateForm(); }}
                 className="min-h-11 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:opacity-50">
@@ -162,11 +175,11 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
             {showForm && (
                 <form id="new-request-form" ref={formRef} tabIndex={-1} onSubmit={(event) => void handleSubmit(event)} aria-busy={loadingOptions || loadingProducts || loading} className="space-y-6 rounded-2xl focus-visible:outline-sky-600">
                     <section className="rounded-2xl border border-sky-200 bg-white p-6 sm:p-8">
-                        <h2 className="text-lg font-semibold text-slate-900">Solicitante</h2>
+                        <h2 className="text-lg font-semibold text-slate-900">Empleado</h2>
                         <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
                             <div><dt className="text-slate-500">Nombre</dt><dd className="mt-1 font-medium text-slate-900">{user.name}</dd></div>
                             <div><dt className="text-slate-500">Número de nómina</dt><dd className="mt-1 font-medium text-slate-900">{user.employeeNumber}</dd></div>
-                            <div><dt className="text-slate-500">Unidad organizacional</dt><dd className="mt-1 font-medium text-slate-900">{user.organizationalUnitName ?? "Sin unidad asignada"}</dd></div>
+                            <div><dt className="text-slate-500">Unidad principal del solicitante</dt><dd className="mt-1 font-medium text-slate-900">{user.organizationalUnitName ?? "Sin unidad asignada"}</dd></div>
                         </dl>
                     </section>
 
@@ -180,6 +193,20 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
                     {options && (
                         <fieldset disabled={loading} className="min-w-0 space-y-6">
                             <legend className="sr-only">Datos de la solicitud</legend>
+                            <section className="space-y-4 rounded-2xl border border-sky-200 bg-white p-6 sm:p-8">
+                                {managedUnits.length === 0 ? <p role="status" className="text-sm text-amber-800">No tienes líneas o áreas habilitadas para solicitar EPP. Contacta al administrador.</p> : <>
+                                    <div>
+                                        {managedUnits.length === 1 ? <div className="text-sm"><p className="font-medium text-slate-700">Línea / área de consumo</p><p className="mt-2 text-slate-900">{managedUnits[0].name}</p></div> : <>
+                                            <label htmlFor="production-consumption-unit" className="text-sm font-medium text-slate-700">Línea / área de consumo</label>
+                                            <select id="production-consumption-unit" required value={consumptionUnitId}
+                                                onChange={(event) => setConsumptionUnitId(event.target.value)} className={inputClassName}>
+                                                <option value="">Selecciona una línea o área</option>
+                                                {managedUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                                            </select>
+                                        </>}
+                                    </div>
+                                </>}
+                            </section>
                             <section className="grid gap-5 rounded-2xl border border-sky-200 bg-white p-6 sm:grid-cols-2 sm:p-8">
                                 <div className="min-w-0">
                                     {options.warehouses.length === 0 ? (

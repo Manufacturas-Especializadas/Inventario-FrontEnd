@@ -140,6 +140,13 @@ export const navigationItems: NavigationItem[] = [
     },
 
     {
+        label: "Historial de entregas",
+        path: "/delivery-history",
+        group: "requests",
+        roles: ["Administrator", "Warehouse"],
+    },
+
+    {
         label: "Inventario",
         path: "/inventory",
         group: "inventory",

@@ -1,7 +1,6 @@
 import { apiClient } from "../client";
 
 import type {
-    CreateWarehouseProductRequest,
     SetWarehouseProductStatusRequest,
     WarehouseProduct,
     BulkAssignWarehouseProductsRequest,
@@ -21,18 +20,6 @@ export const warehouseProductsService = {
         return response.data;
     },
 
-
-    async create(
-        request: CreateWarehouseProductRequest
-    ): Promise<WarehouseProduct> {
-        const response =
-            await apiClient.post<WarehouseProduct>(
-                "/warehouse-products",
-                request
-            );
-
-        return response.data;
-    },
 
     async bulkAssign(
         request: BulkAssignWarehouseProductsRequest
