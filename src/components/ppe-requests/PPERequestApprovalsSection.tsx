@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { usePPERequestApprovals } from "../../hooks/usePPERequestApprovals";
 import { getRequestStatusConfig } from "../../utils/ppeRequestStatus";
 import { getRequestReasonLabel } from "../../utils/requestReasonLabels";
@@ -10,7 +10,15 @@ const formatDateTime = (value: string) => new Intl.DateTimeFormat("es-MX", {
 const buttonClassName = "min-h-11 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 transition-colors enabled:hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryClassName = "min-h-11 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors enabled:hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50";
 
-export const PPERequestApprovalsSection = () => {
+interface PPERequestApprovalsSectionProps {
+    autoLoad?: boolean;
+    onLoaded?: () => void;
+}
+
+export const PPERequestApprovalsSection = ({
+    autoLoad = false,
+    onLoaded,
+}: PPERequestApprovalsSectionProps) => {
     const {
         pendingApprovalRequests, loaded, loading, error, needsPageLoad,
         pageNumber, totalCount, totalPages, hasPreviousPage, hasNextPage,
@@ -21,6 +29,29 @@ export const PPERequestApprovalsSection = () => {
     const [rejectionReason, setRejectionReason] = useState("");
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const mutating = approvingFolio !== null || rejectingFolio !== null;
+    const autoLoadStarted = useRef(false);
+    const autoLoadObserved = useRef(false);
+    const loadNotified = useRef(false);
+
+    useEffect(() => {
+        if (!autoLoad) {
+            autoLoadStarted.current = false;
+            autoLoadObserved.current = false;
+            loadNotified.current = false;
+            return;
+        }
+        if (autoLoadStarted.current) return;
+        autoLoadStarted.current = true;
+        void getPendingApproval(1);
+    }, [autoLoad, getPendingApproval]);
+
+    useEffect(() => {
+        if (!autoLoad || !autoLoadStarted.current) return;
+        if (loading) autoLoadObserved.current = true;
+        if (!autoLoadObserved.current || loading || !loaded || error || loadNotified.current) return;
+        loadNotified.current = true;
+        onLoaded?.();
+    }, [autoLoad, loaded, loading, error, onLoaded]);
 
     const openAction = (folio: string, kind: "approve" | "reject") => {
         if (mutating) return;
@@ -60,7 +91,9 @@ export const PPERequestApprovalsSection = () => {
     };
 
     return (
-        <section aria-labelledby="ppe-approvals-title" aria-busy={loading || mutating} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
+        <section
+            id="approvals"
+            aria-labelledby="ppe-approvals-title" aria-busy={loading || mutating} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px_-12px_rgba(12,74,110,0.15)] sm:p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h2 id="ppe-approvals-title" className="text-lg font-semibold tracking-tight text-slate-900">Solicitudes especiales por autorizar</h2>
