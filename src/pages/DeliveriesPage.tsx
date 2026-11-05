@@ -1,4 +1,6 @@
 import {
+    useCallback,
+    useEffect,
     useRef,
     useState,
     type FormEvent,
@@ -38,6 +40,8 @@ import { useAuth } from "../hooks/useAuth";
 
 import { getRequestReasonLabel } from "../utils/requestReasonLabels";
 
+import { useSearchParams } from "react-router";
+
 const formatDateTime = (
 
     value: string
@@ -66,6 +70,41 @@ const formatDateTime = (
 
 export const DeliveriesPage = () => {
     const { user, hasRole } = useAuth();
+    const [searchParams] = useSearchParams();
+    const requestedSection = searchParams.get("section");
+    const isAdministrator = hasRole("Administrator");
+    const shouldOpenApprovals = requestedSection === "approvals" && isAdministrator;
+    const shouldOpenPending = requestedSection === "pending" &&
+        (isAdministrator || hasRole("Warehouse"));
+    const pendingSectionRef = useRef<HTMLElement>(null);
+    const pendingAutoLoadStarted = useRef(false);
+    const pendingAutoLoadObserved = useRef(false);
+    const pendingScrolled = useRef(false);
+    const approvalsSectionRef = useRef<HTMLDivElement>(null);
+    const approvalsScrollFrame = useRef<number | null>(null);
+    const approvalsScrolled = useRef(false);
+
+    const handleApprovalsLoaded = useCallback(() => {
+        if (!shouldOpenApprovals || approvalsScrolled.current || approvalsScrollFrame.current !== null) return;
+        approvalsScrollFrame.current = window.requestAnimationFrame(() => {
+            approvalsScrollFrame.current = null;
+            approvalsScrolled.current = true;
+            approvalsSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        });
+    }, [shouldOpenApprovals]);
+
+    useEffect(() => {
+        return () => {
+            if (approvalsScrollFrame.current !== null) {
+                window.cancelAnimationFrame(approvalsScrollFrame.current);
+                approvalsScrollFrame.current = null;
+            }
+            approvalsScrolled.current = false;
+        };
+    }, [shouldOpenApprovals, user?.userId]);
 
     const {
 
@@ -616,6 +655,44 @@ export const DeliveriesPage = () => {
 
         };
 
+    useEffect(() => {
+        if (!shouldOpenPending) {
+            pendingAutoLoadStarted.current = false;
+            pendingAutoLoadObserved.current = false;
+            pendingScrolled.current = false;
+            return;
+        }
+        if (pendingAutoLoadStarted.current || !canQuery || invalidDateRange) return;
+        pendingAutoLoadStarted.current = true;
+        void getPending({
+            warehouseId: scope === "all" ? null : Number(selectedWarehouseId),
+            search: pendingSearch.trim() || null,
+            requestedForOrganizationalUnitId: destinationUnitFilter ? Number(destinationUnitFilter) : null,
+            dateFrom: createdFrom || null,
+            dateTo: createdTo || null,
+            pageNumber: 1,
+            pageSize: pendingPageSize,
+        });
+    }, [shouldOpenPending, canQuery, invalidDateRange, getPending, scope,
+        selectedWarehouseId, pendingSearch, destinationUnitFilter, createdFrom,
+        createdTo, pendingPageSize]);
+
+    useEffect(() => {
+        if (!shouldOpenPending || !pendingAutoLoadStarted.current) return;
+        if (loadingPending) pendingAutoLoadObserved.current = true;
+        if (!pendingAutoLoadObserved.current || loadingPending || !pendingHasLoaded ||
+            pendingError || pendingScrolled.current) return;
+
+        const frame = window.requestAnimationFrame(() => {
+            pendingScrolled.current = true;
+            pendingSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [shouldOpenPending, loadingPending, pendingHasLoaded, pendingError]);
+
     return (
 
         <div className="mx-auto max-w-7xl space-y-6">
@@ -630,7 +707,15 @@ export const DeliveriesPage = () => {
 
             />
 
-            {hasRole("Administrator") && <PPERequestApprovalsSection key={user?.userId} />}
+            {isAdministrator && (
+                <div ref={approvalsSectionRef} className="scroll-mt-6">
+                    <PPERequestApprovalsSection
+                        key={user?.userId}
+                        autoLoad={shouldOpenApprovals}
+                        onLoaded={handleApprovalsLoaded}
+                    />
+                </div>
+            )}
 
             {/* Filtro */}
 
@@ -1052,7 +1137,7 @@ export const DeliveriesPage = () => {
 
             {/* Solicitudes */}
 
-            <section aria-label="Solicitudes por entregar" aria-busy={loadingPending} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px\_-12px_rgba(12,74,110,0.15)] sm:p-8">
+            <section ref={pendingSectionRef} aria-label="Solicitudes por entregar" aria-busy={loadingPending} className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_4px_24px\_-12px_rgba(12,74,110,0.15)] sm:p-8">
 
                 <div className="flex items-start gap-3">
 

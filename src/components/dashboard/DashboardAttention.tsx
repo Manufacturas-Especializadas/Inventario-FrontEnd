@@ -9,14 +9,14 @@ export const DashboardAttention = ({ isAdministrator }: { isAdministrator: boole
             title: "Solicitudes por autorizar",
             description: "Solicitudes excepcionales que necesitan revisión.",
             count: summary?.pendingApprovals,
-            path: "/deliveries",
+            path: "/deliveries?section=approvals",
             icon: "M9 12l2 2 4-4M9 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-3M9 2h6v4H9z",
         }] : []),
         {
             title: "Entregas pendientes",
             description: "Solicitudes listas para entrega en Almacén.",
             count: summary?.pendingDeliveries,
-            path: "/deliveries",
+            path: "/deliveries?section=pending",
             icon: "M3 7l9-4 9 4v10l-9 4-9-4V7zm0 0l9 4 9-4M12 11v10M7 5l10 4",
         },
     ];

@@ -321,7 +321,7 @@ export const ProductionPPERequestForm = ({ user }: { user: AuthUser }) => {
                                                         <option value="">Selecciona un producto</option>
                                                         {products.map((entry) => <option key={entry.ppeProductId} value={entry.ppeProductId} disabled={entry.availableQuantity <= 0}>{productLabel(entry)}</option>)}
                                                     </select>
-                                                    {product && <p className="mt-2 break-words text-sm text-slate-600">{productLabel(product)}</p>}
+                                                    {product && <p className="mt-2 wrap-break-word text-sm text-slate-600">{productLabel(product)}</p>}
                                                 </div>
                                                 <div>
                                                     <label htmlFor={`quantity-${item.key}`} className="text-sm font-medium text-slate-700">Cantidad a solicitar</label>
